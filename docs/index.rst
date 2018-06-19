@@ -1,17 +1,29 @@
-Documentation
-=============
+.. _scintillometry_docs:
 
-This is the documentation for Scintillometry.
-Scintillometry is a package for reduction and analysis of radio baseband data,
-optimized for pulsar scintillometry science.  It relies on Baseband to read raw
-data, and numpy and astropy terform analysis.
+**************
+Scintillometry
+**************
+
+Welcome to the Scintillometry documentation!  Scintillometry is a package for
+reduction and analysis of radio baseband data, optimized for pulsar
+scintillometry science.
+
+.. _overview_toc:
+
+Overview
+========
 
 .. toctree::
-  :maxdepth: 2
+   :maxdepth: 2
 
-  scintillometry/index.rst
+   install
 
-.. note:: The layout of this directory is simply a suggestion.  To follow
-          traditional practice, do *not* edit this page, but instead place
-          all documentation for the package inside ``scintillometry/``.
-          You can follow this practice or choose your own layout.
+.. _project_details_toc:
+
+Project details
+===============
+
+.. toctree::
+   :maxdepth: 1
+
+   authors_for_sphinx

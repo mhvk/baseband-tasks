@@ -1,4 +1,5 @@
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# Licensed under the GPLv3 - see LICENSE
+"""Radio baseband data reduction."""
 
 # Packages may add whatever they like to this file, but
 # should keep this content at the top.
@@ -12,11 +13,16 @@ import sys
 
 __minimum_python_version__ = "3.5"
 
+
 class UnsupportedPythonError(Exception):
     pass
 
-if sys.version_info < tuple((int(val) for val in __minimum_python_version__.split('.'))):
-    raise UnsupportedPythonError("scintillometry does not support Python < {}".format(__minimum_python_version__))
+
+if (sys.version_info < tuple(
+        (int(val) for val in __minimum_python_version__.split('.')))):
+    raise UnsupportedPythonError(
+        "Scintillometry does not support "
+        "Python < {}".format(__minimum_python_version__))
 
 if not _ASTROPY_SETUP_:
     # For egg_info test builds to pass, put package imports here.
