@@ -1,0 +1,9 @@
+name: scintillometry
+
+channels:
+    - astropy
+
+dependencies:
+    - astropy
+    - baseband
+    - numpy
