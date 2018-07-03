@@ -3,41 +3,40 @@ import numpy as np
 import astropy.units as u
 
 
-class DispersionMeasure(u.Quantity):
-    """Dispersion measure quantity, with methods to calculate time and phase
-    delays, and phase factor.
+class DispersionMeasure(u.SpecificTypeQuantity):
+    """Dispersion measure quantity.
+
+    Quantity for electron column density, normally with units of pc / cm**3,
+    with additional methods to help correct for dispersion delays:
+    `time_delay`, `phase_delay`, and `phase_factor`.
 
     Parameters
     ----------
     dm : `~astropy.units.Quantity` or float
-        Dispersion measure.  If a `~astropy.units.Quantity` is passed, it must
-        have units equivalent to pc/cm^3.  If passed a `float`, units may be
-        passed to ``unit``, or will otherwise be assumed to be pc/cm^3.
+        Dispersion measure value.  If a `~astropy.units.Quantity` is passed, it
+        must have units equivalent to pc/cm**3.  If a float is passed, units
+        may be passed to ``unit``, or will otherwise be assumed to be pc/cm**3.
     unit : `~astropy.units.UnitBase` or None
         Units of ``dm``.  If `None` (default), will be set either to the units
-        of ``dm`` if ``dm`` is an `~astropy.units.Quantity`, or pc/cm^3
+        of ``dm`` if ``dm`` is an `~astropy.units.Quantity`, or pc/cm**3
         otherwise.  If ``dm`` is a `~astropy.units.Quantity` and ``unit`` is
         also passed, will try to convert ``dm`` to ``unit``.
+    *args, **kwargs
+        As for `~astropy.units.Quantity`.
+
+    Notes
+    -----
+    The constant relating dispersion measure to delay is hardcoded to match
+    that of Tempo.  See `Taylor, Manchester, & Lyne (1993)
+    <http://adsabs.harvard.edu/abs/1993ApJS...88..529T>`_.  It is accessible as
+    the `dispersion_delay_constant` attribute.
     """
-    # Eqn. 4.6 of Lorimer & Kramer.
-    dispersion_delay_constant = 4148.808 * u.s * u.MHz**2 * u.cm**3 / u.pc
-    _default_unit = u.pc / u.cm**3
 
-    def __new__(cls, dm, unit=None, **kwargs):
-        if unit is None:
-            unit = getattr(dm, 'unit', cls._default_unit)
-        self = super(DispersionMeasure, cls).__new__(cls, dm, unit, **kwargs)
-        if not self.unit.is_equivalent(cls._default_unit):
-            raise u.UnitsError("dispersion measures should have units "
-                               "equivalent to pc/cm^3")
-        return self
+    # Constant hardcoded to match assumption made by tempo.
+    dispersion_delay_constant = u.s / 2.41e-4 * u.MHz**2 * u.cm**3 / u.pc
+    """Dispersion delay constant, hardcoded to match that for Tempo."""
 
-    def __quantity_subclass__(self, unit):
-        if unit.is_equivalent(self._default_unit):
-            return DispersionMeasure, True
-        else:
-            return super(DispersionMeasure,
-                         self).__quantity_subclass__(unit)[0], False
+    _equivalent_unit = _default_unit = u.pc / u.cm**3
 
     def time_delay(self, freq, ref_freq=None):
         r"""Time delay due to dispersion.
@@ -62,11 +61,12 @@ class DispersionMeasure(u.Quantity):
             \Delta t = \frac{e^2}{2\pi m_ec} \mathrm{DM}\left(\frac{1}
                          {f_\mathrm{ref}^2} - \frac{1}{f^2}\right)
 
-        where the dispersion constant is (Eqn. 4.6):
+        where the dispersion delay constant is taken to be exactly (inverse of
+        Eqn. 6 of Taylor, Manchester, & Lyne 1993):
 
         .. math::
 
-            \frac{e^2}{2\pi m_ec} = (4.148808 \pm 0.000003) \times 10^3\,
+            \frac{e^2}{2\pi m_ec} = \frac{1}{2.410} \times 10^4\,
                                     \mathrm{MHz}^2\,\mathrm{pc}^{-1}
                                     \,\mathrm{cm}^3\,\mathrm{s}.
         """
