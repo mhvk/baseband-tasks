@@ -18,6 +18,19 @@ Overview
 
    install
 
+.. _modules_toc:
+
+Modules
+=======
+
+Scintillometry is divided into modules, each of which can be used standalone
+given correct inputs.
+
+.. toctree::
+   :maxdepth: 2
+
+   dispersion/index
+
 .. _project_details_toc:
 
 Project details
