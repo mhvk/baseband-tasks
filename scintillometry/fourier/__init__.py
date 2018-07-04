@@ -1,10 +1,19 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Fourier transform linkage module."""
+"""Fourier transform module."""
 
-from .base import FFTBase, NumpyFFT
+from .base import NumpyFFTMaker
 
-# If pyfftw is available, import PyfftwFFT.
+FFT_MAKER_CLASSES = (NumpyFFTMaker,)
+
+# If pyfftw is available, import PyfftwFFTMaker.
 try:
-    from .pyfftw import PyfftwFFT
+    from .pyfftw import PyfftwFFTMaker
 except ImportError:
     pass
+else:
+    FFT_MAKER_CLASSES += (PyfftwFFTMaker,)
+
+FFT_MAKER_CLASSES = {fftclass._engine_name: fftclass
+                     for fftclass in FFT_MAKER_CLASSES}
+
+from .get_fft import get_fft
