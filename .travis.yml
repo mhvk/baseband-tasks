@@ -61,7 +61,7 @@ before_install:
     # - export DISPLAY=:99.0
     # - sh -e /etc/init.d/xvfb start
     - sudo apt-get update
-    - sudo apt-get install libfftw3-dev libfftw3-doc libfftw3-double3 libfftw3-long3 libfftw3-single3
+    - sudo apt-get install libfftw3-dev libfftw3-doc libfftw3-double3 libfftw3-single3
 
 install:
 
