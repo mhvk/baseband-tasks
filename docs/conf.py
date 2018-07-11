@@ -72,6 +72,12 @@ exclude_patterns.append('_templates')
 rst_epilog += """
 """
 
+# -- Intersphinx linkage ------------------------------------------------------
+
+intersphinx_mapping.update(
+    {'pyfftw': ('https://pyfftw.readthedocs.io/en/latest/', None),
+     'baseband': ('https://baseband.readthedocs.io/en/latest/', None)})
+
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does

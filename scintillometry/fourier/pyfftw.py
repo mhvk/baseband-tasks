@@ -1,95 +1,155 @@
 # Licensed under the GPLv3 - see LICENSE
 
-import pyfftw
-from .base import FFTMakerBase, FFT
+import operator
+from .base import FFTMakerBase, FFTBase
 
+__all__ = ['PyfftwFFTMaker']
 
-class PyfftwFFTMaker(FFTMakerBase):
-    """FFT factory class utilizing the `pyfftw` package.
+# Only instantiate the class if FFTW exists.
+try:
+    import pyfftw
+except ImportError:
+    pass
+else:
 
-    Analagous to `~numpy.fft.rfft`, FFTs of real-valued time-domain data
-    perform a real-input transform on one dimension of the input, halving that
-    dimension's length in the output.
+    class PyfftwFFTMaker(FFTMakerBase):
+        """FFT factory class utilizing the `pyfftw` package.
 
-    Currently does not support Hermitian FFTs.
+        Analagous to `~numpy.fft.rfft`, FFTs of real-valued time-domain data
+        perform a real-input transform on one dimension of the input, halving
+        that dimension's length in the output.
 
-    Parameters
-    ----------
-    n_simd : int or None, optional
-        Single Instruction Multiple Data (SIMD) alignment in bytes.  If `None`,
-        uses `pyfftw.simd_alignment`, which is found by inspecting the CPU.
-    **kwargs
-        Optional keywords to `pyfftw.FFTW` class, including planning flags, the
-        number of threads to be used, and the planning time limit.
-    """
+        Currently does not support Hermitian FFTs.
 
-    _engine_name = 'pyfftw'
+        Parameters
+        ----------
+        n_simd : int or None, optional
+          Single Instruction Multiple Data (SIMD) alignment in bytes.  If
+          `None`, uses `pyfftw.simd_alignment`, which is found by inspecting
+          the CPU.
+        **kwargs
+          Optional keywords to `pyfftw.FFTW` class, including planning flags,
+          the number of threads to be used, and the planning time limit.
+        """
 
-    def __init__(self, n_simd=None, **kwargs):
-        # Set n-byte boundary.
-        if n_simd is None:
-            n_simd = pyfftw.simd_alignment
-        self._n_simd = n_simd
+        def __init__(self, n_simd=None, **kwargs):
+            # Set n-byte boundary.
+            if n_simd is None:
+                n_simd = pyfftw.simd_alignment
+            self._n_simd = n_simd
 
-        if 'flags' in kwargs and 'FFTW_DESTROY_INPUT' in kwargs['flags']:
-            raise ValueError('Fourier module does not support destroying '
-                             'input arrays.')
+            if 'flags' in kwargs and 'FFTW_DESTROY_INPUT' in kwargs['flags']:
+                raise ValueError('Fourier module does not support destroying '
+                                 'input arrays.')
 
-        self._kwargs = kwargs
+            self._fftw_kwargs = kwargs
 
-        super().__init__()
+            super().__init__()
 
-    def _setup_transform(self, data_format, direction, axis, norm,
-                         sample_rate):
+        def __call__(self, time_data=None, freq_data=None, axis=0,
+                     ortho=False, sample_rate=None):
+            """Set up FFT.
 
-        # Create dummy byte-aligned arrays.  These will be stored as
-        # fft_engine.input_array, fft_engine.output_array, etc., but we'll be
-        # replacing the input and output arrays each time we use a transform.
-        a = pyfftw.empty_aligned(data_format['time_shape'],
-                                 dtype=data_format['time_dtype'],
-                                 n=self._n_simd)
-        A = pyfftw.empty_aligned(data_format['freq_shape'],
-                                 dtype=data_format['freq_dtype'],
-                                 n=self._n_simd)
+            Parameters
+            ----------
+            time_data : `~numpy.ndarray` or dict
+                Dummy array with dimensions and dtype of time-domain data.  Can
+                alternatively give a dict with 'shape' and 'dtype' entries.
+            freq_dtype : str
+                dtype of frequency-domain data.
+            axis : int, optional
+                Axis to transform.  Default: 0.
+            ortho : bool, optional
+                Whether to use orthogonal normalization.  Default: `False`.
+            sample_rate : float or `~astropy.units.Quantity`
+                Sample rate.
+            """
+            # Set direction, axis and normalization.  If axis is None, set it
+            # to 0.
+            axis = operator.index(axis)
+            ortho = bool(ortho)
 
-        # Set up normalization keywords.
-        if norm == 'ortho':
-            normalise_idft = False
-            ortho = True
-        else:
-            normalise_idft = True
-            ortho = False
+            # Store time and frequency-domain array shapes.
+            data_format = self.get_data_format(time_data=time_data,
+                                               freq_data=freq_data, axis=axis)
 
-        # Create either forward or inverse transform function.
-        if direction == 'forward':
-            fft_engine = pyfftw.FFTW(a, A, axes=(axis,),
-                                     direction='FFTW_FORWARD', **self._kwargs)
+            PyfftwFFT = self._setup_fft_class(data_format, axis, ortho,
+                                              sample_rate)
 
-            def fft(a):
+            return PyfftwFFT
+
+        def _setup_fft_class(self, data_format, axis, ortho, sample_rate):
+            # Set up normalization keywords.
+            if ortho:
+                _normalise_idft = False
+            else:
+                _normalise_idft = True
+
+            def _forward_fft(self, a):
                 # Make an empty array to store transform output.
-                A = pyfftw.empty_aligned(data_format['freq_shape'],
-                                         dtype=data_format['freq_dtype'],
+                A = pyfftw.empty_aligned(self.data_format['freq_shape'],
+                                         dtype=self.data_format['freq_dtype'],
                                          n=self._n_simd)
                 # A is returned by self._fft.
-                return fft_engine(input_array=a, output_array=A,
-                                  normalise_idft=normalise_idft,
-                                  ortho=ortho)
-
-        else:
-            fft_engine = pyfftw.FFTW(A, a, axes=(axis,),
-                                     direction='FFTW_BACKWARD', **self._kwargs)
+                return self._FFTW(input_array=a, output_array=A,
+                                  normalise_idft=self._normalise_idft,
+                                  ortho=self.ortho)
 
             # Note that only multi-dimensional real transforms destroy their
-            # input arrays.  See https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
-            def fft(self, A):
+            # input arrays.  See
+            # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
+            def _inverse_fft(self, A):
 
                 # Make an empty array to store transform output.
-                a = pyfftw.empty_aligned(data_format['time_shape'],
-                                         dtype=data_format['time_dtype'],
+                a = pyfftw.empty_aligned(self.data_format['time_shape'],
+                                         dtype=self.data_format['time_dtype'],
                                          n=self._n_simd)
                 # a is returned by self._fft.
-                return fft_engine(input_array=A, output_array=a,
-                                  normalise_idft=normalise_idft,
-                                  ortho=ortho)
+                return self._FFTW(input_array=A, output_array=a,
+                                  normalise_idft=self._normalise_idft,
+                                  ortho=self.ortho)
 
-        return FFT(fft, data_format, direction, axis, norm, sample_rate, self)
+            def constructor(self, direction='forward'):
+                super(PyfftwFFT, self).__init__(direction=direction)
+                # Create dummy byte-aligned arrays.  These will be stored
+                # in the FFTW instance as input_array and output_array, but
+                # we'll be replacing those each time we perform a transform.
+                a = pyfftw.empty_aligned(self.data_format['time_shape'],
+                                         dtype=self.data_format['time_dtype'],
+                                         n=self._n_simd)
+                A = pyfftw.empty_aligned(self.data_format['freq_shape'],
+                                         dtype=self.data_format['freq_dtype'],
+                                         n=self._n_simd)
+
+                if self.direction == 'forward':
+                    self._FFTW = pyfftw.FFTW(a, A, axes=(self.axis,),
+                                             direction='FFTW_FORWARD',
+                                             **self._fftw_kwargs)
+                    self._fft = self._forward_fft
+                else:
+                    self._FFTW = pyfftw.FFTW(A, a, axes=(self.axis,),
+                                             direction='FFTW_BACKWARD',
+                                             **self._fftw_kwargs)
+                    self._fft = self._inverse_fft
+
+            def equality(self, other):
+                # Assumes that class names are unique, which should be the case
+                # unless the user improperly initializes the class factory.
+                return (super(PyfftwFFT, self).__eq__(other) and
+                        self._fftw_kwargs == other._fftw_kwargs)
+
+            PyfftwFFT = type("PyfftwFFT", (FFTBase,), {
+                "_data_format": data_format,
+                "_axis": axis,
+                "_ortho": ortho,
+                "_normalise_idft": _normalise_idft,
+                "_sample_rate": sample_rate,
+                "_n_simd": self._n_simd,
+                "_fftw_kwargs": self._fftw_kwargs,
+                "__init__": constructor,
+                "__eq__": equality,
+                "_forward_fft": _forward_fft,
+                "_inverse_fft": _inverse_fft
+            })
+
+            return PyfftwFFT
