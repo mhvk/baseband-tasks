@@ -30,6 +30,7 @@ given correct inputs.
    :maxdepth: 2
 
    dispersion/index
+   fourier/index
 
 .. _project_details_toc:
 
