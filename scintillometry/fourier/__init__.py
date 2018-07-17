@@ -1,7 +1,8 @@
 # Licensed under the GPLv3 - see LICENSE
 """Fourier transform module."""
 
-from .base import NumpyFFTMaker, get_fft_maker
+from .base import get_fft_maker
+from .numpy import NumpyFFTMaker
 
 # If pyfftw is available, import PyfftwFFTMaker.
 try:
