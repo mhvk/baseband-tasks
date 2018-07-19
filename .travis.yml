@@ -37,15 +37,16 @@ matrix:
         - env: ASTROPY_VERSION=development
 
         # Check for sphinx doc build warnings.
-        - env: SETUP_CMD='build_sphinx -w' CONDA_DEPENDENCIES='pyfftw'
+        - env: INSTALL_CMD='conda install -c conda-forge pyfftw'
+               SETUP_CMD='build_sphinx -w'
 
         # Check Python 3 with stable numpy, also verifying coverage.
         - env: SETUP_CMD='test --coverage'
 
         # Check pyfftw-dependent modules.
         # See https://github.com/pyFFTW/pyFFTW/issues/40
-        - env: CONDA_DEPENDENCIES='pyfftw'
-
+        - env: INSTALL_CMD='conda install -c conda-forge pyfftw'
+  
         - python: 3.5
           env: NUMPY_VERSION=1.10
 
