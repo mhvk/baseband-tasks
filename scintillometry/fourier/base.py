@@ -36,7 +36,7 @@ class FFTMakerMeta(type):
             if key.endswith('fftmaker') and len(key) > 8:
                 key = key[:-8]
 
-            # Check if EDV is already registered.
+            # Check if class is already registered.
             if key in FFTMakerMeta._registry:
                 raise ValueError("key {0} already registered in "
                                  "FFT_MAKER_CLASSES.".format(key))
@@ -51,6 +51,11 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
     Currently does not support Hermitian FFTs.
     """
+
+    def __call__(self, time_data=None, freq_data=None, axis=0, ortho=False,
+                 sample_rate=None):
+        """Placeholder for FFT setup."""
+        raise NotImplementedError()
 
     def get_data_format(self, time_data=None, freq_data=None, axis=0):
         """Extract time and frequency-domain array shape and dtype.
@@ -164,10 +169,6 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
         freq_shape = list(time_shape)
         freq_shape[axis] = freq_shape[axis] // 2 + 1
         return tuple(freq_shape)
-
-    def __call__(self, **kwargs):
-        """Placeholder for FFT setup."""
-        raise NotImplementedError()
 
     def fft(self, time_data=None, freq_data=None, axis=0, ortho=False,
             sample_rate=None):
@@ -313,10 +314,10 @@ class FFTBase(object):
     def __eq__(self, other):
         # Assumes that class names are unique, which should be the case unless
         # the user improperly initializes the class factory.
-        return (self.__class__.__name__ == other.__class__.__name__ and
-                self.direction == other.direction and
+        return (self.direction == other.direction and
                 self.data_format == other.data_format and
-                self.axis == other.axis and self.ortho == other.ortho and
+                self.axis == other.axis and
+                self.ortho == other.ortho and
                 self.sample_rate == other.sample_rate)
 
     def __repr__(self):

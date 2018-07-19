@@ -47,30 +47,6 @@ class NumpyFFTMaker(FFTMakerBase):
         data_format = self.get_data_format(time_data=time_data,
                                            freq_data=freq_data, axis=axis)
 
-        # Prepare either fft or rfft functions.
-        if data_format['time_dtype'].kind == 'c':
-
-            def forward_fft(self, a):
-                return np.fft.fft(a, axis=self.axis, norm=self._norm).astype(
-                    self.data_format['freq_dtype'], copy=False)
-
-            def inverse_fft(self, A):
-                return np.fft.ifft(A, axis=self.axis, norm=self._norm).astype(
-                    self.data_format['time_dtype'], copy=False)
-
-        else:
-
-            def forward_fft(self, a):
-                return np.fft.rfft(a, axis=self.axis, norm=self._norm).astype(
-                    self.data_format['freq_dtype'], copy=False)
-
-            # irfft needs explicit length for odd-numbered outputs.
-            def inverse_fft(self, A):
-                return np.fft.irfft(
-                    A, n=self.data_format['time_shape'][axis], axis=self.axis,
-                    norm=self._norm).astype(self.data_format['time_dtype'],
-                                            copy=False)
-
         # Declare NumpyFFT class, and populate values.
         class NumpyFFT(FFTBase):
             """Single pre-defined FFT based on `numpy.fft`.
@@ -90,14 +66,38 @@ class NumpyFFTMaker(FFTMakerBase):
             _norm = 'ortho' if ortho else None
             _sample_rate = sample_rate
 
-            _forward_fft = forward_fft
-            _inverse_fft = inverse_fft
-
             def __init__(self, direction='forward'):
                 super().__init__(direction=direction)
                 if self.direction == 'forward':
                     self._fft = self._forward_fft
                 else:
                     self._fft = self._inverse_fft
+
+            # Prepare either fft or rfft functions.
+            if data_format['time_dtype'].kind == 'c':
+
+                def _forward_fft(self, a):
+                    return np.fft.fft(
+                        a, axis=self.axis, norm=self._norm).astype(
+                            self.data_format['freq_dtype'], copy=False)
+
+                def _inverse_fft(self, A):
+                    return np.fft.ifft(
+                        A, axis=self.axis, norm=self._norm).astype(
+                            self.data_format['time_dtype'], copy=False)
+
+            else:
+
+                def _forward_fft(self, a):
+                    return np.fft.rfft(
+                        a, axis=self.axis, norm=self._norm).astype(
+                            self.data_format['freq_dtype'], copy=False)
+
+                # irfft needs explicit length for odd-numbered outputs.
+                def _inverse_fft(self, A):
+                    return np.fft.irfft(
+                        A, n=self.data_format['time_shape'][axis],
+                        axis=self.axis, norm=self._norm).astype(
+                            self.data_format['time_dtype'], copy=False)
 
         return NumpyFFT

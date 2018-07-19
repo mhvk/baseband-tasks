@@ -40,8 +40,8 @@ Here, we passed a dummy array to ``time_data``, from which ``FFTMaker``
 extracts the data type and shape (the dummy array is not used for the
 transform). We can also pass this data directly as a dictionary (see below). 
 We have chosen orthogonal normalization, which normalizes both the
-frequency and time-domain outputs by :math:`1 / n`, where :math:`n` is the
-length of the time-domain array.
+frequency and time-domain outputs by :math:`1 / n^{1/2}`, where :math:`n` is
+the length of the time-domain array.
 
 ``FFT`` is a transform class, and to perform a transform, we must create an
 instance of it, and then pass that instance some input data::
