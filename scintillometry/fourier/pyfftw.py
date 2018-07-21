@@ -1,8 +1,9 @@
 # Licensed under the GPLv3 - see LICENSE
 
 import operator
-from .base import FFTMakerBase, FFTBase
+import numpy as np
 import pyfftw
+from .base import FFTMakerBase, FFTBase
 
 
 __all__ = ['PyfftwFFTMaker']
@@ -15,6 +16,10 @@ class PyfftwFFTMaker(FFTMakerBase):
     perform a real-input transform on one dimension of the input, halving that
     dimension's length in the output.
 
+    ``__init__`` is used to set package-level options, such as ``n_simd``,
+    while `~scintillometry.fourier.pyfftw.PyfftwFFTMaker.__call__` creates
+    individual transforms.
+
     Parameters
     ----------
     n_simd : int or None, optional
@@ -26,34 +31,29 @@ class PyfftwFFTMaker(FFTMakerBase):
     """
 
     def __init__(self, n_simd=None, **kwargs):
-        # Set n-byte boundary.
-        if n_simd is None:
-            n_simd = pyfftw.simd_alignment
-        self._n_simd = n_simd
+        self._n_simd = pyfftw.simd_alignment if n_simd is None else n_simd
 
         if 'flags' in kwargs and 'FFTW_DESTROY_INPUT' in kwargs['flags']:
             raise ValueError('Fourier module does not support destroying '
                              'input arrays.')
-
         self._fftw_kwargs = kwargs
 
         super().__init__()
 
-    def __call__(self, time_data=None, freq_data=None, axis=0,
-                 ortho=False, sample_rate=None):
-        """Set up FFT.
+    def __call__(self, shape, dtype, direction='forward', axis=0, ortho=False,
+                 sample_rate=None):
+        """Creates an FFT.
 
         Parameters
         ----------
-        time_data : `~numpy.ndarray`, dict, or None
-            Dummy array with dimensions and dtype of time-domain data.  Can
-            alternatively give a dict with 'shape' and 'dtype' entries.  If not
-            given, it is derived from ``freq_data``.
-        freq_data : `~numpy.ndarray`, dict, or None
-            Dummy array with dimensions and dtype of frequency-domain data. Can
-            alternatively give a dict with 'shape' and 'dtype' entries.  If not
-            given, it is derived from ``time_data``.  If both are given, they
-            will be checked for consistency.
+        shape : tuple
+            Shape of the time-domain data array, i.e. the input to the forward
+            transform and the output of the inverse.
+        dtype : str or `~numpy.dtype`
+            Data type of the time-domain data array.  May pass either the
+            name of the dtype or the `~numpy.dtype` object.
+        direction : 'forward' or 'inverse', optional
+            Direction of the FFT.
         axis : int, optional
             Axis to transform.  Default: 0.
         ortho : bool, optional
@@ -61,30 +61,31 @@ class PyfftwFFTMaker(FFTMakerBase):
         sample_rate : float, `~astropy.units.Quantity`, or None, optional
             Sample rate, used to determine the FFT sample frequencies.  If
             `None`, a unitless rate of 1 is used.
-        """
 
-        # Set direction, axis and normalization.  If axis is None, set it to 0.
+        Returns
+        -------
+        fft : ``PyfftwFFT`` instance
+            Single pre-defined FFT object.
+        """
+        # Ensure arguments have proper types and values.
+        shape = tuple(shape)
+        if isinstance(dtype, str):
+            dtype = np.dtype(dtype)
         axis = operator.index(axis)
         ortho = bool(ortho)
 
         # Store time and frequency-domain array shapes.
-        data_format = self.get_data_format(time_data=time_data,
-                                           freq_data=freq_data, axis=axis)
+        freq_shape, freq_dtype = self.get_freq_data_info(shape, dtype,
+                                                         axis=axis)
 
         # Declare PyfftwFFT class, and populate values.
         class PyfftwFFT(FFTBase):
-            """Single pre-defined FFT based on `pyfftw.FFTW`.
+            """Single pre-defined FFT based on `pyfftw.FFTW`."""
 
-            To use, first initialize an instance, and then call the instance to
-            perform the transform.
-
-            Parameters
-            ----------
-            direction : 'forward' or 'inverse', optional
-                Direction of the FFT.
-            """
-
-            _data_format = data_format
+            _time_shape = shape
+            _time_dtype = dtype
+            _freq_shape = freq_shape
+            _freq_dtype = freq_dtype
             _axis = axis
             _ortho = ortho
             _normalise_idft = False if ortho else True
@@ -97,11 +98,9 @@ class PyfftwFFTMaker(FFTMakerBase):
                 # Create dummy byte-aligned arrays.  These will be stored in
                 # the FFTW instance as input_array and output_array, but we'll
                 # be replacing those each time we transform.
-                a = pyfftw.empty_aligned(self.data_format['time_shape'],
-                                         self.data_format['time_dtype'],
+                a = pyfftw.empty_aligned(self._time_shape, self._time_dtype,
                                          n=self._n_simd)
-                A = pyfftw.empty_aligned(self.data_format['freq_shape'],
-                                         self.data_format['freq_dtype'],
+                A = pyfftw.empty_aligned(self._freq_shape, self._freq_dtype,
                                          n=self._n_simd)
 
                 if self.direction == 'forward':
@@ -117,10 +116,8 @@ class PyfftwFFTMaker(FFTMakerBase):
 
             def _forward_fft(self, a):
                 # Make an empty array to store transform output.
-                A = pyfftw.empty_aligned(self.data_format['freq_shape'],
-                                         self.data_format['freq_dtype'],
+                A = pyfftw.empty_aligned(self._freq_shape, self._freq_dtype,
                                          n=self._n_simd)
-                # A is returned by self._fft.
                 return self._FFTW(input_array=a, output_array=A,
                                   normalise_idft=self._normalise_idft,
                                   ortho=self.ortho)
@@ -129,20 +126,16 @@ class PyfftwFFTMaker(FFTMakerBase):
             # their input arrays.  See
             # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
             def _inverse_fft(self, A):
-
                 # Make an empty array to store transform output.
-                a = pyfftw.empty_aligned(
-                    self.data_format['time_shape'],
-                    dtype=self.data_format['time_dtype'], n=self._n_simd)
-                # a is returned by self._fft.
+                a = pyfftw.empty_aligned(self._time_shape, self._time_dtype,
+                                         n=self._n_simd)
                 return self._FFTW(input_array=A, output_array=a,
                                   normalise_idft=self._normalise_idft,
                                   ortho=self.ortho)
 
             def __eq__(self, other):
-                # Assumes that class names are unique, which is the case unless
-                # the user improperly initializes the class factory.
                 return (super().__eq__(other) and
                         self._fftw_kwargs == other._fftw_kwargs)
 
-        return PyfftwFFT
+        # Return NumpyFFT instance.
+        return PyfftwFFT(direction=direction)

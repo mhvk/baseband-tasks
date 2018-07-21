@@ -14,7 +14,8 @@ individual transforms to be defined once, then re-used multiple times.  This is
 especially useful for FFTW, which achieves its fast transforms through prior
 planning.
 
-Currently does not support Hermitian FFTs.
+The module currently does not support Hermitian Fourier transforms -
+frequency-domain values are always treated as complex.
 
 .. _fourier_usage:
 
@@ -27,26 +28,25 @@ function::
     >>> from scintillometry import fourier
     >>> FFTMaker = fourier.get_fft_maker('numpy')
 
-To create a transform, we pass information about the input or output data
-arrays, transform axis (if the input data is multi-dimensional), normalization
-convention and sample rate to ``FFTMaker``::
+`~scintillometry.fourier.base.get_fft_maker` returns an instance of one of the
+FFT maker classes - e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
+`~scintillometry.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options,
+such as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.
+
+To create a transform, we pass the time-dimension data array shape and dtype,
+transform direction ('forward' or 'inverse'), transform axis (if the data is
+multi-dimensional), normalization convention and sample rate to ``FFTMaker``::
 
     >>> import numpy as np
     >>> import astropy.units as u
-    >>> FFT = FFTMaker(time_data=np.ones(1000), ortho=True,
+    >>> fft = FFTMaker((1000,), 'float64', direction='forward', ortho=True,
     ...                sample_rate=1.*u.kHz)
 
-Here, we passed a dummy array to ``time_data``, from which ``FFTMaker``
-extracts the data type and shape (the dummy array is not used for the
-transform). We can also pass this data directly as a dictionary (see below). 
-We have chosen orthogonal normalization, which normalizes both the
+Here, we have chosen orthogonal normalization, which normalizes both the
 frequency and time-domain outputs by :math:`1 / n^{1/2}`, where :math:`n` is
-the length of the time-domain array.
+the length of the time-domain array.  We can now perform the transform by
+calling ``fft``::
 
-``FFT`` is a transform class, and to perform a transform, we must create an
-instance of it, and then pass that instance some input data::
-
-    >>> fft = FFT(direction='forward')
     >>> y = np.sin(2. * np.pi * np.arange(1000))
     >>> Y = fft(y)
 
@@ -58,7 +58,7 @@ instance of it, and then pass that instance some input data::
     >>> np.allclose(y, yn)
     True
 
-To show information about the transform, we can simply print instances::
+To show information about the transform, we can simply print the instance::
 
     >>> fft
     <NumpyFFT direction=forward,
@@ -66,32 +66,15 @@ To show information about the transform, we can simply print instances::
         Time domain: shape=(1000,), dtype=float64
         Frequency domain: shape=(501,), dtype=complex128>
 
-Since we usually only need ``fft`` and not its class definition, ``FFTMaker``
-has convenience methods `~scintillometry.fourier.base.FFTMakerBase.fft` and
-`~scintillometry.fourier.base.FFTMakerBase.ifft` to produce forward and inverse
-transform instances, respectively::
+To obtain the sample frequencies of ``Y``, we can use the
+`~scintillometry.fourier.base.FFTBase.freq` property::
 
-    >>> fft2 = FFTMaker.fft(time_data={'shape': (1000,), 'dtype': 'float64'},
-    ...                     ortho=True, sample_rate=1.*u.kHz)
-    >>> fft == fft2
-    True
+    >>> fft.freq[:10]
+    <Quantity [0.   , 0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008,
+           0.009] kHz>
 
-When creating an inverse transform, if only frequency-domain array information
-is provided the time-domain array is assumed to have a complex data type.  To
-create an inverse transform that outputs arrays with floating point dtypes,
-explicitly pass in time-domain array info::
-
-    >>> ifft2 = FFTMaker.ifft(time_data={'shape': (1000,),
-    ...                                  'dtype': 'float64'},
-    ...                       ortho=True, sample_rate=1.*u.kHz)
-    >>> ifft == ifft2
-    True
-
-Note that it is unnecessary to pass the frequency-domain data.  Indeed, because
-Hermitian FFTs are currently not supported, providing the time-domain array
-information is sufficient to create either the forward or inverse transform. 
-The option of passing in frequency-domain information is for the convenience of
-the user.
+For multi-dimensional arrays, the sample frequencies are for the transformed
+axis.
 
 .. _fourier_api:
 

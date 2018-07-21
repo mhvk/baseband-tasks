@@ -47,150 +47,41 @@ class FFTMakerMeta(type):
 
 
 class FFTMakerBase(metaclass=FFTMakerMeta):
-    """Base class for all FFT factories.
+    """Base class for all FFT factories."""
 
-    Currently does not support Hermitian FFTs.
-    """
-
-    def __call__(self, time_data=None, freq_data=None, axis=0, ortho=False,
+    def __call__(self, shape, dtype, direction='forward', axis=0, ortho=False,
                  sample_rate=None):
         """Placeholder for FFT setup."""
         raise NotImplementedError()
 
-    def get_data_format(self, time_data=None, freq_data=None, axis=0):
-        """Extract time and frequency-domain array shape and dtype.
-
-        Users may provide ``time_data``, ``freq_data``, or both.  If only
-        ``freq_data`` is provided, data is assumed to be complex in the time
-        domain.
+    def get_freq_data_info(self, shape, dtype, axis=0):
+        """Determine frequency-domain array shape and dtype.
 
         Parameters
         ----------
-        time_data : `~numpy.ndarray`, dict, or None
-            Dummy array with dimensions and dtype of time-domain data.  Can
-            alternatively give a dict with 'shape' and 'dtype' entries.
-            If not given, it is derived from ``freq_data``.
-        freq_data : `~numpy.ndarray`, dict, or None
-            Dummy array with dimensions and dtype of frequency-domain data.
-            Can alternatively give a dict with 'shape' and 'dtype' entries.
-            If not given, it is derived from ``time_data``.  If both are given,
-            they will be checked for consistency.
+        shape : tuple
+            Shape of the time-domain data array, i.e. the input to the forward
+            transform and the output of the inverse.
+        dtype : str or `~numpy.dtype`
+            Data type of the time-domain data array.  May pass either the
+            name of the dtype or the `~numpy.dtype` object.
         axis : int, optional
             Axis of transform.  Default: 0.
 
         Returns
         -------
-        data_format : dict
-            Dict of time and frequency-domain array shape and dtype.
-        """
-
-        if time_data is None and freq_data is None:
-            raise TypeError("at least one of time or frequency-domain arrays "
-                            "must be passed in.")
-
-        # Extract information if user passed in dummy arrays.
-        if isinstance(time_data, np.ndarray):
-            time_data = {'shape': time_data.shape,
-                         'dtype': time_data.dtype}
-        elif isinstance(time_data, dict):
-            if isinstance(time_data['dtype'], str):
-                time_data['dtype'] = np.dtype(time_data['dtype'])
-
-        if isinstance(freq_data, np.ndarray):
-            freq_data = {'shape': freq_data.shape,
-                         'dtype': freq_data.dtype}
-        elif isinstance(freq_data, dict):
-            if isinstance(freq_data['dtype'], str):
-                freq_data['dtype'] = np.dtype(freq_data['dtype'])
-
-        # If user passed in None for either array, create the other.
-        if freq_data is None:
-            # If data in time domain is real, calculate real data
-            if time_data['dtype'].kind == 'f':
-                freq_data = {
-                    'shape': self.get_rft_freq_shape(time_data['shape'],
-                                                     axis),
-                    'dtype': np.dtype('c{0:d}'.format(
-                        time_data['dtype'].itemsize * 2))}
-            else:
-                freq_data = time_data.copy()
-        elif time_data is None:
-            time_data = freq_data.copy()
-        # If user passed both in, verify data formats and shapes are
-        # self-consistent.
-        else:
-            fd = freq_data['dtype']
-            fs = freq_data['shape']
-            if time_data['dtype'].kind == 'f':
-                fd_expected = np.dtype('c{0:d}'.format(
-                    time_data['dtype'].itemsize * 2))
-                fs_expected = self.get_rft_freq_shape(time_data['shape'], axis)
-            else:
-                fd_expected = time_data['dtype']
-                fs_expected = time_data['shape']
-
-            # dtype is more fundamental than shape, so check it first.
-            assert fd is fd_expected, (
-                "frequency dtype {fd} should be {fde} for a {cr} transform "
-                "from time array with dtype {td}".format(
-                    fd=fd, fde=fd_expected, cr=(
-                        'complex' if time_data['dtype'].kind == 'c'
-                        else 'real'), td=time_data['dtype']))
-            assert fs == fs_expected, (
-                "frequency array shape {fs} should be {fse} for a {cr} "
-                "transform from time array with shape {ts}.".format(
-                    fs=fs, fse=fs_expected, cr=(
-                        'complex' if time_data['dtype'].kind == 'c'
-                        else 'real'), ts=time_data['shape']))
-
-        # Combine information into a single dict.
-        data_format = {'time_shape': time_data['shape'],
-                       'time_dtype': time_data['dtype'],
-                       'freq_shape': freq_data['shape'],
-                       'freq_dtype': freq_data['dtype']}
-
-        return data_format
-
-    @staticmethod
-    def get_rft_freq_shape(time_shape, axis):
-        """Get frequency-domain array shape for DFT of real-valued time data.
-
-        Parameters
-        ----------
-        time_shape : tuple
-            Time-domain array shape.
-        axis : int
-            Axis of transform.
-
-        Returns
-        -------
         freq_shape : tuple
+            Shape of the frequency-domain data array.
+        freq_dtype : `~numpy.dtype`
+            Data type of the frequency-domain data array.
         """
-        freq_shape = list(time_shape)
-        freq_shape[axis] = freq_shape[axis] // 2 + 1
-        return tuple(freq_shape)
-
-    def fft(self, time_data=None, freq_data=None, axis=0, ortho=False,
-            sample_rate=None):
-        """Get forward FFT.
-
-        Parameters are identical to those of ``__call__``.
-        """
-        FFT = self.__call__(time_data=time_data, freq_data=freq_data,
-                            axis=axis, ortho=ortho,
-                            sample_rate=sample_rate)
-        return FFT(direction='forward')
-
-    def ifft(self, time_data=None, freq_data=None, axis=0, ortho=False,
-             sample_rate=None):
-        """Get inverse FFT.
-
-        Parameters are identical to those of ``__call__``.
-        """
-        FFT = self.__call__(time_data=time_data, freq_data=freq_data,
-                            axis=axis, ortho=ortho,
-                            sample_rate=sample_rate)
-        return FFT(direction='inverse')
+        if dtype.kind == 'f':
+            freq_shape = list(shape)
+            freq_shape[axis] = shape[axis] // 2 + 1
+            freq_dtype = np.dtype('c{0:d}'.format(2 * dtype.itemsize))
+            return tuple(freq_shape), freq_dtype
+        # No need to make a copy, since we're not altering shape.
+        return shape, dtype
 
 
 class FFTBase(object):
@@ -206,12 +97,8 @@ class FFTBase(object):
 
     @property
     def data_format(self):
-        """Shapes and dtypes of the FFT arrays.
-
-        'time' and 'freq' entries are for time and frequency-domain arrays,
-        respectively.
-        """
-        return self._data_format
+        """(shape, dtype) of the time-domain data."""
+        return self._time_shape, self._time_dtype
 
     @property
     def axis(self):
@@ -259,18 +146,16 @@ class FFTBase(object):
 
         if n is odd.
 
-        If ``sample_rate`` is `None`, output is unitless.
+        If ``sample_rate`` is `None`, a unitless rate of 1 is used.
 
         Returns
         -------
         freqs : `~numpy.ndarray` or array of `~astropy.units.Quantity`
             Sample frequencies.
         """
-        sample_rate = self.sample_rate
-        if sample_rate is None:
-            sample_rate = 1.
-        a_length = self.data_format['time_shape'][self.axis]
-        if 'float' in self.data_format['time_dtype'].name:
+        sample_rate = 1. if self.sample_rate is None else self.sample_rate
+        a_length = self._time_shape[self.axis]
+        if self._time_dtype.kind == 'f':
             return np.fft.rfftfreq(a_length, d=(1. / sample_rate))
         return np.fft.fftfreq(a_length, d=(1. / sample_rate))
 
@@ -312,8 +197,6 @@ class FFTBase(object):
         return self.copy()
 
     def __eq__(self, other):
-        # Assumes that class names are unique, which should be the case unless
-        # the user improperly initializes the class factory.
         return (self.direction == other.direction and
                 self.data_format == other.data_format and
                 self.axis == other.axis and
@@ -325,11 +208,10 @@ class FFTBase(object):
                 " direction={s.direction},\n"
                 "    axis={s.axis}, ortho={s.ortho},"
                 " sample_rate={s.sample_rate}\n"
-                "    Time domain: shape={fmt[time_shape]},"
-                " dtype={fmt[time_dtype]}\n"
-                "    Frequency domain: shape={fmt[freq_shape]},"
-                " dtype={fmt[freq_dtype]}>"
-                .format(s=self, fmt=self.data_format))
+                "    Time domain: shape={s._time_shape},"
+                " dtype={s._time_dtype}\n"
+                "    Frequency domain: shape={s._freq_shape},"
+                " dtype={s._freq_dtype}>".format(s=self))
 
 
 def get_fft_maker(fft_engine, **kwargs):
@@ -337,8 +219,8 @@ def get_fft_maker(fft_engine, **kwargs):
 
     Parameters
     ----------
-    fft_engine : str
-        Name of the FFT maker class (eg. 'numpy', 'pyfftw').
+    fft_engine : {'numpy', 'pyfftw'}
+        Keyword for the FFT maker class.
     **kwargs
         Additional keyword arguments for initializing the maker class
         (eg. ``n_simd`` for 'pyfftw').
