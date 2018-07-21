@@ -14,7 +14,7 @@ class TestFFTClasses(object):
 
     def setup(self):
         """Pre-calculate NumPy FFTs."""
-        x = np.linspace(0., 10., 10000)
+        x = np.linspace(0., 10., 7919)    # 7919 is the 1000th prime number!
         self.sample_rate = x.size / (x.max() - x.min()) * u.kHz
         # 1D complex sinusoid.
         self.y_exp = np.exp(1.j * 2. * np.pi * x)
@@ -44,8 +44,8 @@ class TestFFTClasses(object):
         FFTMaker = get_fft_maker(key)
 
         # 1D complex sinusoid.
-        FFT = FFTMaker(self.y_exp, sample_rate=self.sample_rate)
-        fft = FFT()
+        fft = FFTMaker(self.y_exp.shape, self.y_exp.dtype,
+                       sample_rate=self.sample_rate)
         Y = fft(self.y_exp)
         assert Y.dtype is self.y_exp.dtype
         assert np.allclose(Y, self.Y_exp, **self.tolerances)
@@ -59,69 +59,33 @@ class TestFFTClasses(object):
         assert np.argmax(np.abs(Y)) == 10
         assert fft.freq[10] == 1.0 * u.kHz
 
-        # Check FFTMaker class methods, and different initialization
-        # techniques.
-        fft = FFTMaker.fft({'shape': self.y_exp.shape,
-                            'dtype': self.y_exp.dtype.name})
-        ifft = FFTMaker.ifft(freq_data={'shape': self.y_exp.shape,
-                                        'dtype': self.y_exp.dtype.name})
-        assert np.allclose(Y, fft(self.y_exp))
-        assert np.allclose(self.y_exp, ifft(Y))
-
-        # 1D real sinusoid, orthogonal normalization.
-        fft = FFTMaker.fft({'shape': self.y_rnsine.shape,
-                            'dtype': self.y_rnsine.dtype.name}, ortho=True)
-        Y = fft(self.y_rnsine)
-        ifft = fft.inverse()
+        # 1D real sinusoid, orthogonal normalization, start with inverse
+        # transform.
+        ifft = FFTMaker((7919,), 'float64', direction='inverse', ortho=True)
+        y = ifft(self.Y_rnsine)
+        fft = ifft.inverse()
+        Y = fft(y)
+        assert np.allclose(y, self.y_rnsine, **self.tolerances)
         assert np.allclose(Y, self.Y_rnsine, **self.tolerances)
-        assert np.allclose(ifft(Y), self.y_rnsine, **self.tolerances)
 
         # Check Parseval's Theorem (factor of 2 from using a real transform).
         assert np.isclose(np.sum(self.y_rnsine**2),
                           2 * np.sum(np.abs(Y)**2), **self.tolerances)
 
         # 2D real.
-        fft = FFTMaker.fft({'shape': self.y_r2D.shape,
-                            'dtype': self.y_r2D.dtype})
+        fft = FFTMaker(self.y_r2D.shape, self.y_r2D.dtype)
         Y = fft(self.y_r2D)
         ifft = fft.inverse()
         assert np.allclose(Y, self.Y_r2D, **self.tolerances)
         assert np.allclose(ifft(Y), self.y_r2D, **self.tolerances)
 
         # 3D complex, orthogonal normalization, start with inverse transform.
-        ifft = FFTMaker.ifft(freq_data={'shape': self.Y_3D.shape,
-                                        'dtype': self.Y_3D.dtype},
-                             axis=1, sample_rate=self.sample_rate, ortho=True)
+        ifft = FFTMaker(self.Y_3D.shape, self.Y_3D.dtype, direction='inverse',
+                        axis=1, sample_rate=None, ortho=True)
         y = ifft(self.Y_3D)
         fft = ifft.inverse()
         assert np.allclose(y, self.y_3D, **self.tolerances)
         assert np.allclose(fft(y), self.Y_3D, **self.tolerances)
 
         # Check frequency.
-        assert_quantity_allclose(fft.freq, np.fft.fftfreq(
-            len(self.y_3D[1]), d=(1. / self.sample_rate)))
-
-    @pytest.mark.parametrize('key', tuple(FFT_MAKER_CLASSES.keys()))
-    def test_fft_errors(self, key):
-
-        FFTMaker = get_fft_maker(key)
-
-        # Incorrect shape.
-        with pytest.raises(AssertionError) as excinfo:
-            FFTMaker(time_data={'shape': (100,), 'dtype': 'float64'},
-                     freq_data={'shape': (100,), 'dtype': 'complex128'},
-                     axis=0, ortho=True, sample_rate=32*u.MHz)
-        assert 'shape' in str(excinfo)
-
-        with pytest.raises(AssertionError):
-            FFTMaker(time_data={'shape': (1000, 27), 'dtype': 'float64'},
-                     freq_data={'shape': (1000, 31), 'dtype': 'complex128'},
-                     axis=0, ortho=True, sample_rate=32*u.MHz)
-        assert 'shape' in str(excinfo)
-
-        # Incorrect dtype (dtype error should take priority over shape error).
-        with pytest.raises(AssertionError) as excinfo:
-            FFTMaker(time_data={'shape': (1000,), 'dtype': 'float64'},
-                     freq_data={'shape': (1000000,), 'dtype': 'float32'},
-                     axis=0, ortho=True, sample_rate=32*u.MHz)
-        assert 'dtype' in str(excinfo)
+        assert_quantity_allclose(fft.freq, np.fft.fftfreq(len(self.y_3D[1])))
