@@ -151,13 +151,20 @@ class FFTBase(object):
         Returns
         -------
         freqs : `~numpy.ndarray` or array of `~astropy.units.Quantity`
-            Sample frequencies.
+            Sample frequencies, with shape (len(f), 1, ..., 1).  The trailing
+            dimensions of length unity are to facilitate broadcasting when
+            operating on ``freqs``.
         """
         sample_rate = 1. if self.sample_rate is None else self.sample_rate
         a_length = self._time_shape[self.axis]
         if self._time_dtype.kind == 'f':
-            return np.fft.rfftfreq(a_length, d=(1. / sample_rate))
-        return np.fft.fftfreq(a_length, d=(1. / sample_rate))
+            freqs = np.fft.rfftfreq(a_length, d=(1. / sample_rate))
+        else:
+            freqs = np.fft.fftfreq(a_length, d=(1. / sample_rate))
+        # Reshape freqs to add trailing dimensions.
+        freqs.shape = (freqs.shape +
+                       (len(self._time_shape) - self.axis - 1) * (1,))
+        return freqs
 
     def __call__(self, a):
         """Perform FFT.

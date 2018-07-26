@@ -30,9 +30,12 @@ class TestFFTClasses(object):
 
         # Transforms of the above.
         self.Y_exp = np.fft.fft(self.y_exp)
+        self.freq_Y_exp = np.fft.fftfreq(len(self.y_exp),
+                                         d=(1. / self.sample_rate))
         self.Y_rnsine = np.fft.rfft(self.y_rnsine, norm='ortho')
         self.Y_r2D = np.fft.rfft(self.y_r2D, axis=0)
         self.Y_3D = np.fft.fft(self.y_3D, axis=1, norm='ortho')
+        self.freq_Y_3D = np.fft.fftfreq(len(self.y_3D[1]))
 
         # Set common array comparison tolerances.
         self.tolerances = {'atol': 1e-13, 'rtol': 1e-6}
@@ -53,8 +56,7 @@ class TestFFTClasses(object):
         assert np.allclose(ifft(Y), self.y_exp, **self.tolerances)
 
         # Check frequency.
-        assert_quantity_allclose(fft.freq, np.fft.fftfreq(
-            len(self.y_exp), d=(1. / self.sample_rate)))
+        assert_quantity_allclose(fft.freq, self.freq_Y_exp)
         # We expect the peak amplitude at 1 kHz.
         assert np.argmax(np.abs(Y)) == 10
         assert fft.freq[10] == 1.0 * u.kHz
@@ -88,4 +90,4 @@ class TestFFTClasses(object):
         assert np.allclose(fft(y), self.Y_3D, **self.tolerances)
 
         # Check frequency.
-        assert_quantity_allclose(fft.freq, np.fft.fftfreq(len(self.y_3D[1])))
+        assert_quantity_allclose(fft.freq, self.freq_Y_3D[:, np.newaxis])

@@ -69,8 +69,7 @@ class PyfftwFFTMaker(FFTMakerBase):
         """
         # Ensure arguments have proper types and values.
         shape = tuple(shape)
-        if isinstance(dtype, str):
-            dtype = np.dtype(dtype)
+        dtype = np.dtype(dtype)
         axis = operator.index(axis)
         ortho = bool(ortho)
 
@@ -94,7 +93,7 @@ class PyfftwFFTMaker(FFTMakerBase):
             _fftw_kwargs = self._fftw_kwargs
 
             def __init__(self, direction='forward'):
-                super(PyfftwFFT, self).__init__(direction=direction)
+                super().__init__(direction=direction)
                 # Create dummy byte-aligned arrays.  These will be stored in
                 # the FFTW instance as input_array and output_array, but we'll
                 # be replacing those each time we transform.
@@ -137,5 +136,5 @@ class PyfftwFFTMaker(FFTMakerBase):
                 return (super().__eq__(other) and
                         self._fftw_kwargs == other._fftw_kwargs)
 
-        # Return NumpyFFT instance.
+        # Return PyfftwFFT instance.
         return PyfftwFFT(direction=direction)

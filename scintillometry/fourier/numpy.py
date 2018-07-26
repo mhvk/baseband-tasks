@@ -50,8 +50,7 @@ class NumpyFFTMaker(FFTMakerBase):
         """
         # Ensure arguments have proper types and values.
         shape = tuple(shape)
-        if isinstance(dtype, str):
-            dtype = np.dtype(dtype)
+        dtype = np.dtype(dtype)
         axis = operator.index(axis)
         ortho = bool(ortho)
 
