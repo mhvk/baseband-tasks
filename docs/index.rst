@@ -29,6 +29,8 @@ given correct inputs.
 .. toctree::
    :maxdepth: 2
 
+   base/index
+   channelize/index
    dispersion/index
    fourier/index
 

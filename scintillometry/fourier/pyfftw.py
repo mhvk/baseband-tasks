@@ -133,8 +133,12 @@ class PyfftwFFTMaker(FFTMakerBase):
                                   ortho=self.ortho)
 
             def __eq__(self, other):
-                return (super().__eq__(other) and
-                        self._fftw_kwargs == other._fftw_kwargs)
+                base_eq = super().__eq__(other)
+                if hasattr(other, '_fftw_kwargs'):
+                    return base_eq and (self._fftw_kwargs ==
+                                        other._fftw_kwargs)
+                else:
+                    return base_eq
 
         # Return PyfftwFFT instance.
         return PyfftwFFT(direction=direction)
