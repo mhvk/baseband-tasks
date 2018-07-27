@@ -96,9 +96,24 @@ class FFTBase(object):
         return self._direction
 
     @property
-    def data_format(self):
-        """(shape, dtype) of the time-domain data."""
-        return self._time_shape, self._time_dtype
+    def time_shape(self):
+        """Shape of the time-domain data."""
+        return self._time_shape
+
+    @property
+    def time_dtype(self):
+        """Data type of the time-domain data."""
+        return self._time_dtype
+
+    @property
+    def freq_shape(self):
+        """Shape of the frequency-domain data."""
+        return self._freq_shape
+
+    @property
+    def freq_dtype(self):
+        """Data type of the frequency-domain data."""
+        return self._freq_dtype
 
     @property
     def axis(self):
@@ -215,10 +230,10 @@ class FFTBase(object):
                 " direction={s.direction},\n"
                 "    axis={s.axis}, ortho={s.ortho},"
                 " sample_rate={s.sample_rate}\n"
-                "    Time domain: shape={s._time_shape},"
-                " dtype={s._time_dtype}\n"
-                "    Frequency domain: shape={s._freq_shape},"
-                " dtype={s._freq_dtype}>".format(s=self))
+                "    Time domain: shape={s.time_shape},"
+                " dtype={s.time_dtype}\n"
+                "    Frequency domain: shape={s.freq_shape},"
+                " dtype={s.freq_dtype}>".format(s=self))
 
 
 def get_fft_maker(fft_engine, **kwargs):
