@@ -8,7 +8,6 @@ dependencies:
     - python>=3.5
     - numpy
     - astropy
-    - fftw
     - pyfftw
     - pip:
       - sphinx_astropy
