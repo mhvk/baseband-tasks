@@ -2,9 +2,13 @@ name: scintillometry
 
 channels:
     - astropy
+    - conda-forge
 
 dependencies:
-    - astropy
+    - python>=3.5
     - numpy
+    - astropy
+    - pyfftw
     - pip:
+      - sphinx_astropy
       - baseband
