@@ -14,11 +14,12 @@ Project Status
 --------------
 
 .. image:: https://travis-ci.org/mhvk/scintillometry.svg?branch=master
+   :target: https://travis-ci.org/mhvk/scintillometry
 
-.. image:: https://coveralls.io/repos/github/mhvk/scintillometry/badge.svg
-   :target: https://coveralls.io/github/mhvk/scintillometry
+.. image:: https://coveralls.io/repos/github/mhvk/scintillometry/badge.svg?branch=master
+   :target: https://coveralls.io/github/mhvk/scintillometry?branch=master
 
-.. image:: //readthedocs.org/projects/scintillometry/badge/?version=latest
+.. image:: https://readthedocs.org/projects/scintillometry/badge/?version=latest
    :target: https://scintillometry.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
