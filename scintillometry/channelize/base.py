@@ -10,70 +10,64 @@ from ..fourier import get_fft_maker
 __all__ = ['ChannelizeModule']
 
 
-class ChannelizeCore(object):
+class Channelizer(object):
 
-    # NOTE: maybe force users to pass their own FFT.
-    # NOTE: always assumes time axis is 1.  Probably not a problem.
-    def __init__(self, sample_shape, dtype, nchan, samples_per_block=1,
+    # NOTE: always assumes time axis is 0.  Probably not a problem.
+    def __init__(self, dtype, samples_per_block, nchan, sample_shape,
                  FFT=None):
-        self.nchan = operator.index(nchan)
-        self.samples_per_block = max(1, operator.index(samples_per_block))
-        FFT = get_fft_maker('numpy') if FFT is None else FFT
-        self._input_shape = (self.samples_per_block, self.nchan) + sample_shape
-        self.fft = FFT(self._input_shape, dtype, axis=1)
+        if FFT is None:
+            FFT = get_fft_maker('numpy')
+        self._fft = FFT((samples_per_block, nchan) + sample_shape,
+                        dtype, axis=1)
 
-    def channelize(self, data):
+    def __call__(self, data):
         """Split data into frequency channels."""
-        return self.fft(data.reshape(self._input_shape))
+        return self._fft(data.reshape(self._fft.time_shape))
+
+    @property
+    def shape(self):
+        return self._fft.freq_shape
+
+    @property
+    def dtype(self):
+        return self._fft.freq_dtype
 
 
-class ChannelizeModule(ModuleBase, ChannelizeCore):
+class ChannelizeModule(ModuleBase):
 
     def __init__(self, ih, nchan, samples_per_block=1, FFT=None):
-        ModuleBase.__init__(self, ih)
-        ChannelizeCore.__init__(self, self.ih.sample_shape, self.ih.dtype,
-                                nchan, samples_per_block=samples_per_block,
-                                FFT=FFT)
+
+        super().__init__(ih)
+
+        self.nchan = operator.index(nchan)
+        # NOTE: should this be made private?  Should the Channelizer at least
+        # have a _min_samples_per_block value?
+        self.samples_per_block = operator.index(samples_per_block)
         # NOTE: nsample is the number of output samples for the largest integer
         # number of blocks available from the input file.
         self._nsample = self.samples_per_block * (
-            self.ih._nsample // self.nchan // self.samples_per_block)
+            self.ih.shape[0] // self.nchan // self.samples_per_block)
         assert self._nsample > 0, ("not enough samples to fill one block of "
                                    "data!")
         self.sample_rate = ih.sample_rate / self.nchan
 
+        # Initialize channelizer.
+        self._channelizer = Channelizer(
+            self.ih.dtype, self.samples_per_block, self.nchan,
+            self.ih.sample_shape, FFT=FFT)
+
     def _read_block(self, block_index):
         self.ih.seek(block_index * self.nchan * self.samples_per_block)
         data = self.ih.read(self.nchan * self.samples_per_block)
-        return self.channelize(data)
+        return self._channelizer(data)
 
     @property
     def dtype(self):
-        return self.fft.freq_dtype
-
-    @lazyproperty
-    def shape(self):
-        """Shape of the (squeezed/subset) stream data."""
-        return (self._nsample,) + self.sample_shape
+        return self._channelizer.dtype
 
     @property
     def sample_shape(self):
-        return self.fft.freq_shape[1:]
-
-    @property
-    def size(self):
-        """Total number of component samples in the (squeezed/subset) stream
-        data.
-        """
-        prod = 1
-        for dim in self.shape:
-            prod *= dim
-        return prod
-
-    @property
-    def ndim(self):
-        """Number of dimensions of the (squeezed/subset) stream data."""
-        return len(self.shape)
+        return self._channelizer.shape[1:]
 
     @lazyproperty
     def start_time(self):
@@ -93,7 +87,7 @@ class ChannelizeModule(ModuleBase, ChannelizeCore):
         """
         # NOTE: can eventually replace this with seek_temporary block.
         current_pos = self.ih.tell()
-        self.ih.seek(self.shape[0])
+        self.ih.seek(self._nsample * self.nchan)
         stop_time = self.ih.tell(unit='time')
         self.ih.seek(current_pos)
         return stop_time
