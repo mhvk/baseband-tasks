@@ -28,6 +28,7 @@ env:
         - MAIN_CMD='python setup.py'
         - SETUP_CMD='test'
         - PIP_DEPENDENCIES=''
+        - CONDA_CHANNELS='conda-forge'
         - CONDA_DEPENDENCIES=''
 
 matrix:
@@ -42,11 +43,12 @@ matrix:
 
         # Check Python 3 with stable numpy, also verifying coverage.
         - env: SETUP_CMD='test --coverage'
+               CONDA_DEPENDENCIES='pyfftw'
 
         # Check pyfftw-dependent modules.
         # See https://github.com/pyFFTW/pyFFTW/issues/40
-        - env: INSTALL_CMD='conda install -c conda-forge pyfftw'
-  
+        - env: CONDA_DEPENDENCIES='pyfftw'
+
         - python: 3.5
           env: NUMPY_VERSION=1.10
 
