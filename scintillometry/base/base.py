@@ -3,16 +3,35 @@
 import operator
 import numpy as np
 import astropy.units as u
+from astropy.utils import lazyproperty
 
 
 class ModuleBase(object):
 
     def __init__(self, ih):
         self.ih = ih
-        if self.ih.tell():
-            self.ih.seek(0)
         self.offset = 0
         self._block_index = None
+
+    @lazyproperty
+    def shape(self):
+        """Shape of the (squeezed/subset) stream data."""
+        return (self._nsample,) + self.sample_shape
+
+    @property
+    def size(self):
+        """Total number of component samples in the (squeezed/subset) stream
+        data.
+        """
+        prod = 1
+        for dim in self.shape:
+            prod *= dim
+        return prod
+
+    @property
+    def ndim(self):
+        """Number of dimensions of the (squeezed/subset) stream data."""
+        return len(self.shape)
 
     def seek(self, offset, whence=0):
         """Change the stream position."""
