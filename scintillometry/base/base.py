@@ -7,15 +7,24 @@ import astropy.units as u
 
 class TaskBase(object):
 
-    def __init__(self, ih):
+    def __init__(self, ih, shape, sample_rate, samples_per_frame, dtype):
         self.ih = ih
+        self.samples_per_frame = samples_per_frame
+        self._sample_rate = sample_rate
+        self._shape = shape
+        self._dtype = np.dtype(dtype, copy=False)
         self.offset = 0
         self._frame_index = None
 
     @property
     def shape(self):
-        """Shape of the (squeezed/subset) stream data."""
-        return (self._nsample,) + self.sample_shape
+        """Shape of the stream data."""
+        return self._shape
+
+    @property
+    def sample_shape(self):
+        """Shape of a complete sample."""
+        return self.shape[1:]
 
     @property
     def size(self):
@@ -33,19 +42,13 @@ class TaskBase(object):
         return len(self.shape)
 
     @property
+    def dtype(self):
+        return self._dtype
+
+    @property
     def sample_rate(self):
         """Number of complete samples per second."""
         return self._sample_rate
-
-    @sample_rate.setter
-    def sample_rate(self, sample_rate):
-        # Check if sample_rate is a time rate.
-        try:
-            sample_rate.to(u.Hz)
-        except u.UnitsError as exc:
-            exc.args += ("sample rate must have units of 1 / time.",)
-            raise
-        self._sample_rate = sample_rate
 
     @property
     def start_time(self):
@@ -69,7 +72,7 @@ class TaskBase(object):
 
         See also `start_time` and `time`.
         """
-        return self.start_time + self._nsample / self.sample_rate
+        return self.start_time + self.shape[0] / self.sample_rate
 
     def seek(self, offset, whence=0):
         """Change the stream position."""
@@ -90,7 +93,7 @@ class TaskBase(object):
         elif whence == 1 or whence == 'current':
             self.offset += offset
         elif whence == 2 or whence == 'end':
-            self.offset = self._nsample + offset
+            self.offset = self.shape[0] + offset
         else:
             raise ValueError("invalid 'whence'; should be 0 or 'start', 1 or "
                              "'current', or 2 or 'end'.")
@@ -126,7 +129,7 @@ class TaskBase(object):
 
         if out is None:
             if count is None or count < 0:
-                count = self._nsample - self.offset
+                count = self.shape[0] - self.offset
                 if count < 0:
                     raise EOFError("cannot read from beyond end of input.")
             out = np.empty((count,) + self.shape[1:], dtype=self.dtype)

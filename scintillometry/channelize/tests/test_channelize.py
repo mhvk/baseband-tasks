@@ -33,17 +33,6 @@ class TestChannelize(object):
         fh = vdif.open(SAMPLE_VDIF)
         ct = ChannelizeTask(fh, self.nchan)
 
-        # Check sample pointer.
-        assert ct.sample_rate == self.ref_sample_rate / self.nchan
-        assert ct.shape == self.ref_data.shape
-        assert ct.size == np.prod(self.ref_data.shape)
-        assert ct.ndim == len(self.ref_data.shape)
-        assert ct.tell() == 0
-        assert ct.tell(unit='time') == ct.start_time == self.ref_start_time
-        assert (ct.stop_time - ct.start_time -
-                (self.nchan * self.ref_data.shape[0]) /
-                self.ref_sample_rate) < 1*u.ns
-
         # Channelize everything.
         data1 = ct.read()
         assert ct.tell() == ct.shape[0]
@@ -63,25 +52,8 @@ class TestChannelize(object):
         with pytest.raises(EOFError):
             ct.read(10)
 
-        ct.close()
-        assert fh.closed
+        # Quick test of channel sanity check in __init__.
+        with pytest.raises(AssertionError):
+            ct = ChannelizeTask(fh, 400001)
 
-    @pytest.mark.parametrize('spf', (5, 8))
-    def test_channelizeblocksize(self, spf):
-        """Test that different samples per frame changes length of output
-        data, but not its values.
-        """
-        with vdif.open(SAMPLE_VDIF) as fh:
-            ct = ChannelizeTask(fh, self.nchan, samples_per_frame=spf)
-            ref_nsample = spf * (self.ref_data.shape[0] // spf)
-            assert ct.shape == (ref_nsample,) + self.ref_data.shape[1:]
-            data1 = ct.read()
-            assert np.allclose(self.ref_data[:ref_nsample], data1)
-            ct.seek(-2, 2)
-            data2 = ct.read()
-            assert data2.shape[0] == 2
-            assert np.allclose(self.ref_data[ref_nsample - 2:ref_nsample],
-                               data2)
-            ct.seek(-5, 2)
-            with pytest.raises(EOFError):
-                ct.read(12)
+        ct.close()
