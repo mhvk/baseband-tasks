@@ -220,7 +220,10 @@ class FFTBase(object):
 
     def __eq__(self, other):
         return (self.direction == other.direction and
-                self.data_format == other.data_format and
+                self.time_shape == other.time_shape and
+                self.time_dtype == other.time_dtype and
+                self.freq_shape == other.freq_shape and
+                self.freq_dtype == other.freq_dtype and
                 self.axis == other.axis and
                 self.ortho == other.ortho and
                 self.sample_rate == other.sample_rate)
