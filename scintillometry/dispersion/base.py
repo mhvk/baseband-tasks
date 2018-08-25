@@ -15,47 +15,53 @@ __all__ = ['DedispersionTaskBase', 'IncoherentDedispersionTask',
            'CoherentDedispersionTask']
 
 
-class DedispersionTaskBase(TaskBase):
+class IncoherentDedispersionTask(TaskBase):
 
-    def __init__(self, ih, dm, base_freq, nchan, freq_order,
-                 samples_per_frame):
+    def __init__(self, ih, dm, base_freq, nchan, freq_order=None,
+                 pad_samples_per_frame=1, FFT=None):
 
-        samples_per_frame = operator.index(samples_per_frame)
-        self.nchan = operator.index(nchan)
+        # Set frame and stream properties.
+        pad_samples_per_frame = operator.index(pad_samples_per_frame)
+        # Time domain bin for channelization.
+        nchan_bin = operator.index(nchan) * (2 if ih.complex_data else 1)
+        sample_rate = ih.sample_rate / nchan_bin
+
+        # Set reference frequency.  If not complex, base_freq is at the edge of
+        # the band, and freq_order determines which edge (1 for bottom, -1 for
+        # top).  If complex, base_freq is at the middle of the band.
+        # NOTE: unless the exact bandwidth edge is returned by np.fft.rfftfreq,
+        # this will give slightly different answers than Rob's code.
         self._base_freq = np.atleast_1d(np.array(base_freq)) * base_freq.unit
         if freq_order is None:
             freq_order = np.ones(ih.sample_shape, dtype=int)
         self._freq_order = np.atleast_1d(np.array(freq_order))
 
+        half_rate = ih.sample_rate.value / 2.
+        if not ih.complex_data:
+            bandwidth = np.array([0., half_rate]) * ih.sample_rate.unit
+        else:
+            bandwidth = np.array([-half_rate, half_rate]) * ih.sample_rate.unit
+        extrema_freqs = self.base_freq + (self.freq_order *
+                                          bandwidth[:, np.newaxis])
+        self._min_freq = np.min(extrema_freqs)
+        self._max_freq = np.max(extrema_freqs)
+
+        # Set dispersion measure.
         self.dm = DispersionMeasure(dm)
 
-        # If not complex, base_freq is at the edge of the band, and
-        # freq_order determines which edge (1 for bottom, -1 for top).  If
-        # complex, base_freq is assumed to be in the middle of the band.
-        # NOTE: unless the exact bandwidth edge is returned by np.fft.rfftfreq,
-        # this will give slightly different answers than Rob's code.
-        if not ih.complex_data:
-            bandwidth = ih.sample_rate / 2.
-            extrema_freqs = base_freq + freq_order * bandwidth
-        else:
-            bandwidth = ih.sample_rate
-            extrema_freqs = base_freq.unit * np.concatenate([
-                (base_freq + freq_order * bandwidth).value,
-                (base_freq - freq_order * bandwidth).value])
-        self._ref_freq = np.max(extrema_freqs)
-
-        max_time_delay = self.dm.time_delay(np.min(extrema_freqs),
-                                            self.ref_freq)
+        # Calculate maximum time delay, and determine the size of padding
+        # needed to account for dispersion.
+        max_time_delay = self.dm.time_delay(self._min_freq, self.max_freq)
         max_delay_offset = int(np.ceil((
-            max_time_delay * ih.sample_rate / self.nchan).to_value(u.one)))
+            max_time_delay * sample_rate).to_value(u.one)))
 
-        # Number of ih samples within one frame.
-        self._raw_frame_len = self.nchan * samples_per_frame
-        # Number of additional ih samples needed to account for dispersion.
-        # _read_frame will seek using _raw_frame_len, and read
-        # _raw_padframe_len number of samples.
-        self._raw_padframe_len = self.nchan * (
-            self._raw_frame_len + max_delay_offset)
+        samples_per_frame = pad_samples_per_frame - max_delay_offset
+        self._raw_padframe_len = nchan_bin * pad_samples_per_frame
+        self._raw_frame_len = nchan_bin * samples_per_frame
+        assert self._raw_frame_len > 0, (
+            "pad_samples_per_frame={} is smaller than the minimum number "
+            "needed for dedispersion, {}".format(pad_samples_per_frame,
+                                                 max_delay_offset + 1))
         raw_pad_len = self._raw_padframe_len - self._raw_frame_len
 
         # Calculate task output shape and sample rate.
@@ -72,56 +78,35 @@ class DedispersionTaskBase(TaskBase):
                 nframe -= subtract_nframes
                 remaining_samples += self._raw_frame_len * subtract_nframes
         # Check if our final nframe and remaining_samples make sense.
-        assert (nframe > 0) and (remaining_samples >= raw_pad_len), (
-            "not enough samples to fill one frame of data!")
+        # NOTE: a much simpler check could just be nframe =
+        # ih.shape[0] // self._raw_padframe_len, but this also checks our math.
+        assert nframe > 0, "not enough samples to fill one frame of data!"
         nsample = samples_per_frame * nframe
 
-        sample_rate = ih.sample_rate / self.nchan
+        # Initialize FFT.
+        if FFT is None:
+            FFT = get_fft_maker('numpy')
+        self._fft = FFT((pad_samples_per_frame, nchan_bin) + ih.sample_shape,
+                        ih.dtype, axis=1)
 
-        # Don't set the dtype yet - subclasses use the shape to initialize
-        # fft, which will calculate the dtype.
-        super().__init__(ih, (nsample, self.nchan) + ih.sample_shape,
-                         sample_rate, samples_per_frame, None)
+        super().__init__(ih, (nsample,) + self._fft.freq_shape[1:],
+                         sample_rate, samples_per_frame, self._fft.freq_dtype)
 
     @property
     def base_freq(self):
         return self._base_freq
 
     @property
-    def ref_freq(self):
-        return self._ref_freq
+    def max_freq(self):
+        return self._max_freq
+
+    @property
+    def min_freq(self):
+        return self._min_freq
 
     @property
     def freq_order(self):
         return self._freq_order
-
-    def _read_frame(self, frame_index):
-        # TODO: For speed during sequential reading, can buffer frames, then,
-        # during sequential decode, copy data from self._raw_frame_len to
-        # self._raw_frame_len + self._raw_pad_len into the next buffer, rather
-        # than re-decoding them.  Dangerous if self.ih gets manually shifted
-        # between reads.
-        self.ih.seek(frame_index * self._raw_frame_len)
-        data = self.ih.read(self._raw_padframe_len)
-        return self.dedisperse(data)
-
-
-class IncoherentDedispersionTask(DedispersionTaskBase):
-
-    def __init__(self, ih, dm, base_freq, nchan,
-                 freq_order=None, samples_per_frame=1, FFT=None):
-
-        super().__init__(ih, dm, base_freq, nchan, freq_order,
-                         samples_per_frame)
-
-        # Initialize FFT.
-        if FFT is None:
-            FFT = get_fft_maker('numpy')
-        self._fft = FFT((self._raw_padframe_len //
-                         self.nchan, self.nchan) + ih.sample_shape,
-                        ih.dtype, axis=1)
-
-        self._dtype = self._fft.freq_dtype
 
     @lazyproperty
     def freq(self):
@@ -129,10 +114,9 @@ class IncoherentDedispersionTask(DedispersionTaskBase):
 
     @lazyproperty
     def dispersion_offset(self):
-        dm_delay = self.dm.time_delay(self.freq, self.ref_freq)
-        dt = self.nchan / self.ih.sample_rate * (
-            2 if self.ih.complex_data else 1)
-        return np.floor((dm_delay / dt).decompose()).value.astype('int')
+        dm_delay = self.dm.time_delay(self.freq, self.max_freq)
+        return np.floor((dm_delay * self.sample_rate)
+                        .decompose()).value.astype('int')
 
     @lazyproperty
     def _sample_shape_indices(self):
@@ -148,8 +132,18 @@ class IncoherentDedispersionTask(DedispersionTaskBase):
                     channelized_data[(slice(None), i) + indices],
                     -self.dispersion_offset[(i,) + indices], axis=0)
 
-        return channelized_data[:self._raw_padframe_len]
+        return channelized_data[:self.samples_per_frame]
+
+    def _read_frame(self, frame_index):
+        # TODO: For speed during sequential reading, can buffer frames, then,
+        # during sequential decode, copy data from self._raw_frame_len to
+        # self._raw_frame_len + self._raw_pad_len into the next buffer, rather
+        # than re-decoding them.  Dangerous if self.ih gets manually shifted
+        # between reads.
+        self.ih.seek(frame_index * self._raw_frame_len)
+        data = self.ih.read(self._raw_padframe_len)
+        return self.dedisperse(data)
 
 
-class CoherentDedispersionTask(DedispersionTaskBase):
+class CoherentDedispersionTask(TaskBase):
     pass
