@@ -33,6 +33,8 @@ class TestFFTClasses(object):
         self.freq_Y_exp = np.fft.fftfreq(len(self.y_exp),
                                          d=(1. / self.sample_rate))
         self.Y_rnsine = np.fft.rfft(self.y_rnsine, norm='ortho')
+        self.freq_Y_rnsine = np.fft.rfftfreq(len(self.y_rnsine),
+                                             d=(1. / self.sample_rate))
         self.Y_r2D = np.fft.rfft(self.y_r2D, axis=0)
         self.Y_3D = np.fft.fft(self.y_3D, axis=1, norm='ortho')
         self.freq_Y_3D = np.fft.fftfreq(len(self.y_3D[1]))
@@ -61,14 +63,27 @@ class TestFFTClasses(object):
         assert np.argmax(np.abs(Y)) == 10
         assert fft.freq[10] == 1.0 * u.kHz
 
+        # Check repr.
+        assert repr(fft).startswith('<' + fft.__class__.__name__)
+
         # 1D real sinusoid, orthogonal normalization, start with inverse
         # transform.
-        ifft = FFTMaker((7919,), 'float64', direction='inverse', ortho=True)
+        ifft = FFTMaker((7919,), 'float64', direction='inverse', ortho=True,
+                        sample_rate=self.sample_rate)
         y = ifft(self.Y_rnsine)
+        # Check frequency.
+        assert_quantity_allclose(ifft.freq, self.freq_Y_rnsine)
         fft = ifft.inverse()
         Y = fft(y)
         assert np.allclose(y, self.y_rnsine, **self.tolerances)
         assert np.allclose(Y, self.Y_rnsine, **self.tolerances)
+
+        # Check that we can explicitly make the forward transform.
+        fftc = FFTMaker((7919,), 'float64', direction='forward', ortho=True,
+                        sample_rate=self.sample_rate)
+        assert fftc == fft
+        # Check that we can copy an FFT.
+        assert fft.copy() == fft
 
         # Check Parseval's Theorem (factor of 2 from using a real transform).
         assert np.isclose(np.sum(self.y_rnsine**2),
