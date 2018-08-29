@@ -6,19 +6,32 @@ import astropy.units as u
 
 
 class TaskBase(object):
+    """Base class of all tasks.
+
+    Following the design of `baseband` stream readers, features properties
+    describing the size, shape, data type, sample rate and start/stop times of
+    the task's output.  Also defines methods to move a sample pointer across
+    the output data in units of either complete samples or time.
+
+    Subclasses should define
+
+      ``_read_frame``: method to read a single block of input data.
+    """
 
     def __init__(self, ih, shape, sample_rate, samples_per_frame, dtype):
         self.ih = ih
-        self.samples_per_frame = samples_per_frame
+        self._samples_per_frame = samples_per_frame
         self._sample_rate = sample_rate
         self._shape = shape
         self._dtype = np.dtype(dtype, copy=False)
+
+        # Sample and frame pointers.
         self.offset = 0
         self._frame_index = None
 
     @property
     def shape(self):
-        """Shape of the stream data."""
+        """Shape of the output."""
         return self._shape
 
     @property
@@ -28,9 +41,7 @@ class TaskBase(object):
 
     @property
     def size(self):
-        """Total number of component samples in the (squeezed/subset) stream
-        data.
-        """
+        """Number of component samples in the output."""
         prod = 1
         for dim in self.shape:
             prod *= dim
@@ -38,11 +49,12 @@ class TaskBase(object):
 
     @property
     def ndim(self):
-        """Number of dimensions of the data."""
+        """Number of dimensions of the output."""
         return len(self.shape)
 
     @property
     def dtype(self):
+        """Data type of the output."""
         return self._dtype
 
     @property
@@ -52,7 +64,7 @@ class TaskBase(object):
 
     @property
     def start_time(self):
-        """Start time of the data.
+        """Start time of the output.
 
         See also `time` and `stop_time`.
         """
@@ -60,7 +72,7 @@ class TaskBase(object):
 
     @property
     def time(self):
-        """Time of the sample pointer's current offset in the data.
+        """Time of the sample pointer's current offset in the output.
 
         See also `start_time` and `stop_time`.
         """
@@ -68,14 +80,14 @@ class TaskBase(object):
 
     @property
     def stop_time(self):
-        """Time at the end of the data, just after the last sample.
+        """Time at the end of the output, just after the last sample.
 
         See also `start_time` and `time`.
         """
         return self.start_time + self.shape[0] / self.sample_rate
 
     def seek(self, offset, whence=0):
-        """Change the stream position."""
+        """Change the sample pointer position."""
         try:
             offset = operator.index(offset)
         except Exception:
@@ -124,8 +136,27 @@ class TaskBase(object):
         return (self.offset / self.sample_rate).to(unit)
 
     def read(self, count=None, out=None):
-        # NOTE: this structure will return an EOF error when attempting to read
-        # partial frames, making it identical to fh.read().
+        """Read a number of complete samples.
+
+        Parameters
+        ----------
+        count : int or None, optional
+            Number of complete samples to read.  If `None` (default) or
+            negative, the entire input data is processed.  Ignored if ``out``
+            is given.
+        out : None or array, optional
+            Array to store the output in. If given, ``count`` will be inferred
+            from the first dimension; the other dimension should equal
+            `sample_shape`.
+
+        Returns
+        -------
+        out : `~numpy.ndarray` of float or complex
+            The first dimension is sample-time, and the remainder given by
+            `sample_shape`.
+        """
+        # NOTE: this will return an EOF error when attempting to read partial
+        # frames, making it identical to fh.read().
 
         if out is None:
             if count is None or count < 0:
@@ -143,7 +174,7 @@ class TaskBase(object):
         while count > 0:
             # For current position, get frame plus offset in that frame.
             frame_index, sample_offset = divmod(self.offset,
-                                                self.samples_per_frame)
+                                                self._samples_per_frame)
 
             if frame_index != self._frame_index:
                 self._frame = self._read_frame(frame_index)
@@ -160,4 +191,5 @@ class TaskBase(object):
         return out
 
     def close(self):
+        """Close task, in particular closing its input source."""
         self.ih.close()

@@ -18,19 +18,17 @@ class ReshapeTask(TaskBase):
     `ReshapeTask` simply reshapes blocks of baseband data into frames.
     """
 
-    def __init__(self, ih, nchan, samples_per_frame=1):
+    def __init__(self, ih, n, samples_per_frame=1):
 
-        self.nchan = operator.index(nchan)
+        n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
-        sample_rate = ih.sample_rate / self.nchan
+        sample_rate = ih.sample_rate / n
 
-        nsample = samples_per_frame * (ih.shape[0] // self.nchan //
-                                       samples_per_frame)
-        self._raw_frame_len = self.nchan * samples_per_frame
-        shape = (nsample, self.nchan) + ih.sample_shape
+        nsample = samples_per_frame * (ih.shape[0] // n // samples_per_frame)
+        self._raw_frame_len = n * samples_per_frame
+        shape = (nsample, n) + ih.sample_shape
 
-        super().__init__(ih, shape, sample_rate, samples_per_frame,
-                         ih.dtype)
+        super().__init__(ih, shape, sample_rate, samples_per_frame, ih.dtype)
 
     def _read_frame(self, frame_index):
         self.ih.seek(frame_index * self._raw_frame_len)
@@ -44,30 +42,29 @@ class TestTaskBase(object):
     def convert_time_offset(offset, sample_rate):
         return int((offset * sample_rate).to(u.one).round())
 
-    @pytest.mark.parametrize(('nchan', 'samples_per_frame'),
+    @pytest.mark.parametrize(('n', 'samples_per_frame'),
                              tuple(itertools.product([256, 337], [1, 7, 16])))
-    def test_taskbase(self, nchan, samples_per_frame):
+    def test_taskbase(self, n, samples_per_frame):
         """Test properties and methods of TaskBase, including
-        self-consistency with varying ``nchan`` and ``samples_per_frame``.
+        self-consistency with varying ``n`` and ``samples_per_frame``.
         """
         fh = vdif.open(SAMPLE_VDIF)
-        rt = ReshapeTask(fh, nchan, samples_per_frame=samples_per_frame)
+        rt = ReshapeTask(fh, n, samples_per_frame=samples_per_frame)
 
         # Check sample pointer.
-        assert rt.sample_rate == fh.sample_rate / nchan
-        nsample = samples_per_frame * (fh.shape[0] // nchan //
-                                       samples_per_frame)
-        assert rt.shape == (nsample, nchan) + fh.sample_shape
+        assert rt.sample_rate == fh.sample_rate / n
+        nsample = samples_per_frame * (fh.shape[0] // n // samples_per_frame)
+        assert rt.shape == (nsample, n) + fh.sample_shape
         assert rt.size == np.prod(rt.shape)
         assert rt.ndim == fh.ndim + 1
         assert rt.tell() == 0
         assert rt.tell(unit='time') == rt.time == rt.start_time
         assert abs(rt.stop_time - rt.start_time -
-                   (nsample * nchan) / fh.sample_rate) < 1*u.ns
+                   (nsample * n) / fh.sample_rate) < 1*u.ns
 
         # Get reference data.
-        ref_data = fh.read(nsample * nchan).reshape((-1, nchan) +
-                                                    fh.sample_shape)
+        ref_data = fh.read(nsample * n).reshape((-1, n) + fh.sample_shape)
+        # Move fh back for rt to use.
         fh.seek(0)
 
         # Check sequential reading.
@@ -121,6 +118,9 @@ class TestTaskBase(object):
             rt.seek(-2, 'end')
             with pytest.raises(EOFError):
                 rt.read(10)
+            rt.seek(-2, 'end')
+            with pytest.raises(EOFError):
+                rt.read(out=np.empty((5,) + rt.sample_shape))
             rt.seek(-4, 'start')
             with pytest.raises(OSError):
                 rt.read(1)
