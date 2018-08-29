@@ -10,7 +10,7 @@ __all__ = ['SquareTask']
 
 class SquareTask(TaskBase):
 
-    def __init__(self, ih, samples_per_frame=1):
+    def __init__(self, ih):
         ih_dtype = np.dtype(ih.dtype)
         if ih_dtype.kind == 'f':
             dtype = ih_dtype

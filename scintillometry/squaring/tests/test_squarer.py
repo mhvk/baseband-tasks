@@ -23,7 +23,7 @@ class TestSquare(object):
 
         st = SquareTask(fh)
 
-        # Channelize everything.
+        # Square everything.
         data1 = st.read()
         assert st.tell() == st.shape[0]
         assert (st.time - st.start_time -
@@ -31,7 +31,7 @@ class TestSquare(object):
         assert st.dtype is ref_data.dtype is data1.dtype
         assert np.allclose(ref_data, data1)
 
-        # Seeking and selective decode.
+        # Seeking and selective squaring.
         st.seek(-3, 2)
         assert st.tell() == st.shape[0] - 3
         data2 = st.read()
