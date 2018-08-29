@@ -15,23 +15,23 @@ class TestChannelize(object):
 
     def setup(self):
         """Pre-calculate channelized data."""
-        self.nchan = 1024
+        self.n = 1024
 
         with vdif.open(SAMPLE_VDIF) as fh:
             self.ref_start_time = fh.start_time
             self.ref_sample_rate = fh.sample_rate
             data = fh.read()
 
-        last_sample = self.nchan * (data.shape[0] // self.nchan)
+        last_sample = self.n * (data.shape[0] // self.n)
         self.ref_data = np.fft.rfft(
-            data[:last_sample].reshape((-1, self.nchan) + data.shape[1:]),
+            data[:last_sample].reshape((-1, self.n) + data.shape[1:]),
             axis=1).astype('complex64')
 
     def test_channelizetask(self):
         """Test channelization task."""
 
         fh = vdif.open(SAMPLE_VDIF)
-        ct = ChannelizeTask(fh, self.nchan)
+        ct = ChannelizeTask(fh, self.n)
 
         # Channelize everything.
         data1 = ct.read()
