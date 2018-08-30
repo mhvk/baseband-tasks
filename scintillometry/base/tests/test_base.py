@@ -64,8 +64,6 @@ class TestTaskBase(object):
 
         # Get reference data.
         ref_data = fh.read(nsample * n).reshape((-1, n) + fh.sample_shape)
-        # Move fh back for rt to use.
-        fh.seek(0)
 
         # Check sequential reading.
         data1 = rt.read()
