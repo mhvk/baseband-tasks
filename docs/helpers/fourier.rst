@@ -22,7 +22,7 @@ frequency-domain values are always treated as complex.
 Using the Fourier Module
 ========================
 
-To get an FFT maker, we may use the `~scintillometry.fourier.get_fft_maker`
+To get an FFT maker, we may use the `~scintillometry.fourier.base.get_fft_maker`
 function::
 
     >>> from scintillometry import fourier

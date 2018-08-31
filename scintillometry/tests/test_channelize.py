@@ -4,7 +4,7 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from .. import ChannelizeTask
+from ..channelize import ChannelizeTask
 
 from baseband import vdif
 from baseband.data import SAMPLE_VDIF

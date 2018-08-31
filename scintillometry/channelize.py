@@ -2,8 +2,8 @@
 
 import operator
 
-from ..base.base import TaskBase
-from ..fourier import get_fft_maker
+from .base import TaskBase
+from .fourier import get_fft_maker
 
 
 __all__ = ['ChannelizeTask']
