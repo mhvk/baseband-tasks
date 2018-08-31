@@ -32,19 +32,19 @@ classes that can be linked together into a data reduction pipeline.
    tasks/channelize
    tasks/base
 
-.. _modules_toc:
+.. _helpers_toc:
 
-Support Modules
-===============
+Helpers
+=======
 
-Scintillometry also contains support modules that assist with calculations and
+Scintillometry also contains helper modules that assist with calculations and
 that link it with other software, such as Fourier transform packages.
 
 .. toctree::
    :maxdepth: 1
 
-   supportmodules/dm
-   supportmodules/fourier
+   helpers/dm
+   helpers/fourier
 
 .. _project_details_toc:
 
