@@ -30,6 +30,7 @@ classes that can be linked together into a data reduction pipeline.
    :maxdepth: 1
 
    tasks/channelize
+   tasks/square
    tasks/base
 
 .. _helpers_toc:
