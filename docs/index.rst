@@ -18,20 +18,29 @@ Overview
 
    install
 
+.. _tasks_toc:
+
+Tasks
+=====
+
+At the core of Scintillometry is a collection of "tasks", filehandle-like
+classes that can be linked together into a data reduction pipeline.
+
 .. _modules_toc:
 
-Modules
-=======
+   tasks/channelize
+   tasks/base
 
-Scintillometry is divided into modules, each of which can be used standalone
-given correct inputs.
+Support Modules
+===============
+
+Scintillometry also contains support modules that assist with calculations and
+that link it with other software, such as Fourier transform packages.
 
 .. toctree::
    :maxdepth: 2
 
-   base/index
-   channelize/index
-   dispersion/index
+   supportmodules/dm
    fourier/index
 
 .. _project_details_toc:

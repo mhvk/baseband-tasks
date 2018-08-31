@@ -1,4 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
+
 import numpy as np
 import astropy.units as u
 
