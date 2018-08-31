@@ -26,10 +26,13 @@ Tasks
 At the core of Scintillometry is a collection of "tasks", filehandle-like
 classes that can be linked together into a data reduction pipeline.
 
-.. _modules_toc:
+.. toctree::
+   :maxdepth: 1
 
    tasks/channelize
    tasks/base
+
+.. _modules_toc:
 
 Support Modules
 ===============
@@ -38,10 +41,10 @@ Scintillometry also contains support modules that assist with calculations and
 that link it with other software, such as Fourier transform packages.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    supportmodules/dm
-   fourier/index
+   supportmodules/fourier
 
 .. _project_details_toc:
 
