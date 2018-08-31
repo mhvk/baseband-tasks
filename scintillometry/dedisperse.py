@@ -14,16 +14,38 @@ __all__ = ['CoherentDedispersionTask']
 
 
 class CoherentDedispersionTask(TaskBase):
+    """Coherent dedispersion task.
 
-    def __init__(self, ih, dm, base_freq, pad_samples_per_frame,
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    dm : float or `~scintillometry.dm.DispersionMeasure` quantity
+        Dispersion measure.
+    pad_samples_per_frame : int
+        The number of input samples
+    base_freq : frequency `~astropy.units.Quantity` or `~numpy.ndarray` thereof
+        Bandwidth reference frequency or frequencies, with the same dimensions
+        as the input's sample shape.  If input samples are real, ``base_freq``
+        should be the edge of the band; whether they represent the top or
+        bottom of the band is determined by ``freq_order``. If they are
+        complex, ``base_freq`` should represent the center of the band.
+    freq_order : `~numpy.ndarray` of int, optional
+        Frequency order, with the same dimensions as the input's sample shape.
+        If frequency increases with index, the order is 1; if it decreases, it
+        is -1.  Default: an `~numpy.ndarray` of +1.
+    FFT : FFT maker or None, optional
+        FFT maker.  Default: `None`, in which case the channelizer uses
+        `~scintillometry.fourier.numpy.NumpyFFTMaker`.
+    """
+
+    def __init__(self, ih, dm, pad_samples_per_frame, base_freq,
                  freq_order=None, FFT=None):
 
         # Store the number of inputs samples to read per frame.
         self._pad_samples_per_frame = operator.index(pad_samples_per_frame)
 
-        # Set reference frequency.  If not complex, base_freq is at the edge of
-        # the band, and freq_order determines which edge (1 for bottom, -1 for
-        # top).  If complex, base_freq is at the middle of the band.
+        # Set reference frequency.
         # NOTE: unless the exact bandwidth edge is returned by np.fft.rfftfreq,
         # this will give slightly different answers than Rob's code.
         self._base_freq = np.atleast_1d(np.array(base_freq)) * base_freq.unit
@@ -77,7 +99,7 @@ class CoherentDedispersionTask(TaskBase):
             FFT = get_fft_maker('numpy')
         # Dedispersion FFT and inverse.
         self._fft = FFT((self._pad_samples_per_frame,) + ih.sample_shape,
-                        self.ih.dtype, axis=0, sample_rate=self.ih.sample_rate)
+                        ih.dtype, axis=0, sample_rate=ih.sample_rate)
         self._ifft = self._fft.inverse()
 
         super().__init__(ih, (self._nsample,) + ih.sample_shape,
@@ -85,28 +107,33 @@ class CoherentDedispersionTask(TaskBase):
 
     @property
     def base_freq(self):
+        """Bandwidth reference frequencies."""
         return self._base_freq
 
     @property
     def max_freq(self):
+        """Largest frequency in each band."""
         return self._max_freq
 
     @property
     def freq_order(self):
+        """Frequency order."""
         return self._freq_order
 
     @lazyproperty
     def freq(self):
+        """Frequencies of the Fourier-transformed frame."""
         return self.base_freq + self.freq_order * self._fft.freq
 
     @lazyproperty
     def phase_factor(self):
+        """Phase offsets of the Fourier-transformed frame."""
         phase_factor = self.dm.phase_factor(self.freq, self.max_freq)
         phase_factor[:, self.freq_order == 1] = (
             np.conj(phase_factor[:, self.freq_order == 1]))
         return phase_factor
 
-    def dedisperse(self, data):
+    def _dedisperse(self, data):
         return self._ifft(self._fft(data) *
                           self.phase_factor)[:self._samples_per_frame]
 
@@ -118,4 +145,4 @@ class CoherentDedispersionTask(TaskBase):
         # between reads.
         self.ih.seek(frame_index * self._samples_per_frame)
         data = self.ih.read(self._pad_samples_per_frame)
-        return self.dedisperse(data)
+        return self._dedisperse(data)

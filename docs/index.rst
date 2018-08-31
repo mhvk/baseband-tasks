@@ -29,6 +29,7 @@ classes that can be linked together into a data reduction pipeline.
 .. toctree::
    :maxdepth: 1
 
+   tasks/dedisperse
    tasks/channelize
    tasks/functions
    tasks/base
