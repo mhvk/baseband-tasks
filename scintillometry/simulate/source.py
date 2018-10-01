@@ -65,3 +65,34 @@ class ConstantSource(Source):
         super(ConstantSource, self).__init__(
             source, shape=shape, start_time=start_time, sample_rate=sample_rate,
             samples_per_frame=samples_per_frame, dtype=dtype)
+
+
+class Noise(np.random.RandomState):
+    def __init__(self, seed=None):
+        super(Noise, self).__init__(seed)
+        self._states = {}
+
+    def __call__(self, sh):
+        offset = sh.tell()
+        if offset in self._states:
+            self.set_state(self._states[offset])
+        else:
+            self._states[offset] = self.get_state()
+        shape = (sh.samples_per_frame,) + sh.sample_shape
+        if sh.complex_data:
+            shape = shape[:-1] + (shape[-1] * 2,)
+        numbers = self.normal(size=shape)
+        if sh.complex_data:
+            numbers = numbers.view(np.complex128)
+        return numbers.astype(sh.dtype, copy=False)
+
+
+class NoiseSource(Source):
+    def __init__(self, shape, start_time, sample_rate, samples_per_frame,
+                 dtype=np.complex64, seed=None):
+        source = Noise(seed)
+        super(NoiseSource, self).__init__(source=source, shape=shape,
+                                          start_time=start_time,
+                                          sample_rate=sample_rate,
+                                          samples_per_frame=samples_per_frame,
+                                          dtype=dtype)

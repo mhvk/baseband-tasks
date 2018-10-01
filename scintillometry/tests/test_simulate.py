@@ -120,3 +120,61 @@ class TestConstant(SourceBase):
         data2 = st.read()
         assert data2.shape[0] == 3
         assert np.all(data2 == np.abs(tone)**2)
+
+
+class TestNoise(object):
+    """Test that we can produce normally distribute noise.
+
+    And that the noise generator looks like a streamreader.
+    """
+    def setup(self):
+        self.seed = 1234567
+        self.start_time = Time('2010-11-12T13:14:15')
+        self.sample_rate = 10. * u.kHz
+        self.shape = (10000, 4, 2)
+
+    def test_basics(self):
+        with NoiseSource(seed=self.seed,
+                         shape=self.shape, start_time=self.start_time,
+                         sample_rate=self.sample_rate,
+                         samples_per_frame=10, dtype=np.complex128) as nh:
+            assert nh.size == np.prod(self.shape)
+            assert abs(nh.stop_time - nh.start_time - 1. * u.s) < 1. * u.ns
+            nh.seek(10)
+            data1 = nh.read(2)
+            assert data1.shape == (2,) + nh.sample_shape
+            nh.seek(0)
+            data = nh.read()
+            assert data.shape == nh.shape
+            # Check repeatability.
+            assert np.all(data1 == data[10:12])
+            nh.seek(10)
+            data2 = nh.read(2)
+            assert np.all(data2 == data[10:12])
+            nh.seek(9000)
+            data3 = nh.read()
+            assert np.all(data3 == data[9000:])
+
+        assert abs(data.mean()) < 10. / data.size ** 0.5
+        assert abs(data.std() - np.sqrt(2.)) < 14. / data.size ** 0.5
+
+    def test_use_as_source(self):
+        """Test that noise routine with squarer gives expected levels."""
+        nh = NoiseSource(seed=self.seed,
+                         shape=self.shape, start_time=self.start_time,
+                         sample_rate=self.sample_rate,
+                         samples_per_frame=10, dtype=np.complex128)
+        st = SquareTask(nh)
+        data1 = st.read()
+        assert st.tell() == st.shape[0]
+        assert abs(st.time - st.start_time - 1. * u.s) < 1*u.ns
+        assert abs(data1.mean() - 2.) < 10. / st.size ** 0.5
+        # Seeking and selective squaring.
+        st.seek(-3, 2)
+        assert st.tell() == st.shape[0] - 3
+        data2 = st.read()
+        assert data2.shape[0] == 3
+        assert np.all(data2 == data1[-3:])
+        nh.seek(-3, 2)
+        noise2 = nh.read()
+        assert np.all(data2 == noise2.real**2 + noise2.imag**2)

@@ -1,2 +1,2 @@
 # Licensed under the GPLv3 - see LICENSE
-from .source import Source, ConstantSource
+from .source import Source, ConstantSource, NoiseSource
