@@ -1,5 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
-
+import pytest
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
@@ -37,6 +37,10 @@ class TestSource(SourceBase):
             data2 = sh.read()
             assert data2.shape == (1000 - 981, 4, 2)
             assert np.all(data2 == np.arange(981, 1000).reshape(19, 1, 1))
+
+            with pytest.raises(EOFError):
+                sh.seek(-10, 2)
+                sh.read(20)
 
 
 class TestConstant(SourceBase):

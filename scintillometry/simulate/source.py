@@ -65,6 +65,8 @@ class Source(Base):
 
     def _read_frame(self, frame_index):
         self.seek(frame_index * self.samples_per_frame)
+        if self.tell() + self.samples_per_frame > self.shape[0]:
+            raise EOFError("cannot generate beyond end of source.")
         return self._source(self)
 
     def close(self):
