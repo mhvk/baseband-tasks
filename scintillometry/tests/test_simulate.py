@@ -19,20 +19,21 @@ class TestSource(SourceBase):
     """Test sources that produce things looking like a stream reader."""
 
     def my_source(self, sh):
-        return np.broadcast_to(sh.tell(),
+        return np.broadcast_to(np.array(sh.tell(), sh.dtype),
                                (sh.samples_per_frame,) + sh.shape[1:])
 
     def test_basics(self):
         with Source(self.my_source,
                     shape=self.shape, start_time=self.start_time,
-                    sample_rate=self.sample_rate, samples_per_frame=1,
-                    dtype=np.complex64) as sh:
+                    sample_rate=self.sample_rate, samples_per_frame=1) as sh:
             assert sh.size == np.prod(self.shape)
             assert sh.shape == self.shape
+            assert sh.dtype == np.complex64
             assert sh.samples_per_frame == 1
             assert abs(sh.stop_time - sh.start_time - 1. * u.s) < 1. * u.ns
             sh.seek(980)
             data1 = sh.read(1)
+            assert data1.dtype == sh.dtype
             assert np.all(data1 == 980.)
             data2 = sh.read()
             assert data2.shape == (1000 - 981, 4, 2)
@@ -47,14 +48,15 @@ class TestConstant(SourceBase):
     """Test sources that produce constant signals."""
     def test_zeros(self):
         with ConstantSource(0., shape=self.shape, start_time=self.start_time,
-                            sample_rate=self.sample_rate, samples_per_frame=10,
-                            dtype=np.complex64) as sh:
+                            sample_rate=self.sample_rate,
+                            samples_per_frame=10) as sh:
             assert sh.size == np.prod(self.shape)
             assert sh.shape == self.shape
             assert sh.samples_per_frame == 10
             assert abs(sh.stop_time - sh.start_time - 1. * u.s) < 1. * u.ns
             sh.seek(10)
             data1 = sh.read(2)
+            assert data1.dtype == sh.dtype == np.complex64
             assert np.all(data1 == 0.)
             data2 = sh.read()
             assert data2.shape == (1000 - 12, 4, 2)
@@ -63,8 +65,8 @@ class TestConstant(SourceBase):
     def test_1p1j(self):
         with ConstantSource(1 + 1j, shape=self.shape,
                             start_time=self.start_time,
-                            sample_rate=self.sample_rate, samples_per_frame=20,
-                            dtype=np.complex64) as sh:
+                            sample_rate=self.sample_rate,
+                            samples_per_frame=20) as sh:
             assert sh.size == np.prod(self.shape)
             assert sh.shape == self.shape
             assert sh.samples_per_frame == 20
@@ -79,8 +81,7 @@ class TestConstant(SourceBase):
         tone[200] = 1.
         with ConstantSource(tone, shape=(10, 1000),
                             start_time=self.start_time,
-                            sample_rate=10. * u.Hz, samples_per_frame=2,
-                            dtype=np.complex64) as sh:
+                            sample_rate=10. * u.Hz, samples_per_frame=2) as sh:
             assert abs(sh.stop_time - sh.start_time - 1. * u.s) < 1. * u.ns
             sh.seek(5)
             data1 = sh.read(1)
@@ -93,9 +94,8 @@ class TestConstant(SourceBase):
         tone = np.zeros((2, 1000,), dtype=np.complex64)
         tone[0, 200] = 1.
         tone[1, 201] = 1.
-        with ConstantSource(tone, shape=(10, 1000),
-                            start_time=self.start_time,
-                            sample_rate=10. * u.Hz, dtype=np.complex64) as sh:
+        with ConstantSource(tone, shape=(10, 1000), start_time=self.start_time,
+                            sample_rate=10. * u.Hz) as sh:
             assert sh.samples_per_frame == 2
             assert abs(sh.stop_time - sh.start_time - 1. * u.s) < 1. * u.ns
             sh.seek(4)
@@ -111,8 +111,7 @@ class TestConstant(SourceBase):
         tone[200] = 1.
         sh = ConstantSource(tone, shape=(10, 1000),
                             start_time=self.start_time,
-                            sample_rate=10. * u.Hz, samples_per_frame=2,
-                            dtype=np.complex64)
+                            sample_rate=10. * u.Hz, samples_per_frame=2)
         st = SquareTask(sh)
         data1 = st.read()
         assert st.tell() == st.shape[0]
@@ -147,6 +146,7 @@ class TestNoise(object):
             nh.seek(10)
             data1 = nh.read(2)
             assert data1.shape == (2,) + nh.sample_shape
+            assert data1.dtype == np.complex128
             nh.seek(0)
             data = nh.read()
             assert data.shape == nh.shape
@@ -169,6 +169,7 @@ class TestNoise(object):
                          sample_rate=self.sample_rate,
                          samples_per_frame=10, dtype=np.complex128)
         st = SquareTask(nh)
+        assert st.dtype == np.float64
         data1 = st.read()
         assert st.tell() == st.shape[0]
         assert abs(st.time - st.start_time - 1. * u.s) < 1*u.ns
