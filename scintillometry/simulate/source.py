@@ -48,7 +48,7 @@ class Source(Base):
     >>> sh = Source(alternate, (10, 6), t.Time('2010-11-12'), 10.*u.Hz, samples_per_frame=1)
     >>> sh.seek(5)
     5
-    >>> sh.read()
+    >>> sh.read()  # doctest: +FLOAT_CMP
     array([[1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j],
            [0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j],
            [1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j],
@@ -128,7 +128,7 @@ class ConstantSource(Source):
     5
     >>> sh.tell(unit='time')
     <Time object: scale='utc' format='iso' value=2010-11-12 00:00:00.500>
-    >>> sh.read(2)
+    >>> sh.read(2)  # doctest: +FLOAT_CMP
     array([[0.+0.j, 0.+0.j, 0.+0.j, 1.+0.j, 0.+0.j, 0.+0.j],
            [0.+0.j, 0.+0.j, 0.+0.j, 1.+0.j, 0.+0.j, 0.+0.j]], dtype=complex64)
     """
