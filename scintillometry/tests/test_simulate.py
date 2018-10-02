@@ -19,8 +19,10 @@ class TestSource(SourceBase):
     """Test sources that produce things looking like a stream reader."""
 
     def my_source(self, sh):
-        return np.broadcast_to(np.array(sh.tell(), sh.dtype),
-                               (sh.samples_per_frame,) + sh.shape[1:])
+        data = np.empty((sh.samples_per_frame,) + sh.sample_shape,
+                        sh.dtype)
+        data[...] = sh.tell()
+        return data
 
     def test_basics(self):
         with Source(self.my_source,

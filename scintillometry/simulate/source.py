@@ -76,8 +76,8 @@ class Source(Base):
 class Constant(object):
     """Helper class providing source callables for ConstantSource.
 
-    When called with a source file handle, will broadcast the constant
-    to produce a frame of data.
+    When called with a source file handle, will create a frame of
+    data filled with the constant.
 
     Parameters
     ----------
@@ -88,8 +88,10 @@ class Constant(object):
         self.constant = constant
 
     def __call__(self, sh):
-        return np.broadcast_to(self.constant.astype(sh.dtype, copy=False),
-                               (sh.samples_per_frame,) + sh.sample_shape)
+        data = np.empty((sh.samples_per_frame,) + sh.sample_shape,
+                        sh.dtype)
+        data[...] = self.constant
+        return data
 
 
 class ConstantSource(Source):
@@ -108,8 +110,8 @@ class ConstantSource(Source):
         Sample rate, in units of frequency.
     samples_per_frame : int, optional
         Blocking factor.  By default, the number of samples in ``constant``.
-        If passed in, ``constant`` will be broadcast to this shape, which can
-        help efficiency.
+        If passed in, an empty frame of this shape will be filled with
+        ``constant``, which can help efficiency.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``
 
