@@ -5,8 +5,8 @@ import numpy as np
 import astropy.units as u
 
 
-class TaskBase(object):
-    """Base class of all tasks.
+class Base:
+    """Base class of all tasks and generators.
 
     Following the design of `baseband` stream readers, features properties
     describing the size, shape, data type, sample rate and start/stop times of
@@ -15,14 +15,15 @@ class TaskBase(object):
 
     Subclasses should define
 
-      ``_read_frame``: method to read a single block of input data.
+      ``_read_frame``: method to read (or generate) a single block of data.
     """
 
-    def __init__(self, ih, shape, sample_rate, samples_per_frame, dtype):
-        self.ih = ih
+    def __init__(self, shape, start_time, sample_rate, samples_per_frame,
+                 dtype):
+        self._shape = shape
+        self._start_time = start_time
         self._samples_per_frame = samples_per_frame
         self._sample_rate = sample_rate
-        self._shape = shape
         self._dtype = np.dtype(dtype, copy=False)
 
         # Sample and frame pointers.
@@ -38,6 +39,15 @@ class TaskBase(object):
     def sample_shape(self):
         """Shape of a complete sample."""
         return self.shape[1:]
+
+    @property
+    def samples_per_frame(self):
+        """Number of samples per frame of data.
+
+        For compatibility with file readers, to help indicate what
+        a nominal chunk of data is.
+        """
+        return self._samples_per_frame
 
     @property
     def size(self):
@@ -58,6 +68,10 @@ class TaskBase(object):
         return self._dtype
 
     @property
+    def complex_data(self):
+        return self._dtype.kind == 'c'
+
+    @property
     def sample_rate(self):
         """Number of complete samples per second."""
         return self._sample_rate
@@ -68,7 +82,7 @@ class TaskBase(object):
 
         See also `time` and `stop_time`.
         """
-        return self.ih.start_time
+        return self._start_time
 
     @property
     def time(self):
@@ -189,6 +203,35 @@ class TaskBase(object):
             count -= nsample
 
         return out
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        pass
+
+
+class TaskBase(Base):
+    """Base class of all tasks.
+
+    Following the design of `baseband` stream readers, features properties
+    describing the size, shape, data type, sample rate and start/stop times of
+    the task's output.  Also defines methods to move a sample pointer across
+    the output data in units of either complete samples or time.
+
+    Subclasses should define
+
+      ``_read_frame``: method to read a single block of input data.
+    """
+
+    def __init__(self, ih, shape, sample_rate, samples_per_frame, dtype):
+        self.ih = ih
+        super().__init__(shape=shape, start_time=ih.start_time,
+                         sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame, dtype=dtype)
 
     def close(self):
         """Close task, in particular closing its input source."""
