@@ -5,8 +5,8 @@ import numpy as np
 import astropy.units as u
 
 
-class TaskBase(object):
-    """Base class of all tasks.
+class Base:
+    """Base class of all tasks and generators.
 
     Following the design of `baseband` stream readers, features properties
     describing the size, shape, data type, sample rate and start/stop times of
@@ -15,14 +15,29 @@ class TaskBase(object):
 
     Subclasses should define
 
-      ``_read_frame``: method to read a single block of input data.
+      ``_read_frame``: method to read (or generate) a single block of data.
+
+    Parameters
+    ----------
+    shape : tuple, optional
+        Overall shape of the stream, with first entry the total number
+        of complete samples, and the remainder the sample shape.
+    sample_rate : `~astropy.units.Quantity`, optional
+        Rate at which complete samples are produced.
+    samples_per_frame : int, optional
+        Number of samples dealt with in one go.  The number of complete
+        samples (``shape[0]``) should be an integer multiple of this.
+    dtype : `~numpy.dtype`, optional
+        Dtype of the samples.
     """
 
-    def __init__(self, ih, shape, sample_rate, samples_per_frame, dtype):
-        self.ih = ih
-        self._samples_per_frame = samples_per_frame
-        self._sample_rate = sample_rate
+    def __init__(self, shape, start_time, sample_rate, samples_per_frame,
+                 dtype):
         self._shape = shape
+        self._start_time = start_time
+        self._samples_per_frame = samples_per_frame
+        assert shape[0] % samples_per_frame == 0
+        self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
 
         # Sample and frame pointers.
@@ -38,6 +53,15 @@ class TaskBase(object):
     def sample_shape(self):
         """Shape of a complete sample."""
         return self.shape[1:]
+
+    @property
+    def samples_per_frame(self):
+        """Number of samples per frame of data.
+
+        For compatibility with file readers, to help indicate what
+        a nominal chunk of data is.
+        """
+        return self._samples_per_frame
 
     @property
     def size(self):
@@ -58,6 +82,10 @@ class TaskBase(object):
         return self._dtype
 
     @property
+    def complex_data(self):
+        return self._dtype.kind == 'c'
+
+    @property
     def sample_rate(self):
         """Number of complete samples per second."""
         return self._sample_rate
@@ -68,7 +96,7 @@ class TaskBase(object):
 
         See also `time` and `stop_time`.
         """
-        return self.ih.start_time
+        return self._start_time
 
     @property
     def time(self):
@@ -189,6 +217,66 @@ class TaskBase(object):
             count -= nsample
 
         return out
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        pass
+
+
+class TaskBase(Base):
+    """Base class of all tasks.
+
+    Following the design of `baseband` stream readers, features properties
+    describing the size, shape, data type, sample rate and start/stop times of
+    the task's output.  Also defines methods to move a sample pointer across
+    the output data in units of either complete samples or time.
+
+    Subclasses should define
+
+      ``_read_frame``: method to read a single block of input data.
+
+    Parameters
+    ----------
+    ih : stream handle
+        Handle of a stream reader or another task.
+    shape : tuple, optional
+        Overall shape of the stream, with first entry the total number
+        of complete samples, and the remainder the sample shape.  By
+        default, identical to the shape of the underlying stream.
+    sample_rate : `~astropy.units.Quantity`, optional
+        With units of a rate.  If not given, taken from the underlying
+        stream.
+    samples_per_frame : int, optional
+        Number of samples the task should handle in one go.  If given,
+        ``shape`` will be adjusted to make the total number of samples
+        an integer multiple of ``samples_per_frame``.  If not given,
+        the number from the underlying stream.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  If not given, the dtype of the underlying file.
+    """
+
+    def __init__(self, ih, shape=None, sample_rate=None, samples_per_frame=None,
+                 dtype=None):
+        self.ih = ih
+        if shape is None:
+            shape = ih.shape
+        if sample_rate is None:
+            sample_rate = ih.sample_rate
+        if samples_per_frame is None:
+            samples_per_frame = ih.samples_per_frame
+        else:
+            nsamples = (shape[0] // samples_per_frame) * samples_per_frame
+            shape = (nsamples,) + shape[1:]
+        if dtype is None:
+            dtype = ih.dtype
+        super().__init__(shape=shape, start_time=ih.start_time,
+                         sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame, dtype=dtype)
 
     def close(self):
         """Close task, in particular closing its input source."""
