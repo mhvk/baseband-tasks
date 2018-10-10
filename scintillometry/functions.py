@@ -4,8 +4,59 @@ import numpy as np
 from .base import TaskBase
 
 
+__all__ = ['FunctionTask', 'ComplexFunctionTask', 'SquareTask']
+
+
 class FunctionTask(TaskBase):
     """Apply a user-supplied function to a stream.
+
+    The function will be fed data from the underlying stream.  If
+    knowledge of the state of the stream is needed, use
+    `ComplexFunctionTask`.
+
+    Parameters
+    ----------
+    ih : filehandle
+        Source of data, or another task, from which samples are read.
+    function : callable
+        The function should take a single argument, which will be the
+        frame data read from the underlying file or task.
+    shape : tuple, optional
+        Overall shape of the stream, with first entry the total number
+        of complete samples, and the remainder the sample shape.  By
+        default, identical to the shape of the underlying stream.
+    sample_rate : `~astropy.units.Quantity`, optional
+        With units of a rate.  If not given, taken from the underlying
+        stream.
+    samples_per_frame : int, optional
+        Number of samples which should be fed to the function in one go.
+        If not given, by default the number from the underlying file.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  If not given, the dtype of the underlying file.
+    """
+    def __init__(self, ih, function, shape=None, sample_rate=None,
+                 samples_per_frame=None, dtype=None):
+        self._function = function
+        super().__init__(ih, shape=shape, sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame, dtype=dtype)
+
+    def function(self, data):
+        return self._function(data)
+
+    def _read_frame(self, frame_index):
+        # Read data from underlying filehandle.
+        self.ih.seek(frame_index * self.samples_per_frame)
+        data = self.ih.read(self.samples_per_frame)
+        # Apply function to the data.  Note that the read() function
+        # in base ensures that our offset pointer is correct.
+        return self.function(data)
+
+
+class ComplexFunctionTask(FunctionTask):
+    """Apply a user-supplied function to a stream.
+
+    Like `~scintillometry.functions.FunctionTask`, but for a callable
+    that requires knowledge of the state of the stream.
 
     Parameters
     ----------
@@ -16,33 +67,42 @@ class FunctionTask(TaskBase):
         Function task instance, with its offset at the sample for which
         the amplitude should be returned, and the frame data read from
         the underlying file or task.
+    shape : tuple, optional
+        Overall shape of the stream, with first entry the total number
+        of complete samples, and the remainder the sample shape.  By
+        default, identical to the shape of the underlying stream.
+    sample_rate : `~astropy.units.Quantity`, optional
+        With units of a rate.  If not given, taken from the underlying
+        stream.
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the underlying file.
     dtype : `~numpy.dtype`, optional
         Output dtype.  If not given, the dtype of the underlying file.
     """
-    def __init__(self, ih, function, shape=None, sample_rate=None,
-                 samples_per_frame=None, dtype=None):
-        self._function = function
-        if shape is None:
-            shape = ih.shape
-        if sample_rate is None:
-            sample_rate = ih.sample_rate
-        if samples_per_frame is None:
-            samples_per_frame = ih.samples_per_frame
-        else:
-            nsamples = (shape[0] // samples_per_frame) * samples_per_frame
-            shape = (nsamples,) + shape[1:]
-        if dtype is None:
-            dtype = ih.dtype
-        super().__init__(ih, shape=shape, sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
-
-    def _read_frame(self, frame_index):
-        # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self.samples_per_frame)
-        data = self.ih.read(self.samples_per_frame)
-        # Apply function to the data.  Note that the read() function
-        # in base ensures that our offset pointer is correct.
+    def function(self, data):
         return self._function(self, data)
+
+
+class SquareTask(FunctionTask):
+    """Converts complex samples to intensities.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream.
+    """
+
+    def __init__(self, ih):
+        ih_dtype = np.dtype(ih.dtype)
+
+        if ih_dtype.kind == 'f':
+            dtype = ih_dtype
+            function = np.square
+        else:
+            dtype = np.dtype('f{0:d}'.format(ih_dtype.itemsize // 2))
+
+            def function(x):
+                return np.square(x.real) + np.square(x.imag)
+
+        super().__init__(ih, function, dtype=dtype)
