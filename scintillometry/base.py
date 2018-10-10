@@ -263,17 +263,33 @@ class TaskBase(Base):
     def __init__(self, ih, shape=None, sample_rate=None, samples_per_frame=None,
                  dtype=None):
         self.ih = ih
-        if shape is None:
-            shape = ih.shape
         if sample_rate is None:
             sample_rate = ih.sample_rate
-        if samples_per_frame is None:
-            samples_per_frame = ih.samples_per_frame
+            sample_rate_ratio = 1.
         else:
-            nsamples = (shape[0] // samples_per_frame) * samples_per_frame
-            shape = (nsamples,) + shape[1:]
+            sample_rate_ratio = (ih.sample_rate / sample_rate).to(1).value
+        if samples_per_frame is None:
+            (samples_per_frame, r) = divmod(ih.samples_per_frame /
+                                            sample_rate_ratio, 1.)
+            assert r == 0, "inferred samples per frame must be integer"
+            samples_per_frame = int(samples_per_frame)
+            self._raw_samples_per_frame = ih.samples_per_frame
+        else:
+            (raw_samples_per_frame, r) = divmod(samples_per_frame *
+                                                sample_rate_ratio, 1.)
+            assert r == 0, "inferred raw samples per frame must be integer"
+            self._raw_samples_per_frame = int(raw_samples_per_frame)
+
+        nraw_frames = ih.shape[0] // self._raw_samples_per_frame
+        if shape is None:
+            shape = (nraw_frames * samples_per_frame,) + ih.shape[1:]
+        else:
+            assert shape[0] <= nraw_frames * samples_per_frame, \
+                "passed in shape[0] too large"
+
         if dtype is None:
             dtype = ih.dtype
+
         super().__init__(shape=shape, start_time=ih.start_time,
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame, dtype=dtype)

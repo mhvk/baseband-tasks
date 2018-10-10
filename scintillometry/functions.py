@@ -24,13 +24,16 @@ class FunctionTask(TaskBase):
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.  By
-        default, identical to the shape of the underlying stream.
+        default, the shape of the underlying stream, possibly adjusted
+        for a difference of sample rate.
     sample_rate : `~astropy.units.Quantity`, optional
         With units of a rate.  If not given, taken from the underlying
-        stream.
+        stream.  Should be passed in if the function reduces or expands
+        the number of elements.
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
-        If not given, by default the number from the underlying file.
+        If not given, by default the number from the underlying file,
+        possibly adjusted for a difference in sample rate.
     dtype : `~numpy.dtype`, optional
         Output dtype.  If not given, the dtype of the underlying file.
     """
@@ -45,8 +48,8 @@ class FunctionTask(TaskBase):
 
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self.samples_per_frame)
-        data = self.ih.read(self.samples_per_frame)
+        self.ih.seek(frame_index * self._raw_samples_per_frame)
+        data = self.ih.read(self._raw_samples_per_frame)
         # Apply function to the data.  Note that the read() function
         # in base ensures that our offset pointer is correct.
         return self.function(data)
@@ -70,13 +73,16 @@ class ComplexFunctionTask(FunctionTask):
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.  By
-        default, identical to the shape of the underlying stream.
+        default, the shape of the underlying stream, possibly adjusted
+        for a difference of sample rate.
     sample_rate : `~astropy.units.Quantity`, optional
         With units of a rate.  If not given, taken from the underlying
-        stream.
+        stream.  Should be passed in if the function reduces or expands
+        the number of elements.
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
-        If not given, by default the number from the underlying file.
+        If not given, by default the number from the underlying file,
+        possibly adjusted for a difference in sample rate.
     dtype : `~numpy.dtype`, optional
         Output dtype.  If not given, the dtype of the underlying file.
     """
@@ -85,7 +91,7 @@ class ComplexFunctionTask(FunctionTask):
 
 
 class SquareTask(FunctionTask):
-    """Converts complex samples to intensities.
+    """Converts samples to intensities by squaring.
 
     Parameters
     ----------
