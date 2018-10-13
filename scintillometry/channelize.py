@@ -2,14 +2,14 @@
 
 import operator
 
-from .functions import FunctionTask
+from .functions import FunctionTaskBase
 from .fourier import get_fft_maker
 
 
 __all__ = ['ChannelizeTask']
 
 
-class ChannelizeTask(FunctionTask):
+class ChannelizeTask(FunctionTaskBase):
     """Basic channelizer.
 
     Divides input into blocks of ``n`` time samples, Fourier transforming each
@@ -52,14 +52,13 @@ class ChannelizeTask(FunctionTask):
         if FFT is None:
             FFT = get_fft_maker('numpy')
 
-        fft = FFT((samples_per_frame, n) + ih.sample_shape,
-                  ih.dtype, axis=1)
+        self._fft = FFT((samples_per_frame, n) + ih.sample_shape,
+                        ih.dtype, axis=1)
 
-        def apply_fft(data):
-            return fft(data.reshape(fft.time_shape))
-
-        super().__init__(ih, apply_fft,
-                         shape=(nsample,) + fft.freq_shape[1:],
+        super().__init__(ih, shape=(nsample,) + self._fft.freq_shape[1:],
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         dtype=fft.freq_dtype)
+                         dtype=self._fft.freq_dtype)
+
+    def function(self, data):
+        return self._fft(data.reshape(self._fft.time_shape))
