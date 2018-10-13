@@ -33,6 +33,19 @@ classes that can be linked together into a data reduction pipeline.
    tasks/functions
    tasks/base
 
+.. _simulation_toc:
+
+Simulation
+==========
+
+To help simulate and debug reduction processes, Scintillometry allows
+one to generate fake signals.
+
+.. toctree::
+   :maxdepth: 1
+
+   simulation/generators
+
 .. _helpers_toc:
 
 Helpers
