@@ -1,16 +1,17 @@
-.. _square:
+.. _functions:
 
-********************************
-Square (`scintillometry.square`)
-********************************
+**************************************
+Functions (`scintillometry.functions`)
+**************************************
 
-`~scintillometry.square` has a simple squaring task to transform amplitudes
-into intensities.
+`~scintillometry.functions` contains general tasks to apply a user-defined
+function to a stream, as well as pre-defined implementations for common
+functions such as squaring to transform voltages to into intensities.
 
-.. _square_api:
+.. _functions_api:
 
 Reference/API
 =============
 
-.. automodapi:: scintillometry.square
+.. automodapi:: scintillometry.functions
    :no-inherited-members:
