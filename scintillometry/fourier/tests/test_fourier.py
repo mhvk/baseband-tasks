@@ -46,7 +46,10 @@ class TestFFTClasses(object):
     def test_fft(self, key):
         """Test various FFT implementations."""
         # Load class using get_fft_maker, check that we have the right one.
-        FFTMaker = get_fft_maker(key)
+        kwargs = {}
+        if key == 'pyfftw':
+            kwargs['flags'] = ['FFTW_ESTIMATE']
+        FFTMaker = get_fft_maker(key, **kwargs)
 
         # 1D complex sinusoid.
         fft = FFTMaker(self.y_exp.shape, self.y_exp.dtype,
