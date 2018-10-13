@@ -10,15 +10,7 @@ from ..generators import NoiseGenerator
 from ..functions import ComplexFunctionTask, SquareTask
 
 
-class TestModulation:
-    """Basic tests of using a FunctionTask to create a modulator."""
-
-    def block_profile(self, fh, data):
-        """Multiply with 1 between 0.45--0.55 s, 0.125 otherwise."""
-        t = (fh.tell() + fh.samples_per_frame / 2) / fh.sample_rate
-        data *= (1 if abs(t - 0.5 * u.s) < 0.05 * u.s else 0.125)
-        return data
-
+class NoiseStreamBase:
     def setup(self):
         self.seed = 1234567
         self.start_time = Time('2010-11-12T13:14:15')
@@ -28,6 +20,16 @@ class TestModulation:
                                  shape=self.shape, start_time=self.start_time,
                                  sample_rate=self.sample_rate,
                                  samples_per_frame=200, dtype=np.complex64)
+
+
+class TestModulation(NoiseStreamBase):
+    """Basic tests of using a FunctionTask to create a modulator."""
+
+    def block_profile(self, fh, data):
+        """Multiply with 1 between 0.45--0.55 s, 0.125 otherwise."""
+        t = (fh.tell() + fh.samples_per_frame / 2) / fh.sample_rate
+        data *= (1 if abs(t - 0.5 * u.s) < 0.05 * u.s else 0.125)
+        return data
 
     def test_modulator_unbinned(self):
         nh = self.nh
@@ -73,3 +75,43 @@ class TestModulation:
         mt = ComplexFunctionTask(nh, self.block_profile, samples_per_frame=1000)
         m = mt.read()
         assert np.all(m == n)
+
+
+class TestCyclicModulation(NoiseStreamBase):
+    def cycle(self, t):
+        return (t * 3. * u.Hz).to(1).value
+
+    def gaussian_profile(self, phase):
+        """Gaussian profile at 0.5 w/ width=0.05; base of 1., amplitude 0.125."""
+        return 1. + 0.125 * np.exp(-((phase - 0.5) / 0.05)**2)
+
+    def profile(self, fh, data):
+        """Gaussian profile at 0.5 w/ width=0.05; base of 0.125."""
+        t = (fh.tell() + fh.samples_per_frame / 2) / fh.sample_rate
+        phase = self.cycle(t) % 1.
+        data *= self.gaussian_profile(phase)
+        return data
+
+    def test_modulator_unbinned(self):
+        nh = self.nh
+        mt = ComplexFunctionTask(nh, self.profile, samples_per_frame=1)
+        nh.seek(0)
+        n1 = nh.read()
+        m1 = mt.read()
+        phase = ((np.arange(1000.) + 0.5) / 1000. * 3.) % 1.
+        assert np.allclose(m1, n1 * self.gaussian_profile(phase))
+
+    def test_modulator_bin10(self):
+        nh = self.nh
+        mt = ComplexFunctionTask(nh, self.profile, samples_per_frame=10)
+        nh.seek(0)
+        n1 = nh.read()
+        m1 = mt.read()
+        phase = ((np.arange(100.) + 0.5) / 100. * 3.) % 1.
+        profile = self.gaussian_profile(phase)
+        expected = (n1.reshape(-1, 10) * profile[:, np.newaxis]).ravel()
+        assert np.allclose(m1, expected)
+        # Also test with squarer, just for fun.
+        st = SquareTask(mt)
+        s1 = st.read(300)
+        assert np.allclose(s1, np.abs(expected[:300])**2)
