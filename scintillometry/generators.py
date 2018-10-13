@@ -169,17 +169,26 @@ class Noise(np.random.RandomState):
 
     def __call__(self, sh):
         offset = sh.tell()
-        if offset in self._states:
+        done_this = offset in self._states
+        old_state = self.get_state()
+        if done_this:
             self.set_state(self._states[offset])
         else:
-            self._states[offset] = self.get_state()
+            self._states[offset] = old_state
+
         shape = (sh.samples_per_frame,) + sh.sample_shape
         if sh.complex_data:
             shape = shape[:-1] + (shape[-1] * 2,)
         numbers = self.normal(size=shape)
         if sh.complex_data:
             numbers = numbers.view(np.complex128)
-        return numbers.astype(sh.dtype, copy=False)
+        numbers = numbers.astype(sh.dtype, copy=False)
+
+        # reset to old state if needed.
+        if done_this:
+            self.set_state(old_state)
+
+        return numbers
 
 
 class NoiseGenerator(StreamGenerator):

@@ -191,6 +191,25 @@ class TestNoise(object):
         assert abs(data.mean()) < 10. / data.size ** 0.5
         assert abs(data.std() - np.sqrt(2.)) < 14. / data.size ** 0.5
 
+    def test_no_repitition(self):
+        with NoiseGenerator(seed=self.seed,
+                            shape=self.shape, start_time=self.start_time,
+                            sample_rate=self.sample_rate,
+                            samples_per_frame=1, dtype=np.complex128) as nh:
+            d0 = nh.read(1)
+            nh.seek(3)
+            d3 = nh.read(1)
+            nh.seek(2)
+            d2 = nh.read(1)
+            d3_2 = nh.read(1)
+            d4 = nh.read(1)
+            assert not np.any(d0 == d3)
+            assert not np.any(d3 == d2)
+            assert not np.any(d3 == d4)
+            # This used to fail, as the state was reset.  Regression test.
+            assert not np.any(d2 == d4)
+            assert np.all(d3 == d3_2)
+
     def test_use_as_source(self):
         """Test that noise routine with squarer gives expected levels."""
         nh = NoiseGenerator(seed=self.seed,
