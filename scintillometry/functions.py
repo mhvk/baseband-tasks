@@ -101,14 +101,12 @@ class SquareTask(FunctionTask):
 
     def __init__(self, ih):
         ih_dtype = np.dtype(ih.dtype)
-
-        if ih_dtype.kind == 'f':
-            dtype = ih_dtype
-            function = np.square
+        if ih_dtype.kind != 'c':
+            square = np.square
         else:
-            dtype = np.dtype('f{0:d}'.format(ih_dtype.itemsize // 2))
-
-            def function(x):
+            def square(x):
                 return np.square(x.real) + np.square(x.imag)
 
-        super().__init__(ih, function, dtype=dtype)
+        dtype = square(np.zeros(1, dtype=ih_dtype)).dtype
+
+        super().__init__(ih, function=square, dtype=dtype)
