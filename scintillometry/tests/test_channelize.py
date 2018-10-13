@@ -57,3 +57,25 @@ class TestChannelize(object):
             ct = ChannelizeTask(fh, 400001)
 
         ct.close()
+
+    def test_channelize_freq(self):
+        """Test freq calculation."""
+
+        fh = vdif.open(SAMPLE_VDIF)
+        # Add frequency information by hand for now.
+        fh.freq = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        # Note: sideband is actually incorrect for this VDIF file;
+        # this is for testing only.
+        fh.sideband = np.array([-1, 1, -1, 1, -1, 1, -1, 1])
+
+        ct = ChannelizeTask(fh, self.n)
+
+        # Channelize everything.
+        sideband = ct.sideband
+        assert sideband.shape == ct.sample_shape
+        assert np.all(sideband[:, 0::2] == -1)
+        assert np.all(sideband[:, 1::2] == +1)
+        freq = ct.freq
+        assert freq.shape == ct.sample_shape
+        assert np.all(freq[:, 0] == 311.25 * u.MHz - ct._fft.freq[:, 0])
+        assert np.all(freq[:, 7] == 359.25 * u.MHz + ct._fft.freq[:, 0])

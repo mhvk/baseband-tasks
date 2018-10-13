@@ -2,6 +2,9 @@
 
 import operator
 
+import numpy as np
+from astropy.utils import lazyproperty
+
 from .functions import FunctionTaskBase
 from .fourier import get_fft_maker
 
@@ -53,7 +56,7 @@ class ChannelizeTask(FunctionTaskBase):
             FFT = get_fft_maker('numpy')
 
         self._fft = FFT((samples_per_frame, n) + ih.sample_shape,
-                        ih.dtype, axis=1)
+                        ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
         super().__init__(ih, shape=(nsample,) + self._fft.freq_shape[1:],
                          sample_rate=sample_rate,
@@ -62,3 +65,24 @@ class ChannelizeTask(FunctionTaskBase):
 
     def function(self, data):
         return self._fft(data.reshape(self._fft.time_shape))
+
+    @lazyproperty
+    def freq(self):
+        try:
+            ih_freq = self.ih.freq
+        except Exception:
+            raise AttributeError("``ih.freq`` needs to be defined to "
+                                 "calculate channelized frequencies.")
+        return ih_freq + np.copysign(self._fft.freq, self.sideband)
+
+    @lazyproperty
+    def sideband(self):
+        try:
+            ih_sideband = self.ih.sideband
+        except Exception:
+            raise AttributeError("``ih.sideband`` needs to be defined to "
+                                 "calculate channelized sidebands.")
+
+        sideband = np.empty(self.sample_shape, dtype=np.int8)
+        sideband[...] = ih_sideband
+        return sideband
