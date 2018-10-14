@@ -41,9 +41,34 @@ class TestGenerator(StreamBase):
             assert data2.shape == (1000 - 981, 4, 2)
             assert np.all(data2 == np.arange(981, 1000).reshape(19, 1, 1))
 
+    def test_freq_sideband_setting(self):
+        freq = np.array([320., 350., 380., 410.])[:, np.newaxis] * u.MHz
+        sideband = np.array([-1, 1])
+        with StreamGenerator(self.my_source, freq=freq, sideband=sideband,
+                             shape=self.shape, start_time=self.start_time,
+                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
+            assert sh.freq.shape == sh.sample_shape
+            assert sh.sideband.shape == sh.sample_shape
+            assert np.all(sh.freq == freq)
+            assert np.all(sh.sideband == sideband)
+
+    def test_exceptions(self):
+        with StreamGenerator(self.my_source,
+                             shape=self.shape, start_time=self.start_time,
+                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
             with pytest.raises(EOFError):
                 sh.seek(-10, 2)
                 sh.read(20)
+            with pytest.raises(AttributeError):
+                sh.freq
+            with pytest.raises(AttributeError):
+                sh.sideband
+
+        with pytest.raises(ValueError):
+            StreamGenerator(self.my_source,
+                            shape=self.shape, start_time=self.start_time,
+                            sample_rate=self.sample_rate,
+                            sideband=np.ones((2, 2), dtype='i1'))
 
 
 class TestConstant(StreamBase):

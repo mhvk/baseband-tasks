@@ -18,22 +18,21 @@ class ReshapeTask(TaskBase):
     `ReshapeTask` simply reshapes blocks of baseband data into frames.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1):
+    def __init__(self, ih, n, samples_per_frame=1, **kwargs):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
         sample_rate = ih.sample_rate / n
 
         nsample = samples_per_frame * (ih.shape[0] // n // samples_per_frame)
-        self._raw_frame_len = n * samples_per_frame
-        shape = (nsample, n) + ih.sample_shape
-
-        super().__init__(ih, shape, sample_rate, samples_per_frame, ih.dtype)
+        super().__init__(ih, shape=(nsample, n) + ih.shape[1:],
+                         sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame, **kwargs)
 
     def _read_frame(self, frame_index):
-        self.ih.seek(frame_index * self._raw_frame_len)
-        return self.ih.read(self._raw_frame_len).reshape((-1,) +
-                                                         self.sample_shape)
+        self.ih.seek(frame_index * self._raw_samples_per_frame)
+        return self.ih.read(self._raw_samples_per_frame).reshape(
+            (-1,) + self.sample_shape)
 
 
 class TestTaskBase(object):
@@ -118,21 +117,17 @@ class TestTaskBase(object):
 
     def test_freq_sideband_setting(self):
         fh = vdif.open(SAMPLE_VDIF)
-        rt = ReshapeTask(fh, 256)
         # Add frequency and sideband information by hand, broadcasting it.
         # (Note: sideband is incorrect; just for testing purposes)
         freq_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         sideband_in = np.tile([-1, +1], 4)
-        rt.sideband = sideband_in
-        sideband = rt.sideband
-        assert sideband.shape == rt.sample_shape
-        assert sideband.shape != sideband_in.shape
-        assert np.all(sideband == sideband_in)
-        rt.freq = freq_in
-        freq = rt.freq
-        assert freq.shape == rt.sample_shape
-        assert freq.shape != freq_in.shape
-        assert np.all(freq == freq_in)
+        rt = ReshapeTask(fh, 256, freq=freq_in, sideband=sideband_in)
+        assert rt.sideband.shape == rt.sample_shape
+        assert rt.sideband.shape != sideband_in.shape
+        assert np.all(rt.sideband == sideband_in)
+        assert rt.freq.shape == rt.sample_shape
+        assert rt.freq.shape != freq_in.shape
+        assert np.all(rt.freq == freq_in)
 
     def test_taskbase_exceptions(self):
         """Test exceptions in TaskBase."""
@@ -170,9 +165,9 @@ class TestTaskBase(object):
                 rt.freq
             with pytest.raises(AttributeError):
                 rt.sideband
-            with pytest.raises(u.UnitsError):
-                rt.freq = np.arange(8.)
             with pytest.raises(ValueError):
-                rt.freq = np.arange(4.) * u.GHz
+                ReshapeTask(fh, 1024, samples_per_frame=3,
+                            freq=np.arange(4.)*u.GHz)
             with pytest.raises(ValueError):
-                rt.freq = np.ones((2, 8), dtype=int)
+                ReshapeTask(fh, 1024, samples_per_frame=3,
+                            sideband=np.ones((2, 8), dtype=int))

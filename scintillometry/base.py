@@ -22,27 +22,42 @@ class Base:
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.
-    sample_rate : `~astropy.units.Quantity`, optional
+    sample_rate : `~astropy.units.Quantity`
         Rate at which complete samples are produced.
     samples_per_frame : int, optional
         Number of samples dealt with in one go.  The number of complete
         samples (``shape[0]``) should be an integer multiple of this.
+    freq : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: unknown.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  Default: unknown.
     dtype : `~numpy.dtype`, optional
         Dtype of the samples.
     """
 
-    def __init__(self, shape, start_time, sample_rate, samples_per_frame,
-                 dtype):
+    def __init__(self, shape, start_time, sample_rate, samples_per_frame=1,
+                 freq=None, sideband=None, dtype=np.complex64):
         self._shape = shape
         self._start_time = start_time
         self._samples_per_frame = samples_per_frame
         assert shape[0] % samples_per_frame == 0
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
+        if freq is not None:
+            freq = np.broadcast_to(freq, self.sample_shape, subok=True)
+        if sideband is not None:
+            sideband = np.broadcast_to(np.where(sideband > 0,
+                                                np.int8(1), np.int8(-1)),
+                                       self.sample_shape)
+        self._freq = freq
+        self._sideband = sideband
 
         # Sample and frame pointers.
         self.offset = 0
         self._frame_index = None
+        self.closed = False
 
     @property
     def shape(self):
@@ -113,6 +128,18 @@ class Base:
         See also `start_time` and `time`.
         """
         return self.start_time + self.shape[0] / self.sample_rate
+
+    @property
+    def freq(self):
+        if self._freq is None:
+            raise AttributeError("frequencies not set.")
+        return self._freq
+
+    @property
+    def sideband(self):
+        if self._sideband is None:
+            raise AttributeError("sidebands not set.")
+        return self._sideband
 
     def seek(self, offset, whence=0):
         """Change the sample pointer position."""
@@ -225,7 +252,7 @@ class Base:
         self.close()
 
     def close(self):
-        pass
+        self.closed = True
 
 
 class TaskBase(Base):
@@ -260,7 +287,8 @@ class TaskBase(Base):
         Output dtype.  If not given, the dtype of the underlying file.
     """
 
-    def __init__(self, ih, shape=None, sample_rate=None, samples_per_frame=None,
+    def __init__(self, ih, shape=None, sample_rate=None,
+                 freq=None, sideband=None, samples_per_frame=None,
                  dtype=None):
         self.ih = ih
         if sample_rate is None:
@@ -290,33 +318,17 @@ class TaskBase(Base):
         if dtype is None:
             dtype = ih.dtype
 
+        if freq is None:
+            freq = getattr(ih, 'freq', None)
+
+        if sideband is None:
+            sideband = getattr(ih, 'sideband', None)
+
         super().__init__(shape=shape, start_time=ih.start_time,
-                         sample_rate=sample_rate,
+                         sample_rate=sample_rate, freq=freq, sideband=sideband,
                          samples_per_frame=samples_per_frame, dtype=dtype)
-
-    @property
-    def freq(self):
-        if not hasattr(self, '_freq'):
-            self.freq = self.ih.freq
-        return self._freq
-
-    @freq.setter
-    def freq(self, freq):
-        self._freq = u.Quantity(np.empty(self.sample_shape, dtype=float),
-                                u.MHz)
-        self._freq[...] = freq
-
-    @property
-    def sideband(self):
-        if not hasattr(self, '_sideband'):
-            self.sideband = self.ih.sideband
-        return self._sideband
-
-    @sideband.setter
-    def sideband(self, sideband):
-        self._sideband = np.empty(self.sample_shape, dtype=np.int8)
-        self._sideband[...] = np.copysign(1, sideband)
 
     def close(self):
         """Close task, in particular closing its input source."""
+        super().close()
         self.ih.close()

@@ -27,6 +27,12 @@ class ChannelizeTask(FunctionTaskBase):
         have ``n`` channels; for real input, it will have ``n // 2 + 1``.
     samples_per_frame : int, optional
         Number of complete output samples per frame (see Notes).  Default: 1.
+    freq : `~astropy.units.Quantity`, optional
+        Frequencies for each channel in ``ih`` (channelized frequencies will
+        be calculated).  Default: taken from ``ih`` (if available).
+    sideband : array, optional
+        Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
         FFT maker.  Default: `None`, in which case the channelizer uses
         `~scintillometry.fourier.numpy.NumpyFFTMaker`.
@@ -43,7 +49,8 @@ class ChannelizeTask(FunctionTaskBase):
     using `numpy.fft` the performance improvement seems to be negligible.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1, FFT=None):
+    def __init__(self, ih, n, samples_per_frame=1, freq=None, sideband=None,
+                 FFT=None):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
@@ -59,27 +66,12 @@ class ChannelizeTask(FunctionTaskBase):
                         ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
         super().__init__(ih, shape=(nsample,) + self._fft.freq_shape[1:],
-                         sample_rate=sample_rate,
+                         sample_rate=sample_rate, freq=freq, sideband=sideband,
                          samples_per_frame=samples_per_frame,
                          dtype=self._fft.freq_dtype)
+        if self._freq is not None:
+            # Do not use in-place, since _freq is likely broadcast.
+            self._freq = self._freq + np.copysign(self._fft.freq, self.sideband)
 
     def function(self, data):
         return self._fft(data.reshape(self._fft.time_shape))
-
-    # Overwrite "freq" to calculate it from the frequencies of the underlying
-    # stream (note: inherited sideband will be OK because of broadcasting).
-    @property
-    def freq(self):
-        if not hasattr(self, '_freq'):
-            try:
-                ih_freq = self.ih.freq
-            except AttributeError as exc:
-                exc.args += ("``ih.freq`` needs to be defined to "
-                             "calculate channelized frequencies.",)
-                raise
-            self._freq = ih_freq + np.copysign(self._fft.freq, self.sideband)
-        return self._freq
-
-    @freq.setter
-    def freq(self, freq):
-        super(ChannelizeTask, ChannelizeTask).freq.__set__(self, freq)
