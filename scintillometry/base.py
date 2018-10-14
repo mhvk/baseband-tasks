@@ -294,6 +294,29 @@ class TaskBase(Base):
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame, dtype=dtype)
 
+    @property
+    def freq(self):
+        if not hasattr(self, '_freq'):
+            self.freq = self.ih.freq
+        return self._freq
+
+    @freq.setter
+    def freq(self, freq):
+        self._freq = u.Quantity(np.empty(self.sample_shape, dtype=float),
+                                u.MHz)
+        self._freq[...] = freq
+
+    @property
+    def sideband(self):
+        if not hasattr(self, '_sideband'):
+            self.sideband = self.ih.sideband
+        return self._sideband
+
+    @sideband.setter
+    def sideband(self, sideband):
+        self._sideband = np.empty(self.sample_shape, dtype=np.int8)
+        self._sideband[...] = np.copysign(1, sideband)
+
     def close(self):
         """Close task, in particular closing its input source."""
         self.ih.close()

@@ -102,6 +102,38 @@ class TestTaskBase(object):
         rt.close()
         assert fh.closed
 
+    def test_freq_sideband_propagation(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        # Add frequency and sideband information by hand.
+        # (Note: sideband is incorrect; just for testing purposes)
+        fh.freq = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        fh.sideband = np.tile([-1, +1], 4)
+        rt = ReshapeTask(fh, 256)
+        sideband = rt.sideband
+        assert sideband.shape == rt.sample_shape
+        assert np.all(sideband == fh.sideband)
+        freq = rt.freq
+        assert freq.shape == rt.sample_shape
+        assert np.all(freq == fh.freq)
+
+    def test_freq_sideband_setting(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        rt = ReshapeTask(fh, 256)
+        # Add frequency and sideband information by hand, broadcasting it.
+        # (Note: sideband is incorrect; just for testing purposes)
+        freq_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        sideband_in = np.tile([-1, +1], 4)
+        rt.sideband = sideband_in
+        sideband = rt.sideband
+        assert sideband.shape == rt.sample_shape
+        assert sideband.shape != sideband_in.shape
+        assert np.all(sideband == sideband_in)
+        rt.freq = freq_in
+        freq = rt.freq
+        assert freq.shape == rt.sample_shape
+        assert freq.shape != freq_in.shape
+        assert np.all(freq == freq_in)
+
     def test_taskbase_exceptions(self):
         """Test exceptions in TaskBase."""
 
@@ -132,3 +164,15 @@ class TestTaskBase(object):
             # Check external array shape mismatch raises an error.
             with pytest.raises(AssertionError):
                 rt.read(out=np.empty(3))
+
+            # Check missing frequency/sideband definitions
+            with pytest.raises(AttributeError):
+                rt.freq
+            with pytest.raises(AttributeError):
+                rt.sideband
+            with pytest.raises(u.UnitsError):
+                rt.freq = np.arange(8.)
+            with pytest.raises(ValueError):
+                rt.freq = np.arange(4.) * u.GHz
+            with pytest.raises(ValueError):
+                rt.freq = np.ones((2, 8), dtype=int)
