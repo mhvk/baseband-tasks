@@ -15,19 +15,11 @@ __all__ = ['StreamGenerator', 'EmptyStreamGenerator', 'Noise', 'NoiseGenerator']
 class StreamGeneratorBase(Base):
     """Base for generators.
 
-    Defines a ``_read_frame`` method that calls ``self.function``.
+    Defines a supersimple ``_read_frame`` method that just calls ``self.function``.
     """
-    def _read_frame(self, frame_index):
-        if self.closed:
-            raise ValueError("I/O operation on closed stream generator.")
-
-        self.seek(frame_index * self.samples_per_frame)
-        if self.tell() + self.samples_per_frame > self.shape[0]:
-            raise EOFError("cannot generate samples beyond end of generator.")
-        return self.function()
 
 
-class StreamGenerator(StreamGeneratorBase):
+class StreamGenerator(Base):
     """Generator of data produced by a user-provided function.
 
     The function needs to be aware of stream structure.  As an alternative, generate
@@ -89,11 +81,13 @@ class StreamGenerator(StreamGeneratorBase):
                          freq=freq, sideband=sideband, dtype=dtype)
         self._function = function
 
-    def function(self):
+    def _read_frame(self, frame_index):
+        # Apply function to generate data.  Note that the read() function
+        # in base ensures that our offset pointer is correct.
         return self._function(self)
 
 
-class EmptyStreamGenerator(StreamGeneratorBase):
+class EmptyStreamGenerator(Base):
     """Generator of an empty data stream.
 
     The stream is meant to be filled with a `~scintillometry.functions.FunctionTask`.
@@ -135,7 +129,7 @@ class EmptyStreamGenerator(StreamGeneratorBase):
     >>> sh.read()  # doctest: +FLOAT_CMP
     array([ 1., -1.,  1., -1.,  1.], dtype=float32)
     """
-    def function(self):
+    def _read_frame(self, frame_index):
         return np.empty((self.samples_per_frame,) + self.shape[1:],
                         self.dtype)
 

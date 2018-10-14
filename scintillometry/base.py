@@ -210,19 +210,25 @@ class Base:
             The first dimension is sample-time, and the remainder given by
             `sample_shape`.
         """
+        if self.closed:
+            raise ValueError("I/O operation on closed task/generator.")
+
         # NOTE: this will return an EOF error when attempting to read partial
         # frames, making it identical to fh.read().
 
+        samples_left = max(0, self.shape[0] - self.offset)
         if out is None:
             if count is None or count < 0:
-                count = self.shape[0] - self.offset
-                if count < 0:
-                    raise EOFError("cannot read from beyond end of input.")
+                count = samples_left
             out = np.empty((count,) + self.shape[1:], dtype=self.dtype)
         else:
             assert out.shape[1:] == self.shape[1:], (
                 "'out' should have trailing shape {}".format(self.sample_shape))
             count = out.shape[0]
+
+        # TODO: should this just return the maximum possible?
+        if count > samples_left:
+            raise EOFError("cannot read from beyond end of input.")
 
         offset0 = self.offset
         sample = 0
@@ -263,9 +269,11 @@ class TaskBase(Base):
     the task's output.  Also defines methods to move a sample pointer across
     the output data in units of either complete samples or time.
 
-    Subclasses should define
+    This class provides a base ``_read_frame`` method that will read
+    a frame worth of data from the underlying stream and pass it on to
+    a function method.  Hence, Subclasses should define:
 
-      ``_read_frame``: method to read a single block of input data.
+      ``function(self, data)`` : return processed data from one frame.
 
     Parameters
     ----------
@@ -327,6 +335,14 @@ class TaskBase(Base):
         super().__init__(shape=shape, start_time=ih.start_time,
                          sample_rate=sample_rate, freq=freq, sideband=sideband,
                          samples_per_frame=samples_per_frame, dtype=dtype)
+
+    def _read_frame(self, frame_index):
+        # Read data from underlying filehandle.
+        self.ih.seek(frame_index * self._raw_samples_per_frame)
+        data = self.ih.read(self._raw_samples_per_frame)
+        # Apply function to the data.  Note that the read() function
+        # in base ensures that our offset pointer is correct.
+        return self.function(data)
 
     def close(self):
         """Close task, in particular closing its input source."""

@@ -5,14 +5,14 @@ import operator
 import numpy as np
 import astropy.units as u
 
-from .functions import FunctionTaskBase
+from .base import TaskBase
 from .fourier import get_fft_maker
 
 
 __all__ = ['ChannelizeTask']
 
 
-class ChannelizeTask(FunctionTaskBase):
+class ChannelizeTask(TaskBase):
     """Basic channelizer.
 
     Divides input into blocks of ``n`` time samples, Fourier transforming each

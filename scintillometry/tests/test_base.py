@@ -29,10 +29,8 @@ class ReshapeTask(TaskBase):
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame, **kwargs)
 
-    def _read_frame(self, frame_index):
-        self.ih.seek(frame_index * self._raw_samples_per_frame)
-        return self.ih.read(self._raw_samples_per_frame).reshape(
-            (-1,) + self.sample_shape)
+    def function(self, data):
+        return data.reshape((-1,) + self.sample_shape)
 
 
 class TestTaskBase(object):

@@ -7,21 +7,7 @@ from .base import TaskBase
 __all__ = ['FunctionTask', 'ComplexFunctionTask', 'SquareTask']
 
 
-class FunctionTaskBase(TaskBase):
-    """Base for function tasks.
-
-    Defines a ``_read_frame`` method that calls ``self.function``.
-    """
-    def _read_frame(self, frame_index):
-        # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self._raw_samples_per_frame)
-        data = self.ih.read(self._raw_samples_per_frame)
-        # Apply function to the data.  Note that the read() function
-        # in base ensures that our offset pointer is correct.
-        return self.function(data)
-
-
-class FunctionTask(FunctionTaskBase):
+class FunctionTask(TaskBase):
     """Apply a user-supplied function to a stream.
 
     The function will be fed data from the underlying stream.  If
