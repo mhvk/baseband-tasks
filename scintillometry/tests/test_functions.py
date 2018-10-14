@@ -34,7 +34,7 @@ def zero_every_8th_complex(fh, data):
     return data
 
 
-class TestFunctions(object):
+class TestFunctions:
     """Test applying functions to Baseband's sample VDIF file."""
 
     @pytest.mark.parametrize('function, sample_factor',
@@ -86,7 +86,7 @@ class TestFunctions(object):
         assert np.all(data1 == ref_data)
 
 
-class TestSquare(object):
+class TestSquare:
     """Test getting simple intensities using Baseband's sample DADA file."""
 
     def test_squaretask(self):

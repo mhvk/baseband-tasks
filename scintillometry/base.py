@@ -271,7 +271,7 @@ class TaskBase(Base):
 
     This class provides a base ``_read_frame`` method that will read
     a frame worth of data from the underlying stream and pass it on to
-    a function method.  Hence, Subclasses should define:
+    a function method.  Hence, subclasses should define:
 
       ``function(self, data)`` : return processed data from one frame.
 

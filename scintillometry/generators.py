@@ -12,13 +12,6 @@ from .base import Base
 __all__ = ['StreamGenerator', 'EmptyStreamGenerator', 'Noise', 'NoiseGenerator']
 
 
-class StreamGeneratorBase(Base):
-    """Base for generators.
-
-    Defines a supersimple ``_read_frame`` method that just calls ``self.function``.
-    """
-
-
 class StreamGenerator(Base):
     """Generator of data produced by a user-provided function.
 
@@ -104,6 +97,12 @@ class EmptyStreamGenerator(Base):
     samples_per_frame : int
         Blocking factor.  This is mostly useful to make the function task
         that uses the stream more efficient.
+    freq : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: unknown.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  Default: unknown.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``.
 

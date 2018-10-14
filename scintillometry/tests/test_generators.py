@@ -8,7 +8,7 @@ from ..generators import StreamGenerator, EmptyStreamGenerator, NoiseGenerator
 from ..functions import FunctionTask, SquareTask
 
 
-class StreamBase(object):
+class StreamBase:
     def setup(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 1. * u.kHz
@@ -179,7 +179,7 @@ class TestConstant(StreamBase):
         assert np.all(data2 == np.abs(tone)**2)
 
 
-class TestNoise(object):
+class TestNoise:
     """Test that we can produce normally distribute noise.
 
     And that the noise generator looks like a streamreader.

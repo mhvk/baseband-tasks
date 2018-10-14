@@ -33,7 +33,7 @@ class ReshapeTask(TaskBase):
         return data.reshape((-1,) + self.sample_shape)
 
 
-class TestTaskBase(object):
+class TestTaskBase:
 
     @staticmethod
     def convert_time_offset(offset, sample_rate):

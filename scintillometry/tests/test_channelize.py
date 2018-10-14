@@ -10,7 +10,7 @@ from baseband import vdif
 from baseband.data import SAMPLE_VDIF
 
 
-class TestChannelize(object):
+class TestChannelize:
     """Test channelization using Baseband's sample VDIF file."""
 
     def setup(self):

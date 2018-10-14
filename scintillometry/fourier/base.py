@@ -84,7 +84,7 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
         return shape, dtype
 
 
-class FFTBase(object):
+class FFTBase:
     """Framework for single pre-defined FFT and its associated metadata."""
 
     def __init__(self, direction):

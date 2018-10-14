@@ -3,7 +3,6 @@
 import operator
 
 import numpy as np
-import astropy.units as u
 
 from .base import TaskBase
 from .fourier import get_fft_maker
