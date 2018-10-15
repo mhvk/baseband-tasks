@@ -74,8 +74,8 @@ class PyfftwFFTMaker(FFTMakerBase):
         ortho = bool(ortho)
 
         # Store time and frequency-domain array shapes.
-        freq_shape, freq_dtype = self.get_freq_data_info(shape, dtype,
-                                                         axis=axis)
+        frequency_shape, frequency_dtype = self.get_frequency_data_info(
+            shape, dtype, axis=axis)
 
         # Declare PyfftwFFT class, and populate values.
         class PyfftwFFT(FFTBase):
@@ -83,8 +83,8 @@ class PyfftwFFTMaker(FFTMakerBase):
 
             _time_shape = shape
             _time_dtype = dtype
-            _freq_shape = freq_shape
-            _freq_dtype = freq_dtype
+            _frequency_shape = frequency_shape
+            _frequency_dtype = frequency_dtype
             _axis = axis
             _ortho = ortho
             _normalise_idft = False if ortho else True
@@ -99,7 +99,8 @@ class PyfftwFFTMaker(FFTMakerBase):
                 # be replacing those each time we transform.
                 a = pyfftw.empty_aligned(self._time_shape, self._time_dtype,
                                          n=self._n_simd)
-                A = pyfftw.empty_aligned(self._freq_shape, self._freq_dtype,
+                A = pyfftw.empty_aligned(self._frequency_shape,
+                                         self._frequency_dtype,
                                          n=self._n_simd)
 
                 if self.direction == 'forward':
@@ -115,7 +116,8 @@ class PyfftwFFTMaker(FFTMakerBase):
 
             def _forward_fft(self, a):
                 # Make an empty array to store transform output.
-                A = pyfftw.empty_aligned(self._freq_shape, self._freq_dtype,
+                A = pyfftw.empty_aligned(self._frequency_shape,
+                                         self._frequency_dtype,
                                          n=self._n_simd)
                 return self._FFTW(input_array=a, output_array=A,
                                   normalise_idft=self._normalise_idft,

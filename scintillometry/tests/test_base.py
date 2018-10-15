@@ -18,25 +18,22 @@ class ReshapeTask(TaskBase):
     `ReshapeTask` simply reshapes blocks of baseband data into frames.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1):
+    def __init__(self, ih, n, samples_per_frame=1, **kwargs):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
         sample_rate = ih.sample_rate / n
 
         nsample = samples_per_frame * (ih.shape[0] // n // samples_per_frame)
-        self._raw_frame_len = n * samples_per_frame
-        shape = (nsample, n) + ih.sample_shape
+        super().__init__(ih, shape=(nsample, n) + ih.shape[1:],
+                         sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame, **kwargs)
 
-        super().__init__(ih, shape, sample_rate, samples_per_frame, ih.dtype)
-
-    def _read_frame(self, frame_index):
-        self.ih.seek(frame_index * self._raw_frame_len)
-        return self.ih.read(self._raw_frame_len).reshape((-1,) +
-                                                         self.sample_shape)
+    def function(self, data):
+        return data.reshape((-1,) + self.sample_shape)
 
 
-class TestTaskBase(object):
+class TestTaskBase:
 
     @staticmethod
     def convert_time_offset(offset, sample_rate):
@@ -102,6 +99,34 @@ class TestTaskBase(object):
         rt.close()
         assert fh.closed
 
+    def test_frequency_sideband_propagation(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        # Add frequency and sideband information by hand.
+        # (Note: sideband is incorrect; just for testing purposes)
+        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        fh.sideband = np.tile([-1, +1], 4)
+        rt = ReshapeTask(fh, 256)
+        sideband = rt.sideband
+        assert sideband.shape == rt.sample_shape
+        assert np.all(sideband == fh.sideband)
+        frequency = rt.frequency
+        assert frequency.shape == rt.sample_shape
+        assert np.all(frequency == fh.frequency)
+
+    def test_frequency_sideband_setting(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        # Add frequency and sideband information by hand, broadcasting it.
+        # (Note: sideband is incorrect; just for testing purposes)
+        frequency_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        sideband_in = np.tile([-1, +1], 4)
+        rt = ReshapeTask(fh, 256, frequency=frequency_in, sideband=sideband_in)
+        assert rt.sideband.shape == rt.sample_shape
+        assert rt.sideband.shape != sideband_in.shape
+        assert np.all(rt.sideband == sideband_in)
+        assert rt.frequency.shape == rt.sample_shape
+        assert rt.frequency.shape != frequency_in.shape
+        assert np.all(rt.frequency == frequency_in)
+
     def test_taskbase_exceptions(self):
         """Test exceptions in TaskBase."""
 
@@ -132,3 +157,15 @@ class TestTaskBase(object):
             # Check external array shape mismatch raises an error.
             with pytest.raises(AssertionError):
                 rt.read(out=np.empty(3))
+
+            # Check missing frequency/sideband definitions
+            with pytest.raises(AttributeError):
+                rt.frequency
+            with pytest.raises(AttributeError):
+                rt.sideband
+            with pytest.raises(ValueError):
+                ReshapeTask(fh, 1024, samples_per_frame=3,
+                            frequency=np.arange(4.)*u.GHz)
+            with pytest.raises(ValueError):
+                ReshapeTask(fh, 1024, samples_per_frame=3,
+                            sideband=np.ones((2, 8), dtype=int))

@@ -10,7 +10,7 @@ from baseband import vdif
 from baseband.data import SAMPLE_VDIF
 
 
-class TestChannelize(object):
+class TestChannelize:
     """Test channelization using Baseband's sample VDIF file."""
 
     def setup(self):
@@ -26,6 +26,12 @@ class TestChannelize(object):
         self.ref_data = np.fft.rfft(
             data[:last_sample].reshape((-1, self.n) + data.shape[1:]),
             axis=1).astype('complex64')
+
+        self.ref_sideband = np.tile([-1, 1], 4)
+        self.ref_frequency = ((311.25 + 16 * (np.arange(8) // 2)) * u.MHz +
+                              self.ref_sideband *
+                              np.fft.rfftfreq(self.n,
+                                              1./(32*u.MHz))[:, np.newaxis])
 
     def test_channelizetask(self):
         """Test channelization task."""
@@ -57,3 +63,28 @@ class TestChannelize(object):
             ct = ChannelizeTask(fh, 400001)
 
         ct.close()
+
+    def test_channelize_frequency(self):
+        """Test frequency calculation."""
+
+        fh = vdif.open(SAMPLE_VDIF)
+        # Add frequency information by hand for now.
+        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        # Note: sideband is actually incorrect for this VDIF file;
+        # this is for testing only.
+        fh.sideband = np.tile([-1, +1], 4)
+
+        ct = ChannelizeTask(fh, self.n)
+
+        assert ct.sideband.shape == ct.sample_shape
+        assert np.all(ct.sideband == self.ref_sideband)
+        assert ct.frequency.shape == ct.sample_shape
+        assert np.all(ct.frequency == self.ref_frequency)
+
+    def test_missing_frequency_sideband(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        ct = ChannelizeTask(fh, self.n)
+        with pytest.raises(AttributeError):
+            ct.frequency
+        with pytest.raises(AttributeError):
+            ct.sideband

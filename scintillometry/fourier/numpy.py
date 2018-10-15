@@ -55,8 +55,8 @@ class NumpyFFTMaker(FFTMakerBase):
         ortho = bool(ortho)
 
         # Store time and frequency-domain array shapes.
-        freq_shape, freq_dtype = self.get_freq_data_info(shape, dtype,
-                                                         axis=axis)
+        frequency_shape, frequency_dtype = self.get_frequency_data_info(
+            shape, dtype, axis=axis)
 
         # Declare NumpyFFT class, and populate values.
         class NumpyFFT(FFTBase):
@@ -73,8 +73,8 @@ class NumpyFFTMaker(FFTMakerBase):
 
             _time_shape = shape
             _time_dtype = dtype
-            _freq_shape = freq_shape
-            _freq_dtype = freq_dtype
+            _frequency_shape = frequency_shape
+            _frequency_dtype = frequency_dtype
             _axis = axis
             _ortho = ortho
             _norm = 'ortho' if ortho else None
@@ -93,7 +93,7 @@ class NumpyFFTMaker(FFTMakerBase):
                 def _forward_fft(self, a):
                     return np.fft.fft(
                         a, axis=self.axis, norm=self._norm).astype(
-                            self._freq_dtype, copy=False)
+                            self._frequency_dtype, copy=False)
 
                 def _inverse_fft(self, A):
                     return np.fft.ifft(
@@ -105,7 +105,7 @@ class NumpyFFTMaker(FFTMakerBase):
                 def _forward_fft(self, a):
                     return np.fft.rfft(
                         a, axis=self.axis, norm=self._norm).astype(
-                            self._freq_dtype, copy=False)
+                            self._frequency_dtype, copy=False)
 
                 # irfft needs explicit length for odd-numbered outputs.
                 def _inverse_fft(self, A):

@@ -54,7 +54,7 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
         """Placeholder for FFT setup."""
         raise NotImplementedError()
 
-    def get_freq_data_info(self, shape, dtype, axis=0):
+    def get_frequency_data_info(self, shape, dtype, axis=0):
         """Determine frequency-domain array shape and dtype.
 
         Parameters
@@ -70,21 +70,21 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
         Returns
         -------
-        freq_shape : tuple
+        frequency_shape : tuple
             Shape of the frequency-domain data array.
-        freq_dtype : `~numpy.dtype`
+        frequency_dtype : `~numpy.dtype`
             Data type of the frequency-domain data array.
         """
         if dtype.kind == 'f':
-            freq_shape = list(shape)
-            freq_shape[axis] = shape[axis] // 2 + 1
-            freq_dtype = np.dtype('c{0:d}'.format(2 * dtype.itemsize))
-            return tuple(freq_shape), freq_dtype
+            frequency_shape = list(shape)
+            frequency_shape[axis] = shape[axis] // 2 + 1
+            frequency_dtype = np.dtype('c{0:d}'.format(2 * dtype.itemsize))
+            return tuple(frequency_shape), frequency_dtype
         # No need to make a copy, since we're not altering shape.
         return shape, dtype
 
 
-class FFTBase(object):
+class FFTBase:
     """Framework for single pre-defined FFT and its associated metadata."""
 
     def __init__(self, direction):
@@ -106,14 +106,14 @@ class FFTBase(object):
         return self._time_dtype
 
     @property
-    def freq_shape(self):
+    def frequency_shape(self):
         """Shape of the frequency-domain data."""
-        return self._freq_shape
+        return self._frequency_shape
 
     @property
-    def freq_dtype(self):
+    def frequency_dtype(self):
         """Data type of the frequency-domain data."""
-        return self._freq_dtype
+        return self._frequency_dtype
 
     @property
     def axis(self):
@@ -137,7 +137,7 @@ class FFTBase(object):
         return self._sample_rate
 
     @lazyproperty
-    def freq(self):
+    def frequency(self):
         """FFT sample frequencies.
 
         Uses `numpy.fft.fftfreq` for complex time-domain data, which returns,
@@ -165,21 +165,21 @@ class FFTBase(object):
 
         Returns
         -------
-        freqs : `~numpy.ndarray` or array of `~astropy.units.Quantity`
+        frequency : `~numpy.ndarray` or array of `~astropy.units.Quantity`
             Sample frequencies, with shape (len(f), 1, ..., 1).  The trailing
             dimensions of length unity are to facilitate broadcasting when
-            operating on ``freqs``.
+            operating on ``frequency``.
         """
         sample_rate = 1. if self.sample_rate is None else self.sample_rate
         a_length = self._time_shape[self.axis]
         if self._time_dtype.kind == 'f':
-            freqs = np.fft.rfftfreq(a_length, d=(1. / sample_rate))
+            frequency = np.fft.rfftfreq(a_length, d=(1. / sample_rate))
         else:
-            freqs = np.fft.fftfreq(a_length, d=(1. / sample_rate))
-        # Reshape freqs to add trailing dimensions.
-        freqs.shape = (freqs.shape +
-                       (len(self._time_shape) - self.axis - 1) * (1,))
-        return freqs
+            frequency = np.fft.fftfreq(a_length, d=(1. / sample_rate))
+        # Reshape frequencys to add trailing dimensions.
+        frequency.shape = (frequency.shape +
+                           (len(self._time_shape) - self.axis - 1) * (1,))
+        return frequency
 
     def __call__(self, a):
         """Perform FFT.
@@ -222,8 +222,8 @@ class FFTBase(object):
         return (self.direction == other.direction and
                 self.time_shape == other.time_shape and
                 self.time_dtype == other.time_dtype and
-                self.freq_shape == other.freq_shape and
-                self.freq_dtype == other.freq_dtype and
+                self.frequency_shape == other.frequency_shape and
+                self.frequency_dtype == other.frequency_dtype and
                 self.axis == other.axis and
                 self.ortho == other.ortho and
                 self.sample_rate == other.sample_rate)
@@ -235,8 +235,8 @@ class FFTBase(object):
                 " sample_rate={s.sample_rate}\n"
                 "    Time domain: shape={s.time_shape},"
                 " dtype={s.time_dtype}\n"
-                "    Frequency domain: shape={s.freq_shape},"
-                " dtype={s.freq_dtype}>".format(s=self))
+                "    Frequency domain: shape={s.frequency_shape},"
+                " dtype={s.frequency_dtype}>".format(s=self))
 
 
 def get_fft_maker(fft_engine, **kwargs):

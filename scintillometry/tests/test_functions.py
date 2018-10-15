@@ -34,7 +34,7 @@ def zero_every_8th_complex(fh, data):
     return data
 
 
-class TestFunctions(object):
+class TestFunctions:
     """Test applying functions to Baseband's sample VDIF file."""
 
     @pytest.mark.parametrize('function, sample_factor',
@@ -86,7 +86,7 @@ class TestFunctions(object):
         assert np.all(data1 == ref_data)
 
 
-class TestSquare(object):
+class TestSquare:
     """Test getting simple intensities using Baseband's sample DADA file."""
 
     def test_squaretask(self):
@@ -115,3 +115,21 @@ class TestSquare(object):
         assert np.allclose(ref_data[-3:], data2)
 
         st.close()
+
+    def test_frequency_sideband_propagation(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        # Add frequency and sideband information by hand.
+        # (Note: sideband is incorrect; just for testing purposes)
+        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        fh.sideband = np.tile([-1, +1], 4)
+        st = SquareTask(fh)
+        assert np.all(st.frequency == fh.frequency)
+        assert np.all(st.sideband == st.sideband)
+
+    def test_missing_frequency_sideband(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        st = SquareTask(fh)
+        with pytest.raises(AttributeError):
+            st.frequency
+        with pytest.raises(AttributeError):
+            st.sideband

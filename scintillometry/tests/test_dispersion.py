@@ -7,7 +7,7 @@ from astropy.tests.helper import assert_quantity_allclose
 from ..dm import DispersionMeasure
 
 
-class TestDM(object):
+class TestDM:
 
     def setup(self):
         self.dm_val = 29.1168    # DM of B1957+20.

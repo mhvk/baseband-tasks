@@ -8,7 +8,7 @@ from ..generators import StreamGenerator, EmptyStreamGenerator, NoiseGenerator
 from ..functions import FunctionTask, SquareTask
 
 
-class StreamBase(object):
+class StreamBase:
     def setup(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 1. * u.kHz
@@ -41,9 +41,35 @@ class TestGenerator(StreamBase):
             assert data2.shape == (1000 - 981, 4, 2)
             assert np.all(data2 == np.arange(981, 1000).reshape(19, 1, 1))
 
+    def test_frequency_sideband_setting(self):
+        frequency = np.array([320., 350., 380., 410.])[:, np.newaxis] * u.MHz
+        sideband = np.array([-1, 1])
+        with StreamGenerator(self.my_source,
+                             frequency=frequency, sideband=sideband,
+                             shape=self.shape, start_time=self.start_time,
+                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
+            assert sh.frequency.shape == sh.sample_shape
+            assert sh.sideband.shape == sh.sample_shape
+            assert np.all(sh.frequency == frequency)
+            assert np.all(sh.sideband == sideband)
+
+    def test_exceptions(self):
+        with StreamGenerator(self.my_source,
+                             shape=self.shape, start_time=self.start_time,
+                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
             with pytest.raises(EOFError):
                 sh.seek(-10, 2)
                 sh.read(20)
+            with pytest.raises(AttributeError):
+                sh.frequency
+            with pytest.raises(AttributeError):
+                sh.sideband
+
+        with pytest.raises(ValueError):
+            StreamGenerator(self.my_source,
+                            shape=self.shape, start_time=self.start_time,
+                            sample_rate=self.sample_rate,
+                            sideband=np.ones((2, 2), dtype='i1'))
 
 
 class TestConstant(StreamBase):
@@ -154,7 +180,7 @@ class TestConstant(StreamBase):
         assert np.all(data2 == np.abs(tone)**2)
 
 
-class TestNoise(object):
+class TestNoise:
     """Test that we can produce normally distribute noise.
 
     And that the noise generator looks like a streamreader.

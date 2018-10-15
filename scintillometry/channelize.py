@@ -2,14 +2,16 @@
 
 import operator
 
-from .functions import FunctionTask
+import numpy as np
+
+from .base import TaskBase
 from .fourier import get_fft_maker
 
 
 __all__ = ['ChannelizeTask']
 
 
-class ChannelizeTask(FunctionTask):
+class ChannelizeTask(TaskBase):
     """Basic channelizer.
 
     Divides input into blocks of ``n`` time samples, Fourier transforming each
@@ -24,6 +26,12 @@ class ChannelizeTask(FunctionTask):
         have ``n`` channels; for real input, it will have ``n // 2 + 1``.
     samples_per_frame : int, optional
         Number of complete output samples per frame (see Notes).  Default: 1.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel in ``ih`` (channelized frequencies will
+        be calculated).  Default: taken from ``ih`` (if available).
+    sideband : array, optional
+        Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
         FFT maker.  Default: `None`, in which case the channelizer uses
         `~scintillometry.fourier.numpy.NumpyFFTMaker`.
@@ -40,7 +48,8 @@ class ChannelizeTask(FunctionTask):
     using `numpy.fft` the performance improvement seems to be negligible.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1, FFT=None):
+    def __init__(self, ih, n, samples_per_frame=1,
+                 frequency=None, sideband=None, FFT=None):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
@@ -52,14 +61,18 @@ class ChannelizeTask(FunctionTask):
         if FFT is None:
             FFT = get_fft_maker('numpy')
 
-        fft = FFT((samples_per_frame, n) + ih.sample_shape,
-                  ih.dtype, axis=1)
+        self._fft = FFT((samples_per_frame, n) + ih.sample_shape,
+                        ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
-        def apply_fft(data):
-            return fft(data.reshape(fft.time_shape))
-
-        super().__init__(ih, apply_fft,
-                         shape=(nsample,) + fft.freq_shape[1:],
+        super().__init__(ih, shape=(nsample,) + self._fft.frequency_shape[1:],
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         dtype=fft.freq_dtype)
+                         frequency=frequency, sideband=sideband,
+                         dtype=self._fft.frequency_dtype)
+        if self._frequency is not None:
+            # Do not use in-place, since _frequency is likely broadcast.
+            self._frequency = (self._frequency +
+                               np.copysign(self._fft.frequency, self.sideband))
+
+    def function(self, data):
+        return self._fft(data.reshape(self._fft.time_shape))

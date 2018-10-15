@@ -12,33 +12,7 @@ from .base import Base
 __all__ = ['StreamGenerator', 'EmptyStreamGenerator', 'Noise', 'NoiseGenerator']
 
 
-class StreamGeneratorBase(Base):
-    """Base for generators.
-
-    Defines a ``_read_frame`` method that calls ``self.function``,
-    as well as a ``close`` method.
-    """
-    def __init__(self, shape, start_time, sample_rate, samples_per_frame,
-                 dtype=np.complex64):
-        super().__init__(shape=shape, start_time=start_time,
-                         sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
-        self.closed = False
-
-    def _read_frame(self, frame_index):
-        if self.closed:
-            raise ValueError("I/O operation on closed stream generator.")
-
-        self.seek(frame_index * self.samples_per_frame)
-        if self.tell() + self.samples_per_frame > self.shape[0]:
-            raise EOFError("cannot generate samples beyond end of generator.")
-        return self.function()
-
-    def close(self):
-        self.closed = True
-
-
-class StreamGenerator(StreamGeneratorBase):
+class StreamGenerator(Base):
     """Generator of data produced by a user-provided function.
 
     The function needs to be aware of stream structure.  As an alternative, generate
@@ -62,6 +36,12 @@ class StreamGenerator(StreamGeneratorBase):
     samples_per_frame : int
         Blocking factor.  This can be used for efficiency to reduce the overhead
         of calling the source function.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: unknown.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  Default: unknown.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``.
 
@@ -75,8 +55,7 @@ class StreamGenerator(StreamGeneratorBase):
     >>> def alternate(sh):
     ...     return np.full((1,) + sh.shape[1:], sh.tell() % 2 == 1, sh.dtype)
     ...
-    >>> sh = StreamGenerator(alternate, (10, 6), t.Time('2010-11-12'),
-    ...                      10.*u.Hz, samples_per_frame=1)
+    >>> sh = StreamGenerator(alternate, (10, 6), t.Time('2010-11-12'), 10.*u.Hz)
     >>> sh.seek(5)
     5
     >>> sh.read()  # doctest: +FLOAT_CMP
@@ -87,18 +66,21 @@ class StreamGenerator(StreamGeneratorBase):
            [1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j]], dtype=complex64)
     """
     def __init__(self, function, shape, start_time, sample_rate,
-                 samples_per_frame, dtype=np.complex64):
+                 samples_per_frame=1, frequency=None, sideband=None,
+                 dtype=np.complex64):
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband, dtype=dtype)
         self._function = function
-        self.closed = False
 
-    def function(self):
+    def _read_frame(self, frame_index):
+        # Apply function to generate data.  Note that the read() function
+        # in base ensures that our offset pointer is correct.
         return self._function(self)
 
 
-class EmptyStreamGenerator(StreamGeneratorBase):
+class EmptyStreamGenerator(Base):
     """Generator of an empty data stream.
 
     The stream is meant to be filled with a `~scintillometry.functions.FunctionTask`.
@@ -115,6 +97,12 @@ class EmptyStreamGenerator(StreamGeneratorBase):
     samples_per_frame : int
         Blocking factor.  This is mostly useful to make the function task
         that uses the stream more efficient.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: unknown.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  Default: unknown.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``.
 
@@ -140,7 +128,7 @@ class EmptyStreamGenerator(StreamGeneratorBase):
     >>> sh.read()  # doctest: +FLOAT_CMP
     array([ 1., -1.,  1., -1.,  1.], dtype=float32)
     """
-    def function(self):
+    def _read_frame(self, frame_index):
         return np.empty((self.samples_per_frame,) + self.shape[1:],
                         self.dtype)
 
@@ -209,8 +197,15 @@ class NoiseGenerator(StreamGenerator):
         Start time of the fake file.
     sample_rate : `~astropy.units.Quantity`
         Sample rate, in units of frequency.
-    samples_per_frame : int
-        Blocking factor, setting the size of the fake data frames (see above).
+    samples_per_frame : int, optional
+        Blocking factor, setting the size of the fake data frames.
+        No default, since should typically be large (see above).
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: unknown.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  Default: unknown.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``
     seed : int, optional
@@ -223,8 +218,9 @@ class NoiseGenerator(StreamGenerator):
     samples per frame.
     """
     def __init__(self, shape, start_time, sample_rate, samples_per_frame,
-                 dtype=np.complex64, seed=None):
+                 frequency=None, sideband=None, dtype=np.complex64, seed=None):
         generator = Noise(seed)
         super().__init__(function=generator, shape=shape,
                          start_time=start_time, sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband, dtype=dtype)
