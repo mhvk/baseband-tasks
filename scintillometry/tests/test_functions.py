@@ -116,20 +116,20 @@ class TestSquare:
 
         st.close()
 
-    def test_freq_sideband_propagation(self):
+    def test_frequency_sideband_propagation(self):
         fh = vdif.open(SAMPLE_VDIF)
         # Add frequency and sideband information by hand.
         # (Note: sideband is incorrect; just for testing purposes)
-        fh.freq = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         fh.sideband = np.tile([-1, +1], 4)
         st = SquareTask(fh)
-        assert np.all(st.freq == fh.freq)
+        assert np.all(st.frequency == fh.frequency)
         assert np.all(st.sideband == st.sideband)
 
-    def test_missing_freq_sideband(self):
+    def test_missing_frequency_sideband(self):
         fh = vdif.open(SAMPLE_VDIF)
         st = SquareTask(fh)
         with pytest.raises(AttributeError):
-            st.freq
+            st.frequency
         with pytest.raises(AttributeError):
             st.sideband

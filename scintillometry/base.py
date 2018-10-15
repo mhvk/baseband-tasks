@@ -27,7 +27,7 @@ class Base:
     samples_per_frame : int, optional
         Number of samples dealt with in one go.  The number of complete
         samples (``shape[0]``) should be an integer multiple of this.
-    freq : `~astropy.units.Quantity`, optional
+    frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
     sideband : array, optional
@@ -38,20 +38,21 @@ class Base:
     """
 
     def __init__(self, shape, start_time, sample_rate, samples_per_frame=1,
-                 freq=None, sideband=None, dtype=np.complex64):
+                 frequency=None, sideband=None, dtype=np.complex64):
         self._shape = shape
         self._start_time = start_time
         self._samples_per_frame = samples_per_frame
         assert shape[0] % samples_per_frame == 0
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
-        if freq is not None:
-            freq = np.broadcast_to(freq, self.sample_shape, subok=True)
+        if frequency is not None:
+            frequency = np.broadcast_to(frequency, self.sample_shape,
+                                        subok=True)
         if sideband is not None:
             sideband = np.broadcast_to(np.where(sideband > 0,
                                                 np.int8(1), np.int8(-1)),
                                        self.sample_shape)
-        self._freq = freq
+        self._frequency = frequency
         self._sideband = sideband
 
         # Sample and frame pointers.
@@ -130,10 +131,10 @@ class Base:
         return self.start_time + self.shape[0] / self.sample_rate
 
     @property
-    def freq(self):
-        if self._freq is None:
+    def frequency(self):
+        if self._frequency is None:
             raise AttributeError("frequencies not set.")
-        return self._freq
+        return self._frequency
 
     @property
     def sideband(self):
@@ -296,7 +297,7 @@ class TaskBase(Base):
     """
 
     def __init__(self, ih, shape=None, sample_rate=None,
-                 freq=None, sideband=None, samples_per_frame=None,
+                 frequency=None, sideband=None, samples_per_frame=None,
                  dtype=None):
         self.ih = ih
         if sample_rate is None:
@@ -326,15 +327,16 @@ class TaskBase(Base):
         if dtype is None:
             dtype = ih.dtype
 
-        if freq is None:
-            freq = getattr(ih, 'freq', None)
+        if frequency is None:
+            frequency = getattr(ih, 'frequency', None)
 
         if sideband is None:
             sideband = getattr(ih, 'sideband', None)
 
         super().__init__(shape=shape, start_time=ih.start_time,
-                         sample_rate=sample_rate, freq=freq, sideband=sideband,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
+                         sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband, dtype=dtype)
 
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.

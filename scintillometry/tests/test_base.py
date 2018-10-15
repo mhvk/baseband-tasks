@@ -99,33 +99,33 @@ class TestTaskBase:
         rt.close()
         assert fh.closed
 
-    def test_freq_sideband_propagation(self):
+    def test_frequency_sideband_propagation(self):
         fh = vdif.open(SAMPLE_VDIF)
         # Add frequency and sideband information by hand.
         # (Note: sideband is incorrect; just for testing purposes)
-        fh.freq = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         fh.sideband = np.tile([-1, +1], 4)
         rt = ReshapeTask(fh, 256)
         sideband = rt.sideband
         assert sideband.shape == rt.sample_shape
         assert np.all(sideband == fh.sideband)
-        freq = rt.freq
-        assert freq.shape == rt.sample_shape
-        assert np.all(freq == fh.freq)
+        frequency = rt.frequency
+        assert frequency.shape == rt.sample_shape
+        assert np.all(frequency == fh.frequency)
 
-    def test_freq_sideband_setting(self):
+    def test_frequency_sideband_setting(self):
         fh = vdif.open(SAMPLE_VDIF)
         # Add frequency and sideband information by hand, broadcasting it.
         # (Note: sideband is incorrect; just for testing purposes)
-        freq_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        frequency_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         sideband_in = np.tile([-1, +1], 4)
-        rt = ReshapeTask(fh, 256, freq=freq_in, sideband=sideband_in)
+        rt = ReshapeTask(fh, 256, frequency=frequency_in, sideband=sideband_in)
         assert rt.sideband.shape == rt.sample_shape
         assert rt.sideband.shape != sideband_in.shape
         assert np.all(rt.sideband == sideband_in)
-        assert rt.freq.shape == rt.sample_shape
-        assert rt.freq.shape != freq_in.shape
-        assert np.all(rt.freq == freq_in)
+        assert rt.frequency.shape == rt.sample_shape
+        assert rt.frequency.shape != frequency_in.shape
+        assert np.all(rt.frequency == frequency_in)
 
     def test_taskbase_exceptions(self):
         """Test exceptions in TaskBase."""
@@ -160,12 +160,12 @@ class TestTaskBase:
 
             # Check missing frequency/sideband definitions
             with pytest.raises(AttributeError):
-                rt.freq
+                rt.frequency
             with pytest.raises(AttributeError):
                 rt.sideband
             with pytest.raises(ValueError):
                 ReshapeTask(fh, 1024, samples_per_frame=3,
-                            freq=np.arange(4.)*u.GHz)
+                            frequency=np.arange(4.)*u.GHz)
             with pytest.raises(ValueError):
                 ReshapeTask(fh, 1024, samples_per_frame=3,
                             sideband=np.ones((2, 8), dtype=int))

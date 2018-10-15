@@ -26,7 +26,7 @@ class ChannelizeTask(TaskBase):
         have ``n`` channels; for real input, it will have ``n // 2 + 1``.
     samples_per_frame : int, optional
         Number of complete output samples per frame (see Notes).  Default: 1.
-    freq : `~astropy.units.Quantity`, optional
+    frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih`` (channelized frequencies will
         be calculated).  Default: taken from ``ih`` (if available).
     sideband : array, optional
@@ -48,8 +48,8 @@ class ChannelizeTask(TaskBase):
     using `numpy.fft` the performance improvement seems to be negligible.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1, freq=None, sideband=None,
-                 FFT=None):
+    def __init__(self, ih, n, samples_per_frame=1,
+                 frequency=None, sideband=None, FFT=None):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
@@ -64,13 +64,15 @@ class ChannelizeTask(TaskBase):
         self._fft = FFT((samples_per_frame, n) + ih.sample_shape,
                         ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
-        super().__init__(ih, shape=(nsample,) + self._fft.freq_shape[1:],
-                         sample_rate=sample_rate, freq=freq, sideband=sideband,
+        super().__init__(ih, shape=(nsample,) + self._fft.frequency_shape[1:],
+                         sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         dtype=self._fft.freq_dtype)
-        if self._freq is not None:
-            # Do not use in-place, since _freq is likely broadcast.
-            self._freq = self._freq + np.copysign(self._fft.freq, self.sideband)
+                         frequency=frequency, sideband=sideband,
+                         dtype=self._fft.frequency_dtype)
+        if self._frequency is not None:
+            # Do not use in-place, since _frequency is likely broadcast.
+            self._frequency = (self._frequency +
+                               np.copysign(self._fft.frequency, self.sideband))
 
     def function(self, data):
         return self._fft(data.reshape(self._fft.time_shape))

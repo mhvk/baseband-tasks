@@ -67,9 +67,9 @@ To show information about the transform, we can simply print the instance::
         Frequency domain: shape=(501,), dtype=complex128>
 
 To obtain the sample frequencies of ``Y``, we can use the
-`~scintillometry.fourier.base.FFTBase.freq` property::
+`~scintillometry.fourier.base.FFTBase.frequency` property::
 
-    >>> fft.freq[:10]
+    >>> fft.frequency[:10]
     <Quantity [0.   , 0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008,
            0.009] kHz>
 

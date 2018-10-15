@@ -36,7 +36,7 @@ class StreamGenerator(Base):
     samples_per_frame : int
         Blocking factor.  This can be used for efficiency to reduce the overhead
         of calling the source function.
-    freq : `~astropy.units.Quantity`, optional
+    frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
     sideband : array, optional
@@ -66,12 +66,12 @@ class StreamGenerator(Base):
            [1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j]], dtype=complex64)
     """
     def __init__(self, function, shape, start_time, sample_rate,
-                 samples_per_frame=1, freq=None, sideband=None,
+                 samples_per_frame=1, frequency=None, sideband=None,
                  dtype=np.complex64):
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         freq=freq, sideband=sideband, dtype=dtype)
+                         frequency=frequency, sideband=sideband, dtype=dtype)
         self._function = function
 
     def _read_frame(self, frame_index):
@@ -97,7 +97,7 @@ class EmptyStreamGenerator(Base):
     samples_per_frame : int
         Blocking factor.  This is mostly useful to make the function task
         that uses the stream more efficient.
-    freq : `~astropy.units.Quantity`, optional
+    frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
     sideband : array, optional
@@ -200,7 +200,7 @@ class NoiseGenerator(StreamGenerator):
     samples_per_frame : int, optional
         Blocking factor, setting the size of the fake data frames.
         No default, since should typically be large (see above).
-    freq : `~astropy.units.Quantity`, optional
+    frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
     sideband : array, optional
@@ -218,9 +218,9 @@ class NoiseGenerator(StreamGenerator):
     samples per frame.
     """
     def __init__(self, shape, start_time, sample_rate, samples_per_frame,
-                 freq=None, sideband=None, dtype=np.complex64, seed=None):
+                 frequency=None, sideband=None, dtype=np.complex64, seed=None):
         generator = Noise(seed)
         super().__init__(function=generator, shape=shape,
                          start_time=start_time, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         freq=freq, sideband=sideband, dtype=dtype)
+                         frequency=frequency, sideband=sideband, dtype=dtype)
