@@ -111,7 +111,7 @@ class EmptyStreamGenerator(Base):
     Produce alternating +/-1 in single-channel data with decent-sized blocks.
 
     >>> from scintillometry.generators import EmptyStreamGenerator
-    >>> from scintillometry.functions import FunctionTask
+    >>> from scintillometry.base import Task
     >>> import numpy as np
     >>> from astropy import time as t, units as u
     >>> def alternate(data):
@@ -122,7 +122,7 @@ class EmptyStreamGenerator(Base):
     >>> eh = EmptyStreamGenerator((1000,), t.Time('2010-11-12'),
     ...                           1.*u.kHz, samples_per_frame=100,
     ...                           dtype='f4')
-    >>> sh = FunctionTask(eh, alternate)
+    >>> sh = Task(eh, alternate)
     >>> sh.seek(995)
     995
     >>> sh.read()  # doctest: +FLOAT_CMP
