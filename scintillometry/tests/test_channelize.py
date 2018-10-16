@@ -4,7 +4,7 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from ..channelize import ChannelizeTask
+from ..channelize import ChannelizeTask, DechannelizeTask
 
 from baseband import vdif, dada
 from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
@@ -22,6 +22,7 @@ class TestChannelize:
             self.ref_sample_rate = fh.sample_rate
             data = fh.read()
 
+        self.raw_data = data
         last_sample = self.n * (data.shape[0] // self.n)
         self.ref_data = np.fft.rfft(
             data[:last_sample].reshape((-1, self.n) + data.shape[1:]),
@@ -104,6 +105,44 @@ class TestChannelize:
                          np.fft.fftfreq(self.n, 1. / fh.sample_rate))
         assert np.all(ct.sideband == fh.sideband)
         assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
+
+    def test_dechannelizetask_real(self):
+        """Test dechannelization round-tripping."""
+        fh = vdif.open(SAMPLE_VDIF)
+        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        fh.sideband = np.tile([-1, +1], 4)
+        ct = ChannelizeTask(fh, self.n)
+        dt = DechannelizeTask(ct, self.n, dtype=fh.dtype)
+        nrec = (fh.shape[0] // self.n) * self.n
+        assert dt.shape == (nrec,) + fh.shape[1:]
+        data = dt.read()
+        assert np.allclose(data, self.raw_data[:nrec], atol=1e-6, rtol=0.)
+        assert np.all(dt.frequency == fh.frequency)
+        assert np.all(dt.sideband == fh.sideband)
+        # Check class method
+        dt2 = DechannelizeTask.from_channelizer(ct, ct)
+        data2 = dt2.read()
+        assert np.all(data2 == data)
+
+    def test_dechannelizetask_complex(self):
+        """Test dechannelization round-tripping."""
+        fh = dada.open(SAMPLE_DADA)
+        # Add frequency information by hand for now.
+        fh.frequency = fh.header0['FREQ'] * u.MHz
+        fh.sideband = np.where(fh.header0.sideband, 1, -1)
+        raw_data = fh.read()
+        ct = ChannelizeTask(fh, self.n)
+        dt = DechannelizeTask(ct)
+        nrec = (fh.shape[0] // self.n) * self.n
+        assert dt.shape == (nrec,) + fh.shape[1:]
+        data = dt.read()
+        assert np.allclose(data, raw_data[:nrec], atol=1e-6, rtol=0.)
+        assert np.all(dt.frequency == fh.frequency)
+        assert np.all(dt.sideband == fh.sideband)
+        # Check class method
+        dt2 = DechannelizeTask.from_channelizer(ct, ct)
+        data2 = dt2.read()
+        assert np.all(data2 == data)
 
     def test_missing_frequency_sideband(self):
         fh = vdif.open(SAMPLE_VDIF)
