@@ -46,12 +46,10 @@ class Base:
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
         if frequency is not None:
-            frequency = np.broadcast_to(frequency, self.sample_shape,
-                                        subok=True)
+            frequency = self._check_shape(frequency)
         if sideband is not None:
-            sideband = np.broadcast_to(np.where(sideband > 0,
-                                                np.int8(1), np.int8(-1)),
-                                       self.sample_shape)
+            sideband = self._check_shape(np.where(sideband > 0,
+                                                  np.int8(1), np.int8(-1)))
         self._frequency = frequency
         self._sideband = sideband
 
@@ -59,6 +57,15 @@ class Base:
         self.offset = 0
         self._frame_index = None
         self.closed = False
+
+    def _check_shape(self, value):
+        value = np.array(value, subok=True, copy=False)
+        try:
+            np.broadcast_to(value, self.sample_shape)
+        except ValueError as exc:
+            exc.args += ("value cannot be broadcast to sample shape",)
+            raise
+        return value
 
     @property
     def shape(self):

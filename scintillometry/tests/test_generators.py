@@ -48,8 +48,6 @@ class TestGenerator(StreamBase):
                              frequency=frequency, sideband=sideband,
                              shape=self.shape, start_time=self.start_time,
                              sample_rate=self.sample_rate, samples_per_frame=1) as sh:
-            assert sh.frequency.shape == sh.sample_shape
-            assert sh.sideband.shape == sh.sample_shape
             assert np.all(sh.frequency == frequency)
             assert np.all(sh.sideband == sideband)
 

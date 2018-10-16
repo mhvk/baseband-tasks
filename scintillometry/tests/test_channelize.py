@@ -77,9 +77,7 @@ class TestChannelize:
 
         ct = ChannelizeTask(fh, self.n)
 
-        assert ct.sideband.shape == ct.sample_shape
         assert np.all(ct.sideband == self.ref_sideband)
-        assert ct.frequency.shape == ct.sample_shape
         assert np.all(ct.frequency == self.ref_frequency)
 
     def test_channelize_frequency_complex(self):
@@ -94,9 +92,7 @@ class TestChannelize:
 
         ref_frequency = (320. * u.MHz +
                          np.fft.fftfreq(self.n, 1. / fh.sample_rate))
-        assert ct.sideband.shape == ct.sample_shape
         assert np.all(ct.sideband == fh.sideband)
-        assert ct.frequency.shape == ct.sample_shape
         assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
 
         fh.sideband = -fh.sideband
