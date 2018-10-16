@@ -421,6 +421,8 @@ class Task(TaskBase):
                 narg = len(argspec.args)
                 if argspec.defaults:
                     narg -= len(argspec.defaults)
+                if inspect.ismethod(task):
+                    narg -= 1
                 assert 1 <= narg <= 2
                 method = narg == 2
             except Exception as exc:

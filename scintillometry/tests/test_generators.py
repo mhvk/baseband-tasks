@@ -5,7 +5,8 @@ import astropy.units as u
 from astropy.time import Time
 
 from ..generators import StreamGenerator, EmptyStreamGenerator, NoiseGenerator
-from ..functions import FunctionTask, SquareTask
+from ..functions import Square
+from ..base import Task
 
 
 class StreamBase:
@@ -101,7 +102,7 @@ class TestConstant(StreamBase):
         with EmptyStreamGenerator(
                 shape=self.shape, start_time=self.start_time,
                 sample_rate=self.sample_rate, samples_per_frame=20) as eh, \
-                FunctionTask(eh, set_constant) as sh:
+                Task(eh, set_constant) as sh:
             assert sh.size == np.prod(self.shape)
             assert sh.shape == self.shape
             assert sh.samples_per_frame == 20
@@ -122,7 +123,7 @@ class TestConstant(StreamBase):
         with EmptyStreamGenerator(
                 shape=(10, 1000), start_time=self.start_time,
                 sample_rate=10. * u.Hz, samples_per_frame=2) as eh, \
-                FunctionTask(eh, set_tone) as sh:
+                Task(eh, set_tone) as sh:
             assert abs(sh.stop_time - sh.start_time - 1. * u.s) < 1. * u.ns
             sh.seek(5)
             data1 = sh.read(1)
@@ -143,7 +144,7 @@ class TestConstant(StreamBase):
         with EmptyStreamGenerator(
                 shape=(10, 1000), start_time=self.start_time,
                 sample_rate=10. * u.Hz, samples_per_frame=2) as eh, \
-                FunctionTask(eh, set_tone) as sh:
+                Task(eh, set_tone) as sh:
             assert sh.samples_per_frame == 2
             assert abs(sh.stop_time - sh.start_time - 1. * u.s) < 1. * u.ns
             sh.seek(4)
@@ -164,8 +165,8 @@ class TestConstant(StreamBase):
 
         eh = EmptyStreamGenerator(shape=(10, 1000), start_time=self.start_time,
                                   sample_rate=10. * u.Hz, samples_per_frame=2)
-        sh = FunctionTask(eh, set_tone)
-        st = SquareTask(sh)
+        sh = Task(eh, set_tone)
+        st = Square(sh)
         data1 = st.read()
         assert st.tell() == st.shape[0]
         assert abs(st.time - st.start_time - 1. * u.s) < 1*u.ns
@@ -240,7 +241,7 @@ class TestNoise:
                             shape=self.shape, start_time=self.start_time,
                             sample_rate=self.sample_rate,
                             samples_per_frame=10, dtype=np.complex128)
-        st = SquareTask(nh)
+        st = Square(nh)
         assert st.dtype == np.dtype('f8')
         data1 = st.read()
         assert st.tell() == st.shape[0]
