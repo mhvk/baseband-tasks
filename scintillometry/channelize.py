@@ -72,7 +72,7 @@ class ChannelizeTask(TaskBase):
         if self._frequency is not None:
             # Do not use in-place, since _frequency is likely broadcast.
             self._frequency = (self._frequency +
-                               np.copysign(self._fft.frequency, self.sideband))
+                               self._fft.frequency * self.sideband)
 
     def function(self, data):
         return self._fft(data.reshape(self._fft.time_shape))

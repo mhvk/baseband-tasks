@@ -6,8 +6,8 @@ import pytest
 
 from ..channelize import ChannelizeTask
 
-from baseband import vdif
-from baseband.data import SAMPLE_VDIF
+from baseband import vdif, dada
+from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
 
 
 class TestChannelize:
@@ -64,7 +64,7 @@ class TestChannelize:
 
         ct.close()
 
-    def test_channelize_frequency(self):
+    def test_channelize_frequency_real(self):
         """Test frequency calculation."""
 
         fh = vdif.open(SAMPLE_VDIF)
@@ -80,6 +80,30 @@ class TestChannelize:
         assert np.all(ct.sideband == self.ref_sideband)
         assert ct.frequency.shape == ct.sample_shape
         assert np.all(ct.frequency == self.ref_frequency)
+
+    def test_channelize_frequency_complex(self):
+        """Test frequency calculation."""
+
+        fh = dada.open(SAMPLE_DADA)
+        # Add frequency information by hand for now.
+        fh.frequency = fh.header0['FREQ'] * u.MHz
+        fh.sideband = np.where(fh.header0.sideband, 1, -1)
+
+        ct = ChannelizeTask(fh, self.n)
+
+        ref_frequency = (320. * u.MHz +
+                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
+        assert ct.sideband.shape == ct.sample_shape
+        assert np.all(ct.sideband == fh.sideband)
+        assert ct.frequency.shape == ct.sample_shape
+        assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
+
+        fh.sideband = -fh.sideband
+        ct = ChannelizeTask(fh, self.n)
+        ref_frequency = (320. * u.MHz -
+                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
+        assert np.all(ct.sideband == fh.sideband)
+        assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
 
     def test_missing_frequency_sideband(self):
         fh = vdif.open(SAMPLE_VDIF)
