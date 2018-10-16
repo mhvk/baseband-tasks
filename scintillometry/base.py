@@ -299,12 +299,19 @@ class TaskBase(Base):
         ``shape`` will be adjusted to make the total number of samples
         an integer multiple of ``samples_per_frame``.  If not given,
         the number from the underlying stream.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: taken from the underlying stream, if available.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.
+        Default: taken from the underlying stream, if available.
     dtype : `~numpy.dtype`, optional
-        Output dtype.  If not given, the dtype of the underlying file.
+        Output dtype.  If not given, the dtype of the underlying stream.
     """
 
     def __init__(self, ih, shape=None, sample_rate=None,
-                 frequency=None, sideband=None, samples_per_frame=None,
+                 samples_per_frame=None, frequency=None, sideband=None,
                  dtype=None):
         self.ih = ih
         if sample_rate is None:
