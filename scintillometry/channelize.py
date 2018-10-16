@@ -115,7 +115,7 @@ class DechannelizeTask(TaskBase):
         if frequency is None and hasattr(ih, 'frequency'):
             frequency = ih.frequency[0]
         if sideband is None and hasattr(ih, 'sideband'):
-            sideband = ih.sideband[0]
+            sideband = ih.sideband
         if dtype is None:
             dtype = ih.dtype  # this keeps it complex by default.
 
