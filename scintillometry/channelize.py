@@ -8,7 +8,7 @@ from .base import TaskBase
 from .fourier import get_fft_maker
 
 
-__all__ = ['ChannelizeTask']
+__all__ = ['ChannelizeTask', 'DechannelizeTask']
 
 
 class ChannelizeTask(TaskBase):
