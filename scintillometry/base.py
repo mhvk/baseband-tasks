@@ -1,6 +1,9 @@
 # Licensed under the GPLv3 - see LICENSE
 
+import inspect
 import operator
+import types
+
 import numpy as np
 import astropy.units as u
 
@@ -279,9 +282,9 @@ class TaskBase(Base):
 
     This class provides a base ``_read_frame`` method that will read
     a frame worth of data from the underlying stream and pass it on to
-    a function method.  Hence, subclasses should define:
+    a task method.  Hence, subclasses should define:
 
-      ``function(self, data)`` : return processed data from one frame.
+      ``task(self, data)`` : return processed data from one frame.
 
     Parameters
     ----------
@@ -299,12 +302,19 @@ class TaskBase(Base):
         ``shape`` will be adjusted to make the total number of samples
         an integer multiple of ``samples_per_frame``.  If not given,
         the number from the underlying stream.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: taken from the underlying stream, if available.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.
+        Default: taken from the underlying stream, if available.
     dtype : `~numpy.dtype`, optional
-        Output dtype.  If not given, the dtype of the underlying file.
+        Output dtype.  If not given, the dtype of the underlying stream.
     """
 
     def __init__(self, ih, shape=None, sample_rate=None,
-                 frequency=None, sideband=None, samples_per_frame=None,
+                 samples_per_frame=None, frequency=None, sideband=None,
                  dtype=None):
         self.ih = ih
         if sample_rate is None:
@@ -351,9 +361,79 @@ class TaskBase(Base):
         data = self.ih.read(self._raw_samples_per_frame)
         # Apply function to the data.  Note that the read() function
         # in base ensures that our offset pointer is correct.
-        return self.function(data)
+        return self.task(data)
 
     def close(self):
         """Close task, in particular closing its input source."""
         super().close()
         self.ih.close()
+
+
+class Task(TaskBase):
+    """Apply a user-supplied callable to a stream.
+
+    The task can either behave like a function or a method.  If a function,
+    it will be passed just the frame data read from the underlying file or task;
+    if a method, it will be passed the Task instance (with its offset at the
+    correct sample) as well as the frame data read.
+
+    Note that for common functions it is recommended to instead define a
+    new subclass of `~scintillometry.base.TaskBase` in which a ``task``
+    (static)method is defined.
+
+    Parameters
+    ----------
+    ih : filehandle
+        Source of data, or another task, from which samples are read.
+    task : callable
+        The function or method-like callable.
+    method : bool, optional
+        Whether ``task`` is a method (two arguments) or a function
+        (one argument).  Default: inferred by inspection.
+    shape : tuple, optional
+        Overall shape of the stream, with first entry the total number
+        of complete samples, and the remainder the sample shape.  By
+        default, the shape of the underlying stream, possibly adjusted
+        for a difference of sample rate.
+    sample_rate : `~astropy.units.Quantity`, optional
+        With units of a rate.  If not given, taken from the underlying
+        stream.  Should be passed in if the function reduces or expands
+        the number of elements.
+    samples_per_frame : int, optional
+        Number of samples which should be fed to the function in one go.
+        If not given, by default the number from the underlying file,
+        possibly adjusted for a difference in sample rate.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  If not given, the dtype of the underlying file.
+
+    Raises
+    ------
+    TypeError
+        If inspection of the task does not work.
+    AssertionError
+        If the task has zero or more than 2 arguments.
+    """
+    def __init__(self, ih, task, method=None, shape=None, sample_rate=None,
+                 samples_per_frame=None, dtype=None):
+        if method is None:
+            try:
+                argspec = inspect.getfullargspec(task)
+                narg = len(argspec.args)
+                if argspec.defaults:
+                    narg -= len(argspec.defaults)
+                if inspect.ismethod(task):
+                    narg -= 1
+                assert 1 <= narg <= 2
+                method = narg == 2
+            except Exception as exc:
+                exc.args += ("cannot determine whether ``task`` is a "
+                             "function or method. Pass in ``method``.",)
+                raise
+
+        if method:
+            self.task = types.MethodType(task, self)
+        else:
+            self.task = task
+
+        super().__init__(ih, shape=shape, sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame, dtype=dtype)

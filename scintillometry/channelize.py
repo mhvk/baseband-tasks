@@ -8,10 +8,10 @@ from .base import TaskBase
 from .fourier import get_fft_maker
 
 
-__all__ = ['ChannelizeTask', 'DechannelizeTask']
+__all__ = ['Channelize', 'Dechannelize']
 
 
-class ChannelizeTask(TaskBase):
+class Channelize(TaskBase):
     """Basic channelizer.
 
     Divides input into blocks of ``n`` time samples, Fourier transforming each
@@ -75,11 +75,23 @@ class ChannelizeTask(TaskBase):
             self._frequency = (self._frequency +
                                self._fft.frequency * self.sideband)
 
-    def function(self, data):
+    def task(self, data):
         return self._fft(data.reshape(self._fft.time_shape))
 
+    def inverse(self, ih):
+        """Create a Dechannelize instance that undoes this Channelization.
 
-class DechannelizeTask(TaskBase):
+        Paremeters
+        ----------
+        ih : task or `baseband` stream reader
+            Input data stream to be dechannelized.
+        """
+        # TODO: would be nicer to somehow use _fft.inverse().
+        return Dechannelize(ih, n=self._fft.time_shape[1],
+                            dtype=self._fft.time_dtype)
+
+
+class Dechannelize(TaskBase):
     """Basic dechannelizer.
 
     Inverse Fourier transform on first sample axis (which gets removed).
@@ -89,6 +101,10 @@ class DechannelizeTask(TaskBase):
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis, and Fourier channel
         as the second.
+    n : int, optional
+        Number of output samples to create for each spectrum.  By default,
+        for complex output data, the same as the number of channels.
+        For real output data, the number has to be passed in.
     samples_per_frame : int, optional
         Number of complete output samples per frame.  Default: inferred from
         underlying stream, i.e., ``ih.samples_per_frame * ih.shape[1]``.
@@ -112,6 +128,7 @@ class DechannelizeTask(TaskBase):
     def __init__(self, ih, n=None, samples_per_frame=None,
                  frequency=None, sideband=None, dtype=None, FFT=None):
 
+        assert ih.complex_data, "Dechannelization needs complex spectra."
         if frequency is None and hasattr(ih, 'frequency'):
             frequency = ih.frequency[0]
         if sideband is None and hasattr(ih, 'sideband'):
@@ -139,20 +156,16 @@ class DechannelizeTask(TaskBase):
                          frequency=frequency, sideband=sideband,
                          dtype=self._ifft.time_dtype)
 
-    @classmethod
-    def from_channelizer(self, ih, channelizer):
-        """Create a DechannelizeTask that undoes a ChannelizerTask.
+    def task(self, data):
+        return self._ifft(data).reshape((-1,) + self.sample_shape)
+
+    def inverse(self, ih):
+        """Create a Channelize instance that undoes this Dechannelization.
 
         Paremeters
         ----------
         ih : task or `baseband` stream reader
-            Input data stream to be dechannelized.
-        channelizer : `~scintillometry.channelize.ChannelizerTask`
-            Channelizer that produced the sampling of the input stream.
+            Input data stream to be channelized.
         """
         # TODO: would be nicer to somehow use _fft.inverse().
-        return DechannelizeTask(ih, channelizer._fft.time_shape[1],
-                                dtype=channelizer._fft.time_dtype)
-
-    def function(self, data):
-        return self._ifft(data).reshape((-1,) + self.sample_shape)
+        return Channelize(ih, n=self._ifft.time_shape[1])

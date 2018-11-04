@@ -6,16 +6,16 @@ import operator
 import pytest
 import itertools
 
-from ..base import TaskBase
+from ..base import TaskBase, Task
 
 from baseband import vdif
 from baseband.data import SAMPLE_VDIF
 
 
-class ReshapeTask(TaskBase):
+class Reshape(TaskBase):
     """Dummy class to test accessing task properties and methods.
 
-    `ReshapeTask` simply reshapes blocks of baseband data into frames.
+    `Reshape` simply reshapes blocks of baseband data into frames.
     """
 
     def __init__(self, ih, n, samples_per_frame=1, **kwargs):
@@ -29,7 +29,7 @@ class ReshapeTask(TaskBase):
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame, **kwargs)
 
-    def function(self, data):
+    def task(self, data):
         return data.reshape((-1,) + self.sample_shape)
 
 
@@ -46,7 +46,7 @@ class TestTaskBase:
         self-consistency with varying ``n`` and ``samples_per_frame``.
         """
         fh = vdif.open(SAMPLE_VDIF)
-        rt = ReshapeTask(fh, n, samples_per_frame=samples_per_frame)
+        rt = Reshape(fh, n, samples_per_frame=samples_per_frame)
 
         # Check sample pointer.
         assert rt.sample_rate == fh.sample_rate / n
@@ -105,7 +105,7 @@ class TestTaskBase:
         # (Note: sideband is incorrect; just for testing purposes)
         fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         fh.sideband = np.tile([-1, +1], 4)
-        rt = ReshapeTask(fh, 256)
+        rt = Reshape(fh, 256)
         assert np.all(rt.sideband == fh.sideband)
         assert np.all(rt.frequency == fh.frequency)
 
@@ -115,7 +115,7 @@ class TestTaskBase:
         # (Note: sideband is incorrect; just for testing purposes)
         frequency_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         sideband_in = np.tile([-1, +1], 4)
-        rt = ReshapeTask(fh, 256, frequency=frequency_in, sideband=sideband_in)
+        rt = Reshape(fh, 256, frequency=frequency_in, sideband=sideband_in)
         assert np.all(rt.sideband == sideband_in)
         assert np.all(rt.frequency == frequency_in)
 
@@ -123,7 +123,7 @@ class TestTaskBase:
         """Test exceptions in TaskBase."""
 
         with vdif.open(SAMPLE_VDIF) as fh:
-            rt = ReshapeTask(fh, 1024, samples_per_frame=3)
+            rt = Reshape(fh, 1024, samples_per_frame=3)
 
             # Check that reading beyond the bounds of the data leads to an
             # error.
@@ -156,8 +156,83 @@ class TestTaskBase:
             with pytest.raises(AttributeError):
                 rt.sideband
             with pytest.raises(ValueError):
-                ReshapeTask(fh, 1024, samples_per_frame=3,
-                            frequency=np.arange(4.)*u.GHz)
+                Reshape(fh, 1024, samples_per_frame=3,
+                        frequency=np.arange(4.)*u.GHz)
             with pytest.raises(ValueError):
-                ReshapeTask(fh, 1024, samples_per_frame=3,
-                            sideband=np.ones((2, 8), dtype=int))
+                Reshape(fh, 1024, samples_per_frame=3,
+                        sideband=np.ones((2, 8), dtype=int))
+
+
+def zero_channel_4(data):
+    data[:, 4] = 0.
+    return data
+
+
+def zero_every_8th_sample(data):
+    data[::8] = 0.
+    return data
+
+
+def remove_every_other(data):
+    return data[::2]
+
+
+def double_data(data):
+    return np.stack((data, data), axis=1).reshape((-1,) + data.shape[1:])
+
+
+def zero_every_8th_complex(fh, data):
+    every_8th = (fh.tell() + np.arange(fh.samples_per_frame)) % 8 == 0
+    data[every_8th] = 0.
+    return data
+
+
+class TestTasks:
+    """Test applying tasks to Baseband's sample VDIF file."""
+
+    @pytest.mark.parametrize('task, sample_factor',
+                             ((zero_channel_4, 1.),
+                              (zero_every_8th_sample, 1.),
+                              (remove_every_other, 0.5),
+                              (double_data, 2.)))
+    def test_function_tasks(self, task, sample_factor):
+        """Test setting a channel to zero."""
+
+        # Load baseband file and get reference intensities.
+        fh = vdif.open(SAMPLE_VDIF)
+        ref_data = task(fh.read())
+
+        ft = Task(fh, task, sample_rate=fh.sample_rate * sample_factor)
+
+        assert ft.shape[0] == fh.shape[0] * sample_factor
+        # Apply to everything.
+        data1 = ft.read()
+        assert ft.tell() == ft.shape[0]
+        assert (ft.time - ft.start_time -
+                ft.shape[0] / ft.sample_rate) < 1*u.ns
+        assert ft.dtype is ref_data.dtype is data1.dtype
+        assert np.allclose(ref_data, data1)
+
+        # Seeking and selective zeroing.
+        ft.seek(-3, 2)
+        assert ft.tell() == ft.shape[0] - 3
+        data2 = ft.read()
+        assert data2.shape[0] == 3
+        assert np.allclose(ref_data[-3:], data2)
+
+        ft.close()
+
+    @pytest.mark.parametrize('samples_per_frame', (None, 15, 1000))
+    def test_method_task(self, samples_per_frame):
+        fh = vdif.open(SAMPLE_VDIF)
+        count = fh.shape[0]
+        if samples_per_frame is not None:
+            count = (count // samples_per_frame) * samples_per_frame
+        ref_data = zero_every_8th_sample(fh.read(count))
+
+        ft = Task(fh, zero_every_8th_complex,
+                  samples_per_frame=samples_per_frame)
+
+        data1 = ft.read()
+
+        assert np.all(data1 == ref_data)

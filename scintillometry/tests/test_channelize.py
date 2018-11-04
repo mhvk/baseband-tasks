@@ -4,7 +4,7 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from ..channelize import ChannelizeTask, DechannelizeTask
+from ..channelize import Channelize, Dechannelize
 
 from baseband import vdif, dada
 from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
@@ -38,7 +38,7 @@ class TestChannelize:
         """Test channelization task."""
 
         fh = vdif.open(SAMPLE_VDIF)
-        ct = ChannelizeTask(fh, self.n)
+        ct = Channelize(fh, self.n)
 
         # Channelize everything.
         data1 = ct.read()
@@ -61,7 +61,7 @@ class TestChannelize:
 
         # Quick test of channel sanity check in __init__.
         with pytest.raises(AssertionError):
-            ct = ChannelizeTask(fh, 400001)
+            ct = Channelize(fh, 400001)
 
         ct.close()
 
@@ -75,7 +75,7 @@ class TestChannelize:
         # this is for testing only.
         fh.sideband = np.tile([-1, +1], 4)
 
-        ct = ChannelizeTask(fh, self.n)
+        ct = Channelize(fh, self.n)
 
         assert np.all(ct.sideband == self.ref_sideband)
         assert np.all(ct.frequency == self.ref_frequency)
@@ -88,7 +88,7 @@ class TestChannelize:
         fh.frequency = fh.header0['FREQ'] * u.MHz
         fh.sideband = np.where(fh.header0.sideband, 1, -1)
 
-        ct = ChannelizeTask(fh, self.n)
+        ct = Channelize(fh, self.n)
 
         ref_frequency = (320. * u.MHz +
                          np.fft.fftfreq(self.n, 1. / fh.sample_rate))
@@ -96,7 +96,7 @@ class TestChannelize:
         assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
 
         fh.sideband = -fh.sideband
-        ct = ChannelizeTask(fh, self.n)
+        ct = Channelize(fh, self.n)
         ref_frequency = (320. * u.MHz -
                          np.fft.fftfreq(self.n, 1. / fh.sample_rate))
         assert np.all(ct.sideband == fh.sideband)
@@ -107,8 +107,8 @@ class TestChannelize:
         fh = vdif.open(SAMPLE_VDIF)
         fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         fh.sideband = np.tile([-1, +1], 4)
-        ct = ChannelizeTask(fh, self.n)
-        dt = DechannelizeTask(ct, self.n, dtype=fh.dtype)
+        ct = Channelize(fh, self.n)
+        dt = Dechannelize(ct, self.n, dtype=fh.dtype)
         nrec = (fh.shape[0] // self.n) * self.n
         assert dt.shape == (nrec,) + fh.shape[1:]
         data = dt.read()
@@ -116,7 +116,7 @@ class TestChannelize:
         assert np.all(dt.frequency == fh.frequency)
         assert np.all(dt.sideband == fh.sideband)
         # Check class method
-        dt2 = DechannelizeTask.from_channelizer(ct, ct)
+        dt2 = ct.inverse(ct)
         data2 = dt2.read()
         assert np.all(data2 == data)
 
@@ -127,8 +127,8 @@ class TestChannelize:
         fh.frequency = fh.header0['FREQ'] * u.MHz
         fh.sideband = np.where(fh.header0.sideband, 1, -1)
         raw_data = fh.read()
-        ct = ChannelizeTask(fh, self.n)
-        dt = DechannelizeTask(ct)
+        ct = Channelize(fh, self.n)
+        dt = Dechannelize(ct)
         nrec = (fh.shape[0] // self.n) * self.n
         assert dt.shape == (nrec,) + fh.shape[1:]
         data = dt.read()
@@ -136,13 +136,19 @@ class TestChannelize:
         assert np.all(dt.frequency == fh.frequency)
         assert np.all(dt.sideband == fh.sideband)
         # Check class method
-        dt2 = DechannelizeTask.from_channelizer(ct, ct)
+        dt2 = ct.inverse(ct)
         data2 = dt2.read()
         assert np.all(data2 == data)
+        # Check inverse inverse as well.
+        ct2 = dt2.inverse(fh)
+        ct.seek(0)
+        ft = ct.read()
+        ft2 = ct2.read()
+        assert np.all(ft == ft2)
 
     def test_missing_frequency_sideband(self):
         fh = vdif.open(SAMPLE_VDIF)
-        ct = ChannelizeTask(fh, self.n)
+        ct = Channelize(fh, self.n)
         with pytest.raises(AttributeError):
             ct.frequency
         with pytest.raises(AttributeError):

@@ -6,8 +6,9 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
+from ..base import Task
 from ..generators import NoiseGenerator
-from ..functions import ComplexFunctionTask, SquareTask
+from ..functions import Square
 
 
 class NoiseStreamBase:
@@ -23,7 +24,7 @@ class NoiseStreamBase:
 
 
 class TestModulation(NoiseStreamBase):
-    """Basic tests of using a FunctionTask to create a modulator."""
+    """Basic tests of using a Task to create a modulator."""
 
     def block_profile(self, fh, data):
         """Multiply with 1 between 0.45--0.55 s, 0.125 otherwise."""
@@ -33,7 +34,7 @@ class TestModulation(NoiseStreamBase):
 
     def test_modulator_unbinned(self):
         nh = self.nh
-        mt = ComplexFunctionTask(nh, self.block_profile, samples_per_frame=1)
+        mt = Task(nh, self.block_profile, samples_per_frame=1)
         nh.seek(0)
         n1 = nh.read(10)
         m1 = mt.read(10)
@@ -54,7 +55,7 @@ class TestModulation(NoiseStreamBase):
 
     def test_modulator_binned(self):
         nh = self.nh
-        mt = ComplexFunctionTask(nh, self.block_profile, samples_per_frame=50)
+        mt = Task(nh, self.block_profile, samples_per_frame=50)
         nh.seek(0)
         n = nh.read()
         m = mt.read()
@@ -63,16 +64,16 @@ class TestModulation(NoiseStreamBase):
         assert np.all(m[550:] == 0.125 * n[550:])
         # Just to show one has to be careful: not giving
         # samples_per_frame takes it from nh, which is 200.
-        mt = ComplexFunctionTask(nh, self.block_profile)
+        mt = Task(nh, self.block_profile)
         m = mt.read()
         assert np.all(m[:400] == 0.125 * n[:400])
         assert np.all(m[400:600] == n[400:600])
         assert np.all(m[600:] == 0.125 * n[600:])
         # And more cases to show one has to be careful...
-        mt = ComplexFunctionTask(nh, self.block_profile, samples_per_frame=500)
+        mt = Task(nh, self.block_profile, samples_per_frame=500)
         m = mt.read()
         assert np.all(m == 0.125 * n)
-        mt = ComplexFunctionTask(nh, self.block_profile, samples_per_frame=1000)
+        mt = Task(nh, self.block_profile, samples_per_frame=1000)
         m = mt.read()
         assert np.all(m == n)
 
@@ -94,7 +95,7 @@ class TestCyclicModulation(NoiseStreamBase):
 
     def test_modulator_unbinned(self):
         nh = self.nh
-        mt = ComplexFunctionTask(nh, self.profile, samples_per_frame=1)
+        mt = Task(nh, self.profile, samples_per_frame=1)
         nh.seek(0)
         n1 = nh.read()
         m1 = mt.read()
@@ -103,7 +104,7 @@ class TestCyclicModulation(NoiseStreamBase):
 
     def test_modulator_bin10(self):
         nh = self.nh
-        mt = ComplexFunctionTask(nh, self.profile, samples_per_frame=10)
+        mt = Task(nh, self.profile, samples_per_frame=10)
         nh.seek(0)
         n1 = nh.read()
         m1 = mt.read()
@@ -112,6 +113,6 @@ class TestCyclicModulation(NoiseStreamBase):
         expected = (n1.reshape(-1, 10) * profile[:, np.newaxis]).ravel()
         assert np.allclose(m1, expected)
         # Also test with squarer, just for fun.
-        st = SquareTask(mt)
+        st = Square(mt)
         s1 = st.read(300)
         assert np.allclose(s1, np.abs(expected[:300])**2)
