@@ -270,6 +270,7 @@ class Base:
 
     def close(self):
         self.closed = True
+        del self._frame
 
 
 class TaskBase(Base):
