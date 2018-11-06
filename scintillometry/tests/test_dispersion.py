@@ -9,12 +9,13 @@ from ..dispersion import Disperse, Dedisperse, DispersionMeasure
 from ..generators import StreamGenerator
 
 
-REFERENCE_FREQUENCIES = (None,
-                         300 * u.MHz,
-                         300.064 * u.MHz,
-                         299.936 * u.MHz,
-                         300.128 * u.MHz,
-                         299.872 * u.MHz)
+REFERENCE_FREQUENCIES = (
+    None,  # Default, will use mean
+    300 * u.MHz,  # Centre frequency
+    300.064 * u.MHz,  # Upper edge
+    299.936 * u.MHz,  # Lower edge
+    300.128 * u.MHz,  # Above upper edge
+    299.872 * u.MHz)  # Below lower edge
 
 
 class TestDispersion:
@@ -121,4 +122,37 @@ class TestDispersion:
         self.gp.seek(self.start_time + 0.5 * u.s)
         self.gp.seek(-6400 * 5, 1)
         expected = self.gp.read(6400 * 10)
+        assert np.all(np.abs(data - expected) < 1e-3)
+
+    def test_disperse_real_data(self):
+        gp_real = StreamGenerator(self.make_giant_pulse,
+                                  shape=self.shape,
+                                  start_time=self.start_time,
+                                  sample_rate=self.sample_rate,
+                                  samples_per_frame=1000,
+                                  dtype=np.float32,
+                                  frequency=300*u.MHz,
+                                  sideband=np.array((1, -1)))
+        disperse = Disperse(gp_real, self.dm)
+        assert_quantity_allclose(disperse.reference_frequency,
+                                 300. * u.MHz)
+        disperse.seek(self.start_time + 0.5 * u.s)
+        disperse.seek(-6400 * 5, 1)
+        around_gp = disperse.read(6400 * 10)
+        assert around_gp.dtype == np.float32
+        p = (around_gp ** 2).reshape(-1, 3200, 2).sum(1)
+        # Note: FT leakage means that not everything outside of the dispersed
+        # pulse is zero.  But the total power there is small.
+        assert np.all(p[:9] < 0.006)
+        assert np.all(p[11:] < 0.006)
+        # Lower sideband [1] has lower frequencies and thus is dispersed to later.
+        assert p[9, 0] > 0.99 and p[10, 0] < 0.006
+        assert p[10, 1] > 0.99 and p[9, 1] < 0.006
+        dedisperse = Dedisperse(disperse, self.dm)
+        dedisperse.seek(self.start_time + 0.5 * u.s)
+        dedisperse.seek(-6400 * 5, 1)
+        data = dedisperse.read(6400 * 10)
+        gp_real.seek(self.start_time + 0.5 * u.s)
+        gp_real.seek(-6400 * 5, 1)
+        expected = gp_real.read(6400 * 10)
         assert np.all(np.abs(data - expected) < 1e-3)
