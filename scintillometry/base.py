@@ -270,7 +270,7 @@ class Base:
 
     def close(self):
         self.closed = True
-        del self._frame
+        self._frame = None  # clear possibly cached frame
 
 
 class TaskBase(Base):
