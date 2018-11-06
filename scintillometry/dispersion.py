@@ -106,7 +106,10 @@ class Disperse(TaskBase):
         """Phase offsets of the Fourier-transformed frame."""
         frequency = self.frequency + self._fft.frequency * self.sideband
         phase_factor = self.dm.phase_factor(frequency, self.reference_frequency)
-        return phase_factor.astype(self._fft.frequency_dtype, copy=False)
+        phase_factor = phase_factor.astype(self._fft.frequency_dtype,
+                                           copy=False)
+        np.conjugate(phase_factor, where=self.sideband < 0, out=phase_factor)
+        return phase_factor
 
     def task(self, data):
         ft = self._fft(data)
@@ -126,7 +129,7 @@ class Disperse(TaskBase):
         del self.phase_factor
 
 
-class Dedisperse(TaskBase):
+class Dedisperse(Disperse):
     """Coherently dedisperse a time stream.
 
     Dedispersion is always to the maximum frequency in the underlying
