@@ -12,9 +12,11 @@ from ..generators import StreamGenerator
 REFERENCE_FREQUENCIES = (
     None,  # Default, will use mean
     300 * u.MHz,  # Centre frequency
+    300.0123456789 * u.MHz,  # More random.
     300.064 * u.MHz,  # Upper edge
     299.936 * u.MHz,  # Lower edge
     300.128 * u.MHz,  # Above upper edge
+    300.123456789 * u.MHz,  # More random, above upper edge
     299.872 * u.MHz)  # Below lower edge
 
 
@@ -80,22 +82,76 @@ class TestDispersion:
     def test_disperse(self, reference_frequency):
         disperse = Disperse(self.gp, self.dm,
                             reference_frequency=reference_frequency)
-        # Seek input time of the giant pulse, and read around it.
-        disperse.seek(self.start_time + 0.5 * u.s)
+        # Seek input time of the giant pulse, corrected to the reference
+        # frequency, and read around it.
+        t_gp = (self.start_time + self.gp_sample / self.sample_rate +
+                self.dm.time_delay(300. * u.MHz,
+                                   disperse.reference_frequency))
+        disperse.seek(t_gp)
         disperse.seek(-6400 * 5, 1)
         around_gp = disperse.read(6400 * 10)
         # Power in 20 bins of 0.025 s around the giant pulse.
         p = (np.abs(around_gp) ** 2).reshape(-1, 10, 320, 2).sum(2)
         # Note: FT leakage means that not everything outside of the dispersed
         # pulse is zero.  But the total power there is small.
-        bin_off = int(np.round((
-            self.dm.time_delay(300. * u.MHz, disperse.reference_frequency) *
-            self.sample_rate / 3200).to(u.one)))
-        power_bins = np.array([9, 10]) + bin_off
-        assert np.all(p[:power_bins[0]].sum(1) < 0.005)
-        assert np.all(p[power_bins[1]+1:].sum(1) < 0.005)
-        assert np.all(p[power_bins[0]:power_bins[1]+1].sum() > 0.99)
-        assert np.all(p[power_bins[0]:power_bins[1]+1] > 0.048)
+        assert np.all(p[:9].sum(1) < 0.005)
+        assert np.all(p[11:].sum(1) < 0.005)
+        assert np.all(p[9:11].sum() > 0.99)
+        assert np.all(p[9:11] > 0.047)
+
+    @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
+    def test_disperse_roundtrip1(self, reference_frequency):
+        self.gp.seek(self.start_time + 0.5 * u.s)
+        self.gp.seek(-1024, 1)
+        gp = self.gp.read(2048)
+        # Set up dispersion as above, and check that one can invert
+        disperse = Disperse(self.gp, self.dm,
+                            reference_frequency=reference_frequency)
+        dedisperse = Dedisperse(disperse, self.dm,
+                                reference_frequency=reference_frequency)
+        dedisperse.seek(self.start_time + self.gp_sample / self.sample_rate)
+        dedisperse.seek(-1024, 1)
+        gp_dd = dedisperse.read(2048)
+        # Note: rounding errors mean this doesn't work perfectly.
+        assert np.all(np.abs(gp_dd - gp) < 1.e-4)
+
+    @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
+    def test_disperse_roundtrip2(self, reference_frequency):
+        # Now check dedispersing using mean frequency, which means that
+        # the giant pulse should still be at the dispersed t_gp, i.e., there
+        # should be a net time shift as well as a phase shift.
+        disperse = Disperse(self.gp, self.dm,
+                            reference_frequency=reference_frequency)
+        # Seek input time of the giant pulse, corrected to the reference
+        # frequency, and read around it.
+        time_delay = self.dm.time_delay(300. * u.MHz,
+                                        disperse.reference_frequency)
+        phase_delay = self.dm.phase_delay(300. * u.MHz,
+                                          disperse.reference_frequency)
+        t_gp = (self.start_time + self.gp_sample / self.sample_rate +
+                time_delay)
+        # Dedisperse to mean frequency = 300 MHz, and read dedispersed pulse.
+        dedisperse = Dedisperse(disperse, self.dm)
+        dedisperse.seek(t_gp)
+        dedisperse.seek(-1024, 1)
+        dd_gp = dedisperse.read(2048)
+        # First check power is concentrated where it should be.
+        p = np.abs(dd_gp) ** 2
+        assert np.all(p[1024-1:1024+2].sum(0) > 0.9)
+        # Now check that, effectively, we just shifted the giant pulse.
+        # Read the original giant pulse
+        self.gp.seek(0)
+        gp = self.gp.read()
+        # Shift in time using a phase gradient in the Fourier domain
+        # (plus the phase offset between new and old reference frequency).
+        ft = np.fft.fft(gp, axis=0)
+        freqs = (np.fft.fftfreq(gp.shape[0], 1./self.sample_rate)[:, np.newaxis] *
+                 self.gp.sideband)
+        ft *= np.exp(((time_delay * freqs * u.cycle - phase_delay) *
+                      self.gp.sideband).to_value(u.rad) * -1j)
+        gp_exp = np.fft.ifft(ft, axis=0)
+        offset = self.gp_sample + int(np.round((time_delay * self.sample_rate).to_value(u.one)))
+        assert np.all(np.abs(gp_exp[offset-1024:offset+1024] - dd_gp) < 1e-3)
 
     def test_disperse_negative_dm(self):
         disperse = Disperse(self.gp, -self.dm)
