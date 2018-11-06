@@ -63,8 +63,8 @@ class Disperse(TaskBase):
 
         reference_frequency = freq_high.max()
 
-        delay_low = (dm.time_delay(freq_low, reference_frequency) *
-                     ih.sample_rate).to_value(u.one)
+        delay_low = abs(dm.time_delay(freq_low, reference_frequency) *
+                        ih.sample_rate).to_value(u.one)
 
         pad = int(np.ceil(delay_low).max())
         if samples_per_frame is None:
