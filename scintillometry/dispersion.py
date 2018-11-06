@@ -12,24 +12,25 @@ from .fourier import get_fft_maker
 from .dm import DispersionMeasure
 
 
-__all__ = ['Dedisperse']
+__all__ = ['Disperse', 'Dedisperse']
 
 
-class Dedisperse(TaskBase):
-    """Coherently dedisperse a time stream.
+class Disperse(TaskBase):
+    """Coherently disperse a time stream.
 
-    Dedispersion is always to the maximum frequency in the underlying
-    time stream (such that the start time does not change).
+    Dispersion is always to the maximum frequency in the underlying
+    time stream (such that the stop time does not change).
 
     Parameters
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
     dm : float or `~scintillometry.dm.DispersionMeasure` quantity
-        Dispersion measure.
+        Dispersion measure.  If negative, will dedisperse correctly, but
+        clearer to use the `~scintillometry.dispersion.Dedisperse` class.
     samples_per_frame : int, optional
-        Number of samples which should be dedispersed in one go.
-        The number of dispersed samples will be smaller to avoid wrapping.
+        Number of samples which should be dispersed in one go. The number of
+        output dispersed samples per frame will be smaller to avoid wrapping.
         If not given, the minimum power of 2 needed to get at least 75%
         efficiency.
     frequency : `~astropy.units.Quantity`, optional
@@ -46,7 +47,7 @@ class Dedisperse(TaskBase):
     def __init__(self, ih, dm, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None,
                  FFT=None):
-        self.dm = dm = DispersionMeasure(dm)
+        dm = DispersionMeasure(dm)
         if frequency is None:
             frequency = ih.frequency
         if sideband is None:
@@ -81,7 +82,7 @@ class Dedisperse(TaskBase):
         # Initialize FFT.
         if FFT is None:
             FFT = get_fft_maker('numpy')
-        # Dedispersion FFT and inverse.
+        # Fine channelization FFT and inverse.
         self._fft = FFT(shape=(samples_per_frame,) + ih.sample_shape,
                         dtype=ih.dtype, sample_rate=ih.sample_rate)
         self._ifft = self._fft.inverse()
@@ -91,11 +92,12 @@ class Dedisperse(TaskBase):
         super().__init__(ih, samples_per_frame=samples_per_frame,
                          shape=(n_frames * samples_per_frame,) + ih.shape[1:],
                          frequency=frequency, sideband=sideband)
+        self.dm = dm
         self.reference_frequency = reference_frequency
         self._pad = pad
-        if dm > 0:
+        if dm < 0:  # Dedispersion
             self._slice = slice(None, samples_per_frame)
-        else:
+        else:  # Dispersion
             self._slice = slice(-samples_per_frame, None)
             self._start_time += pad / self.sample_rate
 
@@ -104,7 +106,7 @@ class Dedisperse(TaskBase):
         """Phase offsets of the Fourier-transformed frame."""
         frequency = self.frequency + self._fft.frequency * self.sideband
         phase_factor = self.dm.phase_factor(frequency, self.reference_frequency)
-        return phase_factor.astype(self._fft.frequency_dtype, copy=False).conj()
+        return phase_factor.astype(self._fft.frequency_dtype, copy=False)
 
     def task(self, data):
         ft = self._fft(data)
@@ -122,3 +124,39 @@ class Dedisperse(TaskBase):
         super().close()
         # Clear the cache of the lazyproperty to release memory.
         del self.phase_factor
+
+
+class Dedisperse(TaskBase):
+    """Coherently dedisperse a time stream.
+
+    Dedispersion is always to the maximum frequency in the underlying
+    time stream (such that the start time does not change).
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    dm : float or `~scintillometry.dm.DispersionMeasure` quantity
+        Dispersion measure.  If negative, will disperse correctly, but
+        clearer to use the `~scintillometry.dispersion.Disperse` class.
+    samples_per_frame : int, optional
+        Number of samples which should be dedispersed in one go. The number of
+        output dedispersed samples per frame will be smaller to avoid wrapping.
+        If not given, the minimum power of 2 needed to get at least 75%
+        efficiency.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel in ``ih`` (channelized frequencies will
+        be calculated).  Default: taken from ``ih`` (if available).
+    sideband : array, optional
+        Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available).
+    FFT : FFT maker or None, optional
+        FFT maker.  Default: `None`, in which case the channelizer uses
+        `~scintillometry.fourier.numpy.NumpyFFTMaker`.
+    """
+
+    def __init__(self, ih, dm, reference_frequency=None,
+                 samples_per_frame=None, frequency=None, sideband=None,
+                 FFT=None):
+        super().__init__(ih, -dm, reference_frequency, samples_per_frame,
+                         frequency, sideband, FFT)
