@@ -114,16 +114,23 @@ class TestFFTClasses(object):
 
 
 def test_default_maker():
-    maker = get_fft_maker()
+    # Ensure we start with a clean slate
+    del get_fft_maker.default
+    default_maker = get_fft_maker()
+    assert default_maker is get_fft_maker.default
+    assert default_maker is get_fft_maker.system_default
     if 'pyfftw' in FFT_MAKER_CLASSES:
-        assert isinstance(maker, fourier.PyfftwFFTMaker)
+        assert isinstance(default_maker, fourier.PyfftwFFTMaker)
     else:
-        assert isinstance(maker, fourier.NumpyFFTMaker)
+        assert isinstance(default_maker, fourier.NumpyFFTMaker)
 
     my_maker = fourier.base.FFTMakerBase()
     try:
         get_fft_maker.default = my_maker
         assert get_fft_maker() is my_maker
     finally:
-        get_fft_maker.default = maker
-        assert get_fft_maker() is maker
+        del get_fft_maker.default
+        assert get_fft_maker() is default_maker
+
+    with pytest.raises(TypeError):
+        get_fft_maker.default = 'nonsense'
