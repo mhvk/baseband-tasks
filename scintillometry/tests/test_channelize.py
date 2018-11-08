@@ -46,14 +46,14 @@ class TestChannelize:
         assert (ct.time - ct.start_time -
                 ct.shape[0] / ct.sample_rate) < 1*u.ns
         assert ct.dtype is self.ref_data.dtype is data1.dtype
-        assert np.allclose(self.ref_data, data1)
+        assert np.allclose(self.ref_data, data1, atol=1e-5)
 
         # Seeking and selective decode.
         ct.seek(-3, 2)
         assert ct.tell() == ct.shape[0] - 3
         data2 = ct.read()
         assert data2.shape[0] == 3
-        assert np.allclose(self.ref_data[-3:], data2)
+        assert np.allclose(self.ref_data[-3:], data2, atol=1e-5)
 
         ct.seek(-2, 2)
         with pytest.raises(EOFError):
@@ -112,7 +112,7 @@ class TestChannelize:
         nrec = (fh.shape[0] // self.n) * self.n
         assert dt.shape == (nrec,) + fh.shape[1:]
         data = dt.read()
-        assert np.allclose(data, self.raw_data[:nrec], atol=1e-6, rtol=0.)
+        assert np.allclose(data, self.raw_data[:nrec], atol=1e-5)
         assert np.all(dt.frequency == fh.frequency)
         assert np.all(dt.sideband == fh.sideband)
         # Check class method
@@ -132,7 +132,7 @@ class TestChannelize:
         nrec = (fh.shape[0] // self.n) * self.n
         assert dt.shape == (nrec,) + fh.shape[1:]
         data = dt.read()
-        assert np.allclose(data, raw_data[:nrec], atol=1e-6, rtol=0.)
+        assert np.allclose(data, raw_data[:nrec], atol=1e-5)
         assert np.all(dt.frequency == fh.frequency)
         assert np.all(dt.sideband == fh.sideband)
         # Check class method

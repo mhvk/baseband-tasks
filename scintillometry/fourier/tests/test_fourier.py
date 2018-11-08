@@ -7,6 +7,7 @@ import pytest
 
 from ..base import FFT_MAKER_CLASSES
 from .. import get_fft_maker
+from ... import fourier
 
 
 class TestFFTClasses(object):
@@ -110,3 +111,19 @@ class TestFFTClasses(object):
         # Check frequency.
         assert_quantity_allclose(fft.frequency,
                                  self.frequency_Y_3D[:, np.newaxis])
+
+
+def test_default_maker():
+    maker = get_fft_maker()
+    if 'pyfftw' in FFT_MAKER_CLASSES:
+        assert isinstance(maker, fourier.PyfftwFFTMaker)
+    else:
+        assert isinstance(maker, fourier.NumpyFFTMaker)
+
+    my_maker = fourier.base.FFTMakerBase()
+    try:
+        get_fft_maker.default = my_maker
+        assert get_fft_maker() is my_maker
+    finally:
+        get_fft_maker.default = maker
+        assert get_fft_maker() is maker

@@ -239,15 +239,40 @@ class FFTBase:
                 " dtype={s.frequency_dtype}>".format(s=self))
 
 
-def get_fft_maker(fft_engine, **kwargs):
-    """FFT factory selector.
+class GetFFTMaker:
+    """FFT factory selector class with default."""
+    @property
+    def default(self):
+        """Default FFT Maker.
 
-    Parameters
-    ----------
-    fft_engine : {'numpy', 'pyfftw'}
-        Keyword for the FFT maker class.
-    **kwargs
-        Additional keyword arguments for initializing the maker class
-        (eg. ``n_simd`` for 'pyfftw').
-    """
-    return FFT_MAKER_CLASSES[fft_engine](**kwargs)
+        Should be an instance of `~scintillometry.fourier.base.FFTMakerBase`
+        (such as `~scintillometry.fourier.NumpyFFTMaker`).
+        """
+        return self._default
+
+    @default.setter
+    def default(self, default):
+        if not isinstance(default, FFTMakerBase):
+            raise TypeError("Can only set the default to an FFT "
+                            "maker such as NumpyFFTMaker.")
+        self._default = default
+
+    def __call__(self, fft_engine=None, **kwargs):
+        """FFT factory selector.
+
+        Parameters
+        ----------
+        fft_engine : {'numpy', 'pyfftw'}, optional
+            Keyword identifying the FFT maker class.  If not given, the
+            default engine stored in the ``default`` attribute is returned.
+        **kwargs
+            Additional keyword arguments for initializing the maker class
+            (eg. ``n_simd`` for 'pyfftw').
+        """
+        if fft_engine is None:
+            return self.default
+        else:
+            return FFT_MAKER_CLASSES[fft_engine](**kwargs)
+
+
+get_fft_maker = GetFFTMaker()
