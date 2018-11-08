@@ -7,6 +7,9 @@ from astropy.utils import lazyproperty
 __all__ = ['FFTMakerBase', 'FFTBase', 'get_fft_maker']
 
 
+__doctest_requires__ = {'GetFFTMaker.__call__': ['pyfftw']}
+
+
 FFT_MAKER_CLASSES = {}
 """Dict for storing FFT maker classes, indexed by their name or prefix."""
 
