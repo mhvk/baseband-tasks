@@ -5,6 +5,7 @@ import astropy.units as u
 import pytest
 
 from ..channelize import Channelize, Dechannelize
+from ..fourier import get_fft_maker
 
 from baseband import vdif, dada
 from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
@@ -24,15 +25,14 @@ class TestChannelize:
 
         self.raw_data = data
         last_sample = self.n * (data.shape[0] // self.n)
-        self.ref_data = np.fft.rfft(
-            data[:last_sample].reshape((-1, self.n) + data.shape[1:]),
-            axis=1).astype('complex64')
-
+        part = data[:last_sample].reshape((-1, self.n) + data.shape[1:])
+        FFT = get_fft_maker()
+        rfft = FFT(shape=part.shape, dtype=part.dtype, axis=1,
+                   sample_rate=self.ref_sample_rate)
+        self.ref_data = rfft(part)
         self.ref_sideband = np.tile([-1, 1], 4)
         self.ref_frequency = ((311.25 + 16 * (np.arange(8) // 2)) * u.MHz +
-                              self.ref_sideband *
-                              np.fft.rfftfreq(self.n,
-                                              1./(32*u.MHz))[:, np.newaxis])
+                              self.ref_sideband * rfft.frequency)
 
     def test_channelizetask(self):
         """Test channelization task."""
@@ -46,14 +46,14 @@ class TestChannelize:
         assert (ct.time - ct.start_time -
                 ct.shape[0] / ct.sample_rate) < 1*u.ns
         assert ct.dtype is self.ref_data.dtype is data1.dtype
-        assert np.allclose(self.ref_data, data1)
+        assert np.all(self.ref_data == data1)
 
         # Seeking and selective decode.
         ct.seek(-3, 2)
         assert ct.tell() == ct.shape[0] - 3
         data2 = ct.read()
         assert data2.shape[0] == 3
-        assert np.allclose(self.ref_data[-3:], data2)
+        assert np.all(self.ref_data[-3:] == data2)
 
         ct.seek(-2, 2)
         with pytest.raises(EOFError):
@@ -112,7 +112,8 @@ class TestChannelize:
         nrec = (fh.shape[0] // self.n) * self.n
         assert dt.shape == (nrec,) + fh.shape[1:]
         data = dt.read()
-        assert np.allclose(data, self.raw_data[:nrec], atol=1e-6, rtol=0.)
+        # Note: round-trip is not perfect due to rounding errors.
+        assert np.allclose(data, self.raw_data[:nrec], atol=1.e-5)
         assert np.all(dt.frequency == fh.frequency)
         assert np.all(dt.sideband == fh.sideband)
         # Check class method
@@ -132,7 +133,8 @@ class TestChannelize:
         nrec = (fh.shape[0] // self.n) * self.n
         assert dt.shape == (nrec,) + fh.shape[1:]
         data = dt.read()
-        assert np.allclose(data, raw_data[:nrec], atol=1e-6, rtol=0.)
+        # Note: round-trip is not perfect due to rounding errors.
+        assert np.allclose(data, raw_data[:nrec], atol=1.e-5)
         assert np.all(dt.frequency == fh.frequency)
         assert np.all(dt.sideband == fh.sideband)
         # Check class method

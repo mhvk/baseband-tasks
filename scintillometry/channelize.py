@@ -33,8 +33,9 @@ class Channelize(TaskBase):
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses
-        `~scintillometry.fourier.numpy.NumpyFFTMaker`.
+        FFT maker.  Default: `None`, in which case the channelizer uses the
+        default from `~scintillometry.fourier.get_fft_maker` (pyfftw if
+        available, otherwise numpy).
 
     Notes
     -----
@@ -59,7 +60,7 @@ class Channelize(TaskBase):
 
         # Initialize channelizer.
         if FFT is None:
-            FFT = get_fft_maker('numpy')
+            FFT = get_fft_maker()
 
         self._fft = FFT((samples_per_frame, n) + ih.sample_shape,
                         ih.dtype, axis=1, sample_rate=ih.sample_rate)
@@ -115,8 +116,9 @@ class Dechannelize(TaskBase):
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses
-        `~scintillometry.fourier.numpy.NumpyFFTMaker`.
+        FFT maker.  Default: `None`, in which case the channelizer uses the
+        default from `~scintillometry.fourier.get_fft_maker` (pyfftw if
+        available, otherwise numpy).
 
     Notes
     -----
@@ -145,9 +147,9 @@ class Dechannelize(TaskBase):
 
         # Initialize dechannelizer.
         if FFT is None:
-            FFT = get_fft_maker('numpy')
+            FFT = get_fft_maker()
 
-        self._ifft = FFT((ih.samples_per_frame, n) + ih.sample_shape,
+        self._ifft = FFT((ih.samples_per_frame, n) + ih.sample_shape[1:],
                          dtype=dtype, axis=1, direction='inverse')
 
         super().__init__(ih, shape=(ih.shape[0] * n,) + ih.shape[2:],

@@ -7,6 +7,9 @@ from astropy.utils import lazyproperty
 __all__ = ['FFTMakerBase', 'FFTBase', 'get_fft_maker']
 
 
+__doctest_requires__ = {'GetFFTMaker.__call__': ['pyfftw']}
+
+
 FFT_MAKER_CLASSES = {}
 """Dict for storing FFT maker classes, indexed by their name or prefix."""
 
@@ -239,15 +242,63 @@ class FFTBase:
                 " dtype={s.frequency_dtype}>".format(s=self))
 
 
-def get_fft_maker(fft_engine, **kwargs):
-    """FFT factory selector.
+class GetFFTMaker:
+    """FFT factory selector class with default."""
+    @property
+    def default(self):
+        """Default FFT Maker.
 
-    Parameters
-    ----------
-    fft_engine : {'numpy', 'pyfftw'}
-        Keyword for the FFT maker class.
-    **kwargs
-        Additional keyword arguments for initializing the maker class
-        (eg. ``n_simd`` for 'pyfftw').
-    """
-    return FFT_MAKER_CLASSES[fft_engine](**kwargs)
+        Should be an instance of `~scintillometry.fourier.base.FFTMakerBase`
+        (such as `~scintillometry.fourier.NumpyFFTMaker`).  If deleted,
+        resets to `~scintillometry.fourier.get_fft_maker.system_default`.
+        """
+        return getattr(self, '_default', self.system_default)
+
+    @default.setter
+    def default(self, default):
+        if not isinstance(default, FFTMakerBase):
+            raise TypeError("Can only set the default to an instance of "
+                            "a FFT maker such as NumpyFFTMaker().")
+        self._default = default
+
+    @default.deleter
+    def default(self):
+        self.__dict__.pop('_default', None)
+
+    def __call__(self, fft_engine=None, **kwargs):
+        """FFT factory selector.
+
+        Parameters
+        ----------
+        fft_engine : {'numpy', 'pyfftw'}, optional
+            Keyword identifying the FFT maker class.  If not given, the
+            engine stored in the ``default`` attribute is returned.
+        **kwargs
+            Additional keyword arguments for initializing the maker class
+            (eg. ``n_simd`` for 'pyfftw').
+
+        Examples
+        --------
+        To use PyFFTW on a machine with 4 threads::
+
+        >>> from scintillometry.fourier import get_fft_maker
+        >>> FFT = get_fft_maker('pyfftw', threads=4)
+
+        One can pass in this factory for channelization, dedispersion, etc.
+        To use a factory as the default for further work, set the
+        `~scintillometry.fourier.get_fft_maker.default`  attribute::
+
+        >>> get_fft_maker.default = FFT
+
+        To reset to the system default::
+
+        >>> del get_fft_maker.default
+        >>> assert get_fft_maker() is get_fft_maker.system_default
+        """
+        if fft_engine is None:
+            return self.default
+        else:
+            return FFT_MAKER_CLASSES[fft_engine](**kwargs)
+
+
+get_fft_maker = GetFFTMaker()
