@@ -1,7 +1,6 @@
 # Licensed under the GPLv3 - see LICENSE
 
 import numpy as np
-from astropy.utils import lazyproperty
 
 
 __all__ = ['FFTMakerBase', 'FFTBase', 'get_fft_maker']
@@ -139,7 +138,10 @@ class FFTBase:
         """Rate of samples in the time domain."""
         return self._sample_rate
 
-    @lazyproperty
+    # While calculating the frequencies is fairly involved, we do not cache
+    # the result using, e.g., a lazyproperty, since the array could be quite
+    # large, and internally at least we access this information only once.
+    @property
     def frequency(self):
         """FFT sample frequencies.
 

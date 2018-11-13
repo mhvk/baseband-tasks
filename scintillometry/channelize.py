@@ -82,7 +82,7 @@ class Channelize(TaskBase):
     def inverse(self, ih):
         """Create a Dechannelize instance that undoes this Channelization.
 
-        Paremeters
+        Parameters
         ----------
         ih : task or `baseband` stream reader
             Input data stream to be dechannelized.
@@ -164,7 +164,7 @@ class Dechannelize(TaskBase):
     def inverse(self, ih):
         """Create a Channelize instance that undoes this Dechannelization.
 
-        Paremeters
+        Parameters
         ----------
         ih : task or `baseband` stream reader
             Input data stream to be channelized.
