@@ -198,6 +198,8 @@ class TestDispersionReal(TestDispersion):
         # Time delay of 0.05 s over 128 kHz band.
         self.dm = DispersionMeasure(1000.*0.05/0.039342251)
 
+    # Override tests that do not simply work for the real data,
+    # since the sample rate is twice as high.
     def test_time_delay(self):
         time_delay = self.dm.time_delay(
             self.gp.frequency.mean() - self.sample_rate / 4.,
@@ -212,7 +214,7 @@ class TestDispersionReal(TestDispersion):
                 disperse.samples_per_frame == 65536 - 12801)
 
 
-class TestDispersionRealDisjoint:
+class TestDispersionRealDisjoint(TestDispersion):
     def setup(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 128. * u.kHz
@@ -237,7 +239,8 @@ class TestDispersionRealDisjoint:
         data[...] = do_gp[:, np.newaxis]
         return data
 
-    def test_disperse_real_data(self):
+    # Override two tests that are different for contiguous bands.
+    def test_disperse(self):
         gp = StreamGenerator(self.make_giant_pulse,
                              shape=self.shape,
                              start_time=self.start_time,
@@ -261,3 +264,17 @@ class TestDispersionRealDisjoint:
         # Lower sideband [1] has lower frequencies and thus is dispersed to later.
         assert p[9, 0] > 0.99 and p[10, 0] < 0.006
         assert p[10, 1] > 0.99 and p[9, 1] < 0.006
+
+    def test_disperse_negative_dm(self):
+        disperse = Disperse(self.gp, -self.dm)
+        disperse.seek(self.start_time + self.gp_sample / self.sample_rate)
+        disperse.seek(-self.gp_sample // 2, 1)
+        around_gp = disperse.read(self.gp_sample)
+        p = (around_gp ** 2).reshape(-1, self.gp_sample // 20, 2).sum(1)
+        # Note: FT leakage means that not everything outside of the dispersed
+        # pulse is zero.  But the total power there is small.
+        assert np.all(p[:9].sum(1) < 0.006)
+        assert np.all(p[11:].sum(1) < 0.006)
+        # Lower sideband [1] is dedispersed to earlier.
+        assert p[10, 0] > 0.99 and p[9, 0] < 0.006
+        assert p[9, 1] > 0.99 and p[10, 1] < 0.006
