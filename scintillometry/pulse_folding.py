@@ -47,7 +47,6 @@ class Fold(TaskBase):
             samples_per_frame = 1
 
         # Compute the result sample rate
-        period = self.period_method()
         sample_rate = fold_periods * pulse_period
 
         self.phase_method = phase_method
@@ -66,9 +65,11 @@ class Fold(TaskBase):
 
     def _read_frame(self, frame_index):
         self.ih.seek(frame_index * self.samples_per_frame)
+        data = self.ih.read(self.samples_per_frame * self.sample_rate / ih.sample_rate)
         time_axis = self.ih.time + np.arange(self.samples_per_frame) / \
                     self.ih.sample_rate
-        
+
+
 
 
     def task(self, data):
