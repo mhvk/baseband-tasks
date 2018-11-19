@@ -21,14 +21,11 @@ class Fold(TaskBase):
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
 
-    fold_periods : int
-        Number of periods folded into one pulse phase.
-
     phase_bin : int
         Number of bins in one phase period.
 
-    pulse_period : float or `astropy.units.quantity`
-        The apparent pulse period at the beginning folding time.
+    n_fold_phase : int or `~astropy.units.Quantity`,
+        Number of phase cycles folded into one pulse phase.
 
     phase_method : function
         The method to compute pulse phases at a given time.
@@ -39,22 +36,20 @@ class Fold(TaskBase):
 
     """
 
-    def __init__(self, ih, fold_periods, phase_bin, pulse_period,
-                 phase_method, samples_per_frame=None):
+    def __init__(self, ih, phase_bin, n_fold_phase, phase_method,
+                 samples_per_frame=None):
         self.ih = ih
-        self.fold_periods = fold_periods
         self.phase_bin = phase_bin
-        self.pulse_period = pulse_period
-        # Setup the number of returned periods.
+        self.n_fold_phase= n_fold_phase
+        # Setup the number of returned samples
         if samples_per_frame is None:
             samples_per_frame = 1
-        print(type(samples_per_frame))
-        # Compute the result sample rate
-        sample_rate = (1.0 / (fold_periods * pulse_period)).to(u.Hz)
+
         self.phase_method = phase_method
         super().__init__(ih, samples_per_frame=samples_per_frame,
+                         sample_rate=n_fold_phase,
                          shape=(samples_per_frame, phase_bin) + ih.shape[1:],
-                         sample_rate=sample_rate, dtype=ih.dtype)
+                         dtype=ih.dtype)
 
     def eval_phase(self, t):
         """ Evaluate the pulse phase at a given time. """
@@ -77,31 +72,28 @@ class Fold(TaskBase):
         # normalize the phase
         # TODO, give a normalize parameter
         phases = phases - phases[0]
-        # TODO Use the apparent period here
-        sample_index, _ = np.divmod(phases, self.fold_periods)
-
+        sample_index, _ = np.divmod(phases, self.n_fold_phase)
         sample_index = (sample_index.astype(int)).value
         # Compute the phase bin index
         phase_index = ((np.modf(phases)[0] * self.phase_bin).astype(int)).value
-        print(data.shape, result.shape)
-        # Construct the sum index map
         index_pair = np.column_stack((sample_index, phase_index))
-        print(type(index_pair))
-        index_set = list(set(map(tuple,index_pair)))
-        sum = np.zeros((len(index_set),) + self.shape[2:])
-        sum_map = dict(zip(index_set, sum))
-        # Add data to the same index
-        for ii, d in enumerate(data[:]):
-            sum_map[(sample_index[ii], phase_index[ii])] += d
-            counts[(sample_index[ii], phase_index[ii])] += 1
-        for idx, rd in sum_map.items():
-            result[idx] = rd
+        # Do fold
+        np.add.at(result, (sample_index, phase_index), data)
+        # Consturct the fold counts
+        np.add.at(counts, (sample_index, phase_index), 1)
+        # NOTE this part is for optimizing
+        # print(type(index_pair))
+        # index_set = list(set(map(tuple,index_pair)))
+        # sum = np.zeros((len(index_set),) + self.shape[2:])
+        # sum_map = dict(zip(index_set, sum))
+        # # Add data to the same index
+        # for ii, d in enumerate(data[:]):
+        #     sum_map[(sample_index[ii], phase_index[ii])] += d
+        #     counts[(sample_index[ii], phase_index[ii])] += 1
+        # for idx, rd in sum_map.items():
+        #     result[idx] = rd
         self.dd = data
         self.sample_index = sample_index
         self.phase_index = phase_index
-        self.temp = sum_map
         self.counts = counts
         return result
-
-    def close(self):
-        super().close()
