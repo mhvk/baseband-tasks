@@ -13,8 +13,13 @@ from .base import TaskBase
 __all__ = ['Fold']
 
 
-class Fold(TaskBase):
-    """ Fold pulses.
+class TimeFold(TaskBase):
+    """ Fold pulse using a fixed time interval.
+
+    NOTE
+    ----
+    This method does not require the folding time to be the pulse period.
+    However, the time integration for each phase bin will not be uniform.
 
     Parameters
     ----------
@@ -22,32 +27,32 @@ class Fold(TaskBase):
         Input data stream, with time as the first axis.
 
     phase_bin : int
-        Number of bins in one phase period.
+        Number of bins in one result phase period.
 
-    n_fold_phase : int or `~astropy.units.Quantity`,
-        Number of phase cycles folded into one pulse phase.
+    fold_time : float or `~astropy.units.Quantity`,
+        Time interval for folding into one pulse period. Default unit is `second`
 
     phase_method : function
         The method to compute pulse phases at a given time.
 
     samples_per_frame: int, optional
-        Number of request folded period. If not given, it assumes 1
-
-
+        Number of request folded period. If not given, it assumes 1.
     """
 
-    def __init__(self, ih, phase_bin, n_fold_phase, phase_method,
+    def __init__(self, ih, phase_bin, fold_time, phase_method,
                  samples_per_frame=None):
         self.ih = ih
         self.phase_bin = phase_bin
-        self.n_fold_phase= n_fold_phase
+        if not hasattr(fold_time, 'unit'):
+            fold_time *= u.s
+        self.fold_time = fold_time
         # Setup the number of returned samples
         if samples_per_frame is None:
             samples_per_frame = 1
 
         self.phase_method = phase_method
         super().__init__(ih, samples_per_frame=samples_per_frame,
-                         sample_rate=n_fold_phase,
+                         sample_rate=1./fold_time,
                          shape=(samples_per_frame, phase_bin) + ih.shape[1:],
                          dtype=ih.dtype)
 
@@ -65,23 +70,26 @@ class Fold(TaskBase):
         start_time = self.ih.time
         data = self.ih.read(req_samples)
         time_axis = start_time + np.arange(req_samples) / \
-                    self.ih.sample_rate
+                                self.ih.sample_rate
+
         # Evaluate the phase
         phases =  self.eval_phase(time_axis)
         # Map the phases to result indice.
         # normalize the phase
-        # TODO, give a normalize parameter
+        # TODO, give a phase reference parameter
         phases = phases - phases[0]
-        sample_index, _ = np.divmod(phases, self.n_fold_phase)
+        sample_index, _ = np.divmod((time_axis - time_axis[0]).to(u.s), 
+                                    self.fold_time.to(u.s))
         sample_index = (sample_index.astype(int)).value
         # Compute the phase bin index
         phase_index = ((np.modf(phases)[0] * self.phase_bin).astype(int)).value
-        index_pair = np.column_stack((sample_index, phase_index))
         # Do fold
         np.add.at(result, (sample_index, phase_index), data)
         # Consturct the fold counts
         np.add.at(counts, (sample_index, phase_index), 1)
-        # NOTE this part is for optimizing
+
+
+        # NOTE this part is a trail optimizing
         # print(type(index_pair))
         # index_set = list(set(map(tuple,index_pair)))
         # sum = np.zeros((len(index_set),) + self.shape[2:])
@@ -92,6 +100,7 @@ class Fold(TaskBase):
         #     counts[(sample_index[ii], phase_index[ii])] += 1
         # for idx, rd in sum_map.items():
         #     result[idx] = rd
+        # NOTE below is the out put for debugging.
         self.dd = data
         self.sample_index = sample_index
         self.phase_index = phase_index
