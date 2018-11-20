@@ -15,7 +15,7 @@ __all__ = ['Fold']
 
 class TimeFold(TaskBase):
     """ Fold pulse using a fixed time interval.
-    
+
     NOTE
     ----
     This method does not require the folding time to be the pulse period.
@@ -30,7 +30,7 @@ class TimeFold(TaskBase):
         Number of bins in one result phase period.
 
     fold_time : float or `~astropy.units.Quantity`,
-        Time interval for folding into one pulse period.
+        Time interval for folding into one pulse period. Default unit is `second`
 
     phase_method : function
         The method to compute pulse phases at a given time.
@@ -43,6 +43,8 @@ class TimeFold(TaskBase):
                  samples_per_frame=None):
         self.ih = ih
         self.phase_bin = phase_bin
+        if not hasattr(fold_time, 'unit'):
+            fold_time *= u.s
         self.fold_time = fold_time
         # Setup the number of returned samples
         if samples_per_frame is None:
@@ -69,13 +71,15 @@ class TimeFold(TaskBase):
         data = self.ih.read(req_samples)
         time_axis = start_time + np.arange(req_samples) / \
                                 self.ih.sample_rate
+
         # Evaluate the phase
         phases =  self.eval_phase(time_axis)
         # Map the phases to result indice.
         # normalize the phase
         # TODO, give a phase reference parameter
         phases = phases - phases[0]
-        sample_index, _ = np.divmod(time_axis, self.fold_time)
+        sample_index, _ = np.divmod((time_axis - time_axis[0]).to(u.s), 
+                                    self.fold_time.to(u.s))
         sample_index = (sample_index.astype(int)).value
         # Compute the phase bin index
         phase_index = ((np.modf(phases)[0] * self.phase_bin).astype(int)).value
