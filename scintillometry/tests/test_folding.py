@@ -16,7 +16,7 @@ class TestFoldingBase:
     def setup(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 10. * u.kHz
-        self.shape = (6000,)
+        self.shape = (6000, 2, 4)
         self.nh = EmptyStreamGenerator(shape=self.shape,
                                        start_time=self.start_time,
                                        sample_rate=self.sample_rate,
@@ -40,7 +40,7 @@ class TestFoldingBase:
 class TestTimeFolding(TestFoldingBase):
     def test_input_data(self):
         indata = self.sh.read(1000)
-        pulses = np.where(indata == 10)[0]
+        pulses = np.where(indata[:, 0, 0] == 10)[0]
         # Check if the input data is set up right.
         assert (len(pulses) == 8), "Pulses are not simulated right."
 
@@ -74,10 +74,17 @@ class TestTimeFolding(TestFoldingBase):
                                    "period folding.")
         # Test the output result
         ph0_bins = [0,1,-1,-2]
-        pulse_power = np.sum(fr[:,ph0_bins], axis=1)
+        pulse_power = np.sum(fr[:,ph0_bins, 0, 0], axis=1)
         assert np.logical_and(pulse_power[0] > 30, pulse_power[0] < 33), \
                "Folding power is not correct for over period folding."
 
         assert np.logical_and(np.all(pulse_power[1:] > 20),
                               np.all(pulse_power[1:] < 23)), \
                "Folding power is not correct for over period folding."
+        # Test average
+        self.fh2 = TimeFold(self.sh, self.phase_bin, self.fold_time, \
+                           self.phase, samples_per_frame=20, average=True)
+        self.fh2.seek(0)
+        fr2 = self.fh2.read(10)
+        pulse_power2 = np.sum(fr2[:,ph0_bins, 0, 0], axis=1)
+        assert np.all(fr2[:,2:-1] == 0.125), "Averaged result is not correct."
