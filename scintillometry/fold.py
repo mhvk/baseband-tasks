@@ -6,8 +6,7 @@ import warnings
 import numpy as np
 import astropy.units as u
 import astropy.time as time
-from astropy.utils import lazyproperty
-from .base import Base, TaskBase
+from .base import TaskBase
 
 
 __all__ = ['TimeFold',]
@@ -25,15 +24,15 @@ class TimeFold(TaskBase):
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
-    phase_bin : int
+    n_phase : int
         Number of bins in one result phase period.
-    fold_time : float or `~astropy.units.Quantity`,
-        Time interval for folding into one pulse period(result sample).
-        Default unit is `second`.
-    phase_method : function
+    phase : callable
         The method to compute pulse phases at a given time.
         Note, the input time is in the format of '~astropy.time.Time' object.
         The output phase should be an array.
+    fold_time : float or `~astropy.units.Quantity`,
+        Time interval for folding into one pulse period(result sample).
+        Default unit is second.
     samples_per_frame : int, optional
         Number of request folded period. If not given, it assumes 1.
     average : bool
@@ -41,51 +40,39 @@ class TimeFold(TaskBase):
         in each phase bin.
     """
 
-    def __init__(self, ih, phase_bin, fold_time, phase_method,
-                 samples_per_frame=None, average=False):
-        self.ih = ih
-        self.phase_bin = phase_bin
-        if not hasattr(fold_time, 'unit'):
-            fold_time *= u.s
-        self.fold_time = fold_time
-        # Setup the number of returned samples
-        if samples_per_frame is None:
-            samples_per_frame = 1
-
-        self.phase_method = phase_method
+    def __init__(self, ih, n_phase, phase, fold_time,
+                 samples_per_frame=1, average=False):
+        self.n_phase = n_phase
+        self.fold_time = u.Quantity(fold_time, u.s)
+        self.phase = phase
         self.average = average
         super().__init__(ih, samples_per_frame=samples_per_frame,
                          sample_rate=1./fold_time,
-                         shape=(samples_per_frame, phase_bin) + ih.shape[1:],
+                         shape=(samples_per_frame, n_phase) + ih.shape[1:],
                          dtype=ih.dtype)
-
-    def eval_phase(self, t):
-        """ Evaluate the pulse phase at a given time. """
-        return self.phase_method(t)
 
     def _read_frame(self, frame_index):
         # Move to the start position
         result = np.zeros(self.shape, dtype=self.dtype)
         counts = np.zeros(self.shape[0:2], dtype=np.int)
         self.ih.seek(frame_index * self.samples_per_frame)
-        req_samples = int(self.samples_per_frame / self.sample_rate * \
-                      self.ih.sample_rate)
+        req_samples = int(self.samples_per_frame / self.sample_rate
+                          * self.ih.sample_rate)
         start_time = self.ih.time
         data = self.ih.read(req_samples)
-        time_axis = start_time + np.arange(req_samples) / \
-                                self.ih.sample_rate
+        time_axis = start_time + np.arange(req_samples) / self.ih.sample_rate
 
         # Evaluate the phase
-        phases =  self.eval_phase(time_axis)
+        phases =  self.phase(time_axis)
         # Map the phases to result indice.
         # normalize the phase
         # TODO, give a phase reference parameter
-        phases = phases - phases[0]
+        # phases = phases - phases[0]
         sample_index, _ = np.divmod((time_axis - time_axis[0]).to(u.s),
                                     self.fold_time.to(u.s))
         sample_index = (sample_index.astype(int)).value
         # Compute the phase bin index
-        phase_index = ((np.modf(phases)[0] * self.phase_bin).astype(int)).value
+        phase_index = ((np.modf(phases)[0] * self.n_phase).astype(int)).value
         # Do fold
         np.add.at(result, (sample_index, phase_index), data)
         # Consturct the fold counts
@@ -111,7 +98,7 @@ class TimeFold(TaskBase):
         self.counts = counts
         # This is not very efficient
         if self.average:
-            for axis_i in range(2, len(result.shape)):
-                counts = np.expand_dims(counts, axis=axis_i)
+            counts = counts.reshape(counts.shape + (1,)
+                                    * (len(result.shape) - 2))
             result /= counts
         return result
