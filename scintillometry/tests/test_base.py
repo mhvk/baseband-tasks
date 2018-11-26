@@ -12,7 +12,7 @@ from baseband import vdif
 from baseband.data import SAMPLE_VDIF
 
 
-class Reshape(TaskBase):
+class ReshapeTime(TaskBase):
     """Dummy class to test accessing task properties and methods.
 
     `Reshape` simply reshapes blocks of baseband data into frames.
@@ -46,7 +46,7 @@ class TestTaskBase:
         self-consistency with varying ``n`` and ``samples_per_frame``.
         """
         fh = vdif.open(SAMPLE_VDIF)
-        rt = Reshape(fh, n, samples_per_frame=samples_per_frame)
+        rt = ReshapeTime(fh, n, samples_per_frame=samples_per_frame)
 
         # Check sample pointer.
         assert rt.sample_rate == fh.sample_rate / n
@@ -105,7 +105,7 @@ class TestTaskBase:
         # (Note: sideband is incorrect; just for testing purposes)
         fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         fh.sideband = np.tile([-1, +1], 4)
-        rt = Reshape(fh, 256)
+        rt = ReshapeTime(fh, 256)
         assert np.all(rt.sideband == fh.sideband)
         assert np.all(rt.frequency == fh.frequency)
 
@@ -115,7 +115,7 @@ class TestTaskBase:
         # (Note: sideband is incorrect; just for testing purposes)
         frequency_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         sideband_in = np.tile([-1, +1], 4)
-        rt = Reshape(fh, 256, frequency=frequency_in, sideband=sideband_in)
+        rt = ReshapeTime(fh, 256, frequency=frequency_in, sideband=sideband_in)
         assert np.all(rt.sideband == sideband_in)
         assert np.all(rt.frequency == frequency_in)
 
@@ -123,7 +123,7 @@ class TestTaskBase:
         """Test exceptions in TaskBase."""
 
         with vdif.open(SAMPLE_VDIF) as fh:
-            rt = Reshape(fh, 1024, samples_per_frame=3)
+            rt = ReshapeTime(fh, 1024, samples_per_frame=3)
 
             # Check that reading beyond the bounds of the data leads to an
             # error.
@@ -156,11 +156,11 @@ class TestTaskBase:
             with pytest.raises(AttributeError):
                 rt.sideband
             with pytest.raises(ValueError):
-                Reshape(fh, 1024, samples_per_frame=3,
-                        frequency=np.arange(4.)*u.GHz)
+                ReshapeTime(fh, 1024, samples_per_frame=3,
+                            frequency=np.arange(4.)*u.GHz)
             with pytest.raises(ValueError):
-                Reshape(fh, 1024, samples_per_frame=3,
-                        sideband=np.ones((2, 8), dtype=int))
+                ReshapeTime(fh, 1024, samples_per_frame=3,
+                            sideband=np.ones((2, 8), dtype=int))
 
 
 def zero_channel_4(data):

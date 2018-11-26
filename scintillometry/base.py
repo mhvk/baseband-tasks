@@ -440,6 +440,11 @@ class Task(TaskBase):
     method : bool, optional
         Whether ``task`` is a method (two arguments) or a function
         (one argument).  Default: inferred by inspection.
+    **kwargs
+        Additional arguments to be passed on to the base class
+
+    --- Possible arguments : (see `~scintillometry.base.TaskBase`)
+
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.  By
@@ -463,8 +468,7 @@ class Task(TaskBase):
     AssertionError
         If the task has zero or more than 2 arguments.
     """
-    def __init__(self, ih, task, method=None, shape=None, sample_rate=None,
-                 samples_per_frame=None, dtype=None):
+    def __init__(self, ih, task, method=None, **kwargs):
         if method is None:
             try:
                 argspec = inspect.getfullargspec(task)
@@ -485,5 +489,4 @@ class Task(TaskBase):
         else:
             self.task = task
 
-        super().__init__(ih, shape=shape, sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
+        super().__init__(ih, **kwargs)
