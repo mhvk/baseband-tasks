@@ -70,12 +70,12 @@ class TestPower:
         ref_data = fh.read()
         r0, i0, r1, i1 = ref_data.view('f4').T
         ref_data = np.stack((r0 * r0 + i0 * i0,
+                             r1 * r1 + i1 * i1,
                              r0 * r1 + i0 * i1,
-                             i0 * r1 - r0 * i1,
-                             r1 * r1 + i1 * i1), axis=1)
+                             i0 * r1 - r0 * i1), axis=1)
 
         pt = Power(fh, polarization=['L', 'R'])
-        assert np.all(pt.polarization == np.array(['LL', 'LR', 'RL', 'RR']))
+        assert np.all(pt.polarization == np.array(['LL', 'RR', 'LR', 'RL']))
 
         # Square everything.
         data1 = pt.read()
@@ -90,7 +90,7 @@ class TestPower:
         # (Note: sideband is incorrect; just for testing purposes)
         fh.polarization = np.array(['L', 'R'])
         pt = Power(fh)
-        assert np.all(pt.polarization == np.array(['LL', 'LR', 'RL', 'RR']))
+        assert np.all(pt.polarization == np.array(['LL', 'RR', 'LR', 'RL']))
 
     def test_missing_polarization(self):
         fh = dada.open(SAMPLE_DADA)

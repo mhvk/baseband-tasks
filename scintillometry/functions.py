@@ -48,14 +48,14 @@ class Power(TaskBase):
 
     For polarizations X and Y, 4 terms are produced:
 
-    ==== ========= =========================
-    Term Value     Expanded
-    ==== ========= =========================
-    XX   Re(X X*)  Re(X)**2 + Im(X)**2
-    XY   Re(X Y*)  Re(X)*Re(Y) + Im(X)*Im(Y)
-    YX   Im(X Y*)  Im(X)*Re(Y) - Re(X)*Im(Y)
-    YY   Re(Y Y*)  Re(Y)**2 + Im(Y)**2
-    ==== ========= =========================
+    ==== ========= ========================= ==========
+    Term Value     Expanded                  Other name
+    ==== ========= ========================= ==========
+    XX   Re(X X*)  Re(X)**2 + Im(X)**2       AA
+    YY   Re(Y Y*)  Re(Y)**2 + Im(Y)**2       BB
+    XY   Re(X Y*)  Re(X)*Re(Y) + Im(X)*Im(Y) CR
+    YX   Im(X Y*)  Im(X)*Re(Y) - Re(X)*Im(Y) CI
+    ==== ========= ========================= ==========
 
     Parameters
     ----------
@@ -90,8 +90,8 @@ class Power(TaskBase):
         if polarization[0] == polarization[1]:
             raise ValueError("need 2 unique polarizations.")
 
-        polarization = np.core.defchararray.add(polarization[[0, 0, 1, 1]],
-                                                polarization[[0, 1, 0, 1]])
+        polarization = np.core.defchararray.add(polarization[[0, 1, 0, 1]],
+                                                polarization[[0, 1, 1, 0]])
         self._polarization = polarization.swapaxes(0, pol_axis)
         self._axis = ih.ndim - polarization.ndim + pol_axis
         self._shape = self._shape[:self._axis] + (4,) + self._shape[self._axis+1:]
@@ -107,7 +107,7 @@ class Power(TaskBase):
         r1 = in_[1].real
         i1 = in_[1].imag
         out[0] = r0 ** 2 + i0 ** 2
-        out[1] = r0 * r1 + i0 * i1
-        out[2] = i0 * r1 - r0 * i1
-        out[3] = r1 ** 2 + i1 ** 2
+        out[1] = r1 ** 2 + i1 ** 2
+        out[2] = r0 * r1 + i0 * i1
+        out[3] = i0 * r1 - r0 * i1
         return result
