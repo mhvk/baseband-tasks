@@ -21,13 +21,15 @@ class SampleShapeChangeBase(TaskBase):
     """
     def __init__(self, ih):
         # Check operation is possible
-        a = np.empty((1,) + ih.sample_shape, dtype='?')
+        a = np.empty((7,) + ih.sample_shape, dtype='?')
         try:
             a = self.task(a)
         except Exception as exc:
             exc.args += ("stream samples with shape {} cannot be changed as "
                          "required".format(ih.sample_shape),)
             raise
+        if a.shape[0] != 7:
+            raise ValueError("change in shape affected the sample axis (0).")
 
         super().__init__(ih, shape=ih.shape[:1] + a.shape[1:])
 
@@ -105,6 +107,10 @@ class SampleShapeChange(Task, SampleShapeChangeBase):
         >>> sh.sideband
         array(1, dtype=int8)
     """
+    # Override __init__ only to get rid of kwargs, which cannot be
+    # passed on to SampleShapeChangeBase.
+    def __init__(self, ih, task, method=None):
+        super().__init__(ih, task, method=method)
 
 
 class Reshape(SampleShapeChangeBase):

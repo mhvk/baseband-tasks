@@ -55,6 +55,13 @@ class TestReshape:
         assert rt.polarization.shape == (2, 1)
         assert np.all(rt.polarization == fh.polarization[:4:2].reshape(2, 1))
 
+    def test_wrong_shape(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        with pytest.raises(ValueError):
+            Reshape(fh, (4, 4))
+        with pytest.raises(ValueError):
+            Reshape(fh, ())
+
 
 class TestTranspose:
     @staticmethod
@@ -102,6 +109,11 @@ class TestTranspose:
         assert tt.polarization.shape == (2,)
         assert np.all(tt.polarization == fh.polarization[:4:2])
 
+    def test_wrong_axes(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        with pytest.raises(ValueError):
+            self.get_reshape_and_transpose(fh, (4, 2), (1, 0))
+
 
 class TestReshapeAndTranspose(TestTranspose):
     get_reshape_and_transpose = ReshapeAndTranspose
@@ -133,3 +145,7 @@ class TestSampleShapeChange(TestTranspose):
         assert np.all(st.sideband == 1)
         assert st.polarization.shape == (2, 1)
         assert np.all(st.polarization == fh.polarization[:2].reshape(2, 1))
+
+    def test_no_extra_arguments(self):
+        with pytest.raises(TypeError):
+            SampleShapeChange(None, None, shape=())
