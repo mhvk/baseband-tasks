@@ -4,10 +4,10 @@ import numpy as np
 from .base import TaskBase, Task
 
 
-__all__ = ['SampleShapeChange', 'Reshape', 'Transpose', 'ReshapeAndTranspose']
+__all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose']
 
 
-class SampleShapeChangeBase(TaskBase):
+class ChangeSampleShapeBase(TaskBase):
     """Base class for sample shape operations.
 
     Assumes the subclass has a ``task`` method that will change the shape.
@@ -61,7 +61,7 @@ class SampleShapeChangeBase(TaskBase):
         return value
 
 
-class SampleShapeChange(Task, SampleShapeChangeBase):
+class ChangeSampleShape(Task, ChangeSampleShapeBase):
     """Change sample shape using a callable.
 
     Parameters
@@ -91,12 +91,12 @@ class SampleShapeChange(Task, SampleShapeChangeBase):
     and only the first three channels are kept, one could do::
 
         >>> import numpy as np, astropy.units as u, baseband
-        >>> from scintillometry.shaping import SampleShapeChange
+        >>> from scintillometry.shaping import ChangeSampleShape
         >>> fh = baseband.open(baseband.data.SAMPLE_VDIF)
         >>> fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         >>> fh.sideband = 1
         >>> fh.polarization = np.tile(['L', 'R'], 4)
-        >>> sh = SampleShapeChange(
+        >>> sh = ChangeSampleShape(
         ...    fh, lambda data: data.reshape(-1, 4, 2)[:, :3])
         >>> sh.read(2).shape
         (2, 3, 2)
@@ -110,12 +110,12 @@ class SampleShapeChange(Task, SampleShapeChangeBase):
         array(1, dtype=int8)
     """
     # Override __init__ only to get rid of kwargs, which cannot be
-    # passed on to SampleShapeChangeBase.
+    # passed on to ChangeSampleShapeBase.
     def __init__(self, ih, task, method=None):
         super().__init__(ih, task, method=method)
 
 
-class Reshape(SampleShapeChangeBase):
+class Reshape(ChangeSampleShapeBase):
     """Reshapes the sample shape of a stream.
 
     Useful to ensure, e.g., frequencies and polarizations are on separate axes
@@ -132,7 +132,7 @@ class Reshape(SampleShapeChangeBase):
     --------
     Transpose : to transpose sample axes
     ReshapeAndTranspose : to reshape the samples and transpose the axes
-    SampleShapeChange : to change the samples with a user-supplied function.
+    ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
     --------
@@ -141,7 +141,7 @@ class Reshape(SampleShapeChangeBase):
     axes are frequency and polarization, one could do::
 
         >>> import numpy as np, astropy.units as u, baseband
-        >>> from scintillometry.shaping import SampleShapeChange
+        >>> from scintillometry.shaping import ChangeSampleShape
         >>> fh = baseband.open(baseband.data.SAMPLE_VDIF)
         >>> fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         >>> fh.sideband = 1
@@ -169,7 +169,7 @@ class Reshape(SampleShapeChangeBase):
         return data.reshape(self._new_shape)
 
 
-class Transpose(SampleShapeChangeBase):
+class Transpose(ChangeSampleShapeBase):
     """Reshapes the axes of the samples of a stream.
 
     Useful to ensure bring, e.g., frequencies and polarizations in groups
@@ -188,7 +188,7 @@ class Transpose(SampleShapeChangeBase):
     --------
     Reshape : to reshape the samples
     ReshapeAndTranspose : to reshape the samples and transpose the axes
-    SampleShapeChange : to change the samples with a user-supplied function.
+    ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
     --------
@@ -197,7 +197,7 @@ class Transpose(SampleShapeChangeBase):
     axes are polarization and frequency, one could do::
 
         >>> import numpy as np, astropy.units as u, baseband
-        >>> from scintillometry.shaping import SampleShapeChange
+        >>> from scintillometry.shaping import ChangeSampleShape
         >>> fh = baseband.open(baseband.data.SAMPLE_VDIF)
         >>> fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         >>> fh.sideband = 1
@@ -251,7 +251,7 @@ class ReshapeAndTranspose(Reshape):
     --------
     Reshape : to just reshape the samples
     Transpose : to just transpose sample axes
-    SampleShapeChange : to change the samples with a user-supplied function.
+    ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
     --------
@@ -260,7 +260,7 @@ class ReshapeAndTranspose(Reshape):
     axes are polarization and frequency, one could do::
 
         >>> import numpy as np, astropy.units as u, baseband
-        >>> from scintillometry.shaping import SampleShapeChange
+        >>> from scintillometry.shaping import ChangeSampleShape
         >>> fh = baseband.open(baseband.data.SAMPLE_VDIF)
         >>> fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         >>> fh.sideband = 1
@@ -286,7 +286,7 @@ class ReshapeAndTranspose(Reshape):
         return data.reshape(self._new_shape).transpose(self._axes)
 
 
-class GetItem(SampleShapeChangeBase):
+class GetItem(ChangeSampleShapeBase):
     def __init__(self, ih, item):
         if isinstance(item, tuple):
             self._item = (slice(None),) + item

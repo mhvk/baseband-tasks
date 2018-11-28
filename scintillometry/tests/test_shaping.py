@@ -6,7 +6,7 @@ from numpy.testing import assert_array_equal
 import astropy.units as u
 
 from ..shaping import (Reshape, Transpose, ReshapeAndTranspose,
-                       SampleShapeChange, GetItem)
+                       ChangeSampleShape, GetItem)
 
 from baseband import vdif, dada
 from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
@@ -127,7 +127,7 @@ class TestReshapeAndTranspose(TestTranspose):
     get_reshape_and_transpose = ReshapeAndTranspose
 
 
-class TestSampleShapeChange(TestTranspose):
+class TestChangeSampleShape(TestTranspose):
     """Test custom shaping using a reshape and transpose function.
 
     TestTranspose tests as well as some additional ones.
@@ -141,11 +141,11 @@ class TestSampleShapeChange(TestTranspose):
         def task(data):
             return data.reshape(new_shape).transpose(new_axes)
 
-        return SampleShapeChange(fh, task)
+        return ChangeSampleShape(fh, task)
 
     def test_swap_axes(self):
         fh = get_fh()
-        st = SampleShapeChange(
+        st = ChangeSampleShape(
             fh, lambda data: data.reshape(-1, 4, 2).swapaxes(1, 2))
         assert st.frequency.shape == (4,)
         assert np.all(st.frequency == fh.frequency[::2])
@@ -157,7 +157,7 @@ class TestSampleShapeChange(TestTranspose):
     def test_get_item(self):
         """Selecting from both axes of two-dimensional samples."""
         fh = get_fh()
-        st = SampleShapeChange(
+        st = ChangeSampleShape(
             fh, lambda data: data.reshape(-1, 4, 2)[:, :2, 0])
         assert st.frequency.shape == (2,)
         assert_array_equal(st.frequency, fh.frequency[:4:2])
@@ -166,7 +166,7 @@ class TestSampleShapeChange(TestTranspose):
 
     def test_no_extra_arguments(self):
         with pytest.raises(TypeError):
-            SampleShapeChange(None, None, shape=())
+            ChangeSampleShape(None, None, shape=())
 
 
 class TestGetItem:
