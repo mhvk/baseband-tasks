@@ -34,7 +34,7 @@ class TestFoldingBase:
 
     def pulse_simulate(self, fh, data):
         idx = fh.tell()
-        data [:]= 0
+        data[:]= 0
         data += (10 if idx % self.period_bin ==0 else 0.125)
         return data
 
@@ -56,8 +56,8 @@ class TestTimeFolding(TestFoldingBase):
         self.fh.seek(0)
         fr = self.fh.read(3)
 
-        for ii in range(self.fh.counts.shape[0]):
-            u_eff_phb =  np.where( self.fh.counts[ii] == 0)
+        for ii, count in enumerate(self.fh.counts):
+            u_eff_phb =  np.where(count == 0)
             assert ((self.n_phase - len(u_eff_phb[0]) == eff_n_phase),
                    ("Sample {}'s does not have correct effective phase bin "
                     "number.".format(ii)))
