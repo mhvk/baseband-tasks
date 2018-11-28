@@ -36,12 +36,17 @@ class Base:
     sideband : array, optional
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Should be broadcastable to the sample shape.  Default: unknown.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
     dtype : `~numpy.dtype`, optional
         Dtype of the samples.
     """
 
     def __init__(self, shape, start_time, sample_rate, samples_per_frame=1,
-                 frequency=None, sideband=None, dtype=np.complex64):
+                 frequency=None, sideband=None, polarization=None,
+                 dtype=np.complex64):
         self._shape = shape
         self._start_time = start_time
         self._samples_per_frame = samples_per_frame
@@ -53,8 +58,12 @@ class Base:
         if sideband is not None:
             sideband = self._check_shape(np.where(sideband > 0,
                                                   np.int8(1), np.int8(-1)))
+        if polarization is not None:
+            polarization = self._check_shape(polarization)
+
         self._frequency = frequency
         self._sideband = sideband
+        self._polarization = polarization
 
         # Sample and frame pointers.
         self.offset = 0
@@ -151,6 +160,12 @@ class Base:
         if self._sideband is None:
             raise AttributeError("sidebands not set.")
         return self._sideband
+
+    @property
+    def polarization(self):
+        if self._polarization is None:
+            raise AttributeError("polarizations not set.")
+        return self._polarization
 
     def seek(self, offset, whence=0):
         """Change the sample pointer position."""
@@ -310,13 +325,18 @@ class TaskBase(Base):
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Should be broadcastable to the sample shape.
         Default: taken from the underlying stream, if available.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: taken from the
+        underlying stream, if available.
     dtype : `~numpy.dtype`, optional
         Output dtype.  If not given, the dtype of the underlying stream.
     """
 
     def __init__(self, ih, shape=None, sample_rate=None,
                  samples_per_frame=None, frequency=None, sideband=None,
-                 dtype=None):
+                 polarization=None, dtype=None):
         self.ih = ih
         if sample_rate is None:
             sample_rate = ih.sample_rate
@@ -351,10 +371,14 @@ class TaskBase(Base):
         if sideband is None:
             sideband = getattr(ih, 'sideband', None)
 
+        if polarization is None:
+            polarization = getattr(ih, 'polarization', None)
+
         super().__init__(shape=shape, start_time=ih.start_time,
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband, dtype=dtype)
+                         frequency=frequency, sideband=sideband,
+                         polarization=polarization, dtype=dtype)
 
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.
