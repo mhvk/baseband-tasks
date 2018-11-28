@@ -32,6 +32,7 @@ classes that can be linked together into a data reduction pipeline.
    tasks/dispersion
    tasks/channelize
    tasks/functions
+   tasks/shaping
    tasks/base
 
 .. _simulation_toc:
