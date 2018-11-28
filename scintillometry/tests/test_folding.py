@@ -34,7 +34,7 @@ class TestFoldingBase:
 
     def pulse_simulate(self, fh, data):
         idx = fh.tell()
-        data [:]= 0
+        data[:]= 0
         data += (10 if idx % self.period_bin ==0 else 0.125)
         return data
 
