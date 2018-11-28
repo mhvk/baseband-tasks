@@ -45,7 +45,7 @@ class SampleShapeChangeBase(TaskBase):
         # axes in which all values are the same.
         broadcast = np.broadcast_to(value, (1,) + self.ih.sample_shape,
                                     subok=True)
-        value = self.task(broadcast)[0]
+        value = self.task(broadcast)[0, ...]  # don't decay to scalar.
         for axis in range(value.ndim):
             # Get first element of the sample in the current axis.
             value_0 = value[(slice(None),) * axis + (slice(0, 1),)]
@@ -86,8 +86,9 @@ class SampleShapeChange(Task, SampleShapeChangeBase):
     Examples
     --------
     The VDIF example file from ``Baseband`` has 8 threads which contain
-    4 channels and 2 polarizations.  To produce a stream in which the sample
-    axes are polarization and frequency, one could do::
+    4 channels and 2 polarizations, with very little data in the last channel.
+    To produce a stream in which the sample axes are frequency and polarization
+    and only the first three channels are kept, one could do::
 
         >>> import numpy as np, astropy.units as u, baseband
         >>> from scintillometry.shaping import SampleShapeChange
@@ -96,14 +97,15 @@ class SampleShapeChange(Task, SampleShapeChangeBase):
         >>> fh.sideband = 1
         >>> fh.polarization = np.tile(['L', 'R'], 4)
         >>> sh = SampleShapeChange(
-        ...    fh, lambda data: data.reshape(-1, 4, 2).swapaxes(1, 2))
+        ...    fh, lambda data: data.reshape(-1, 4, 2)[:, :3])
         >>> sh.read(2).shape
-        (2, 2, 4)
+        (2, 3, 2)
         >>> sh.polarization
-        array([['L'],
-               ['R']], dtype='<U1')
+        array(['L', 'R'], dtype='<U1')
         >>> sh.frequency
-        <Quantity [311.25, 327.25, 343.25, 359.25] MHz>
+        <Quantity [[311.25],
+                   [327.25],
+                   [343.25]] MHz>
         >>> sh.sideband
         array(1, dtype=int8)
     """
@@ -282,3 +284,15 @@ class ReshapeAndTranspose(Reshape):
     def task(self, data):
         """Reshape and transpose the axes of data."""
         return data.reshape(self._new_shape).transpose(self._axes)
+
+
+class GetItem(SampleShapeChangeBase):
+    def __init__(self, ih, item):
+        if isinstance(item, tuple):
+            self._item = (slice(None),) + item
+        else:
+            self._item = (slice(None), item)
+        super().__init__(ih)
+
+    def task(self, data):
+        return data[self._item]
