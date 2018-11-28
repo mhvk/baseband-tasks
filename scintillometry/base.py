@@ -96,6 +96,7 @@ class Base:
         self.closed = False
 
     def _check_shape(self, value):
+        """Check that value can be broadcast to the sample shape."""
         value = np.array(value, subok=True, copy=False)
         try:
             np.broadcast_to(value, self.sample_shape)
