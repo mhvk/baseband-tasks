@@ -7,6 +7,10 @@ from .base import TaskBase
 __all__ = ['Square', 'Power']
 
 
+def complex_square(z):
+    return np.square(z.real) + np.square(z.imag)
+
+
 class Square(TaskBase):
     """Converts samples to intensities by squaring.
 
@@ -29,13 +33,7 @@ class Square(TaskBase):
 
     def __init__(self, ih, polarization=None):
         ih_dtype = np.dtype(ih.dtype)
-        if ih_dtype.kind != 'c':
-            square = np.square
-        else:
-            def square(x):
-                return np.square(x.real) + np.square(x.imag)
-
-        self.task = square
+        self.task = complex_square if ih_dtype.kind == 'c' else np.square
         dtype = self.task(np.zeros(1, dtype=ih_dtype)).dtype
         super().__init__(ih, dtype=dtype, polarization=polarization)
         if self._polarization is not None:
@@ -102,12 +100,9 @@ class Power(TaskBase):
         # Get views in which the axis with the polarization is first.
         in_ = data.swapaxes(0, self._axis)
         out = result.swapaxes(0, self._axis)
-        r0 = in_[0].real
-        i0 = in_[0].imag
-        r1 = in_[1].real
-        i1 = in_[1].imag
-        out[0] = r0 ** 2 + i0 ** 2
-        out[1] = r1 ** 2 + i1 ** 2
-        out[2] = r0 * r1 + i0 * i1
-        out[3] = i0 * r1 - r0 * i1
+        out[0] = complex_square(in_[0])
+        out[1] = complex_square(in_[1])
+        c = in_[0] * in_[1].conj()
+        out[2] = c.real
+        out[3] = c.imag
         return result
