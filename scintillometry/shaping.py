@@ -102,7 +102,7 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
         (2, 3, 2)
         >>> sh.polarization
         array(['L', 'R'], dtype='<U1')
-        >>> sh.frequency
+        >>> sh.frequency  # doctest: +FLOAT_CMP
         <Quantity [[311.25],
                    [327.25],
                    [343.25]] MHz>
@@ -151,7 +151,7 @@ class Reshape(ChangeSampleShapeBase):
         (2, 4, 2)
         >>> rh.polarization
         array(['L', 'R'], dtype='<U1')
-        >>> rh.frequency
+        >>> rh.frequency  # doctest: +FLOAT_CMP
         <Quantity [[311.25],
                    [327.25],
                    [343.25],
@@ -209,7 +209,7 @@ class Transpose(ChangeSampleShapeBase):
         >>> th.polarization
         array([['L'],
                ['R']], dtype='<U1')
-        >>> th.frequency
+        >>> th.frequency  # doctest: +FLOAT_CMP
         <Quantity [311.25, 327.25, 343.25, 359.25] MHz>
         >>> th.sideband
         array(1, dtype=int8)
@@ -271,7 +271,7 @@ class ReshapeAndTranspose(Reshape):
         >>> rth.polarization
         array([['L'],
                ['R']], dtype='<U1')
-        >>> rth.frequency
+        >>> rth.frequency  # doctest: +FLOAT_CMP
         <Quantity [311.25, 327.25, 343.25, 359.25] MHz>
         >>> rth.sideband
         array(1, dtype=int8)
