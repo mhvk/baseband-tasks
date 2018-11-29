@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import astropy.units as u
 import astropy.time as time
-from .base import TaskBase
+from .base import TaskBase, BaseData
 
 
 __all__ = ['TimeFold',]
@@ -63,8 +63,8 @@ class TimeFold(TaskBase):
         # Move to the start position
         result = np.zeros((self.samples_per_frame,) + self.shape[1:],
                            dtype=self.dtype)
-        counts = np.zeros((self.samples_per_frame, self.shape[1]), dtype=np.int)
-        counts = counts.reshape(counts.shape + (1,) * (len(result.shape) - 2))
+        count = np.zeros((self.samples_per_frame, self.shape[1]), dtype=np.int)
+        count = count.reshape(count.shape + (1,) * (len(result.shape) - 2))
         self.ih.seek(frame_index * self._raw_samples_per_frame)
         time_offset = (np.arange(self._raw_samples_per_frame)
                        / self.ih.sample_rate)
@@ -85,15 +85,74 @@ class TimeFold(TaskBase):
         # Do fold
         np.add.at(result, (sample_index, phase_index), data)
         # Consturct the fold counts
-        np.add.at(counts, (sample_index, phase_index), 1)
+        np.add.at(count, (sample_index, phase_index), 1)
 
-        # NOTE below is the out put for debugging.
-        self.dd = data
-        self.sample_index = sample_index
-        self.phase_index = phase_index
-        # The counts will be added to the designed data class.
-        self.counts = counts
         # This is not very efficient
         if self.average:
-            result /= counts
+            result /= count
+        result = result.view(BaseData)
+        result.count = count
         return result
+
+    def read(self, count=None, out=None):
+        """Read a number of complete samples.
+
+        Parameters
+        ----------
+        count : int or None, optional
+            Number of complete samples to read.  If `None` (default) or
+            negative, the entire input data is processed.  Ignored if ``out``
+            is given.
+        out : None or array, optional
+            Array to store the output in. If given, ``count`` will be inferred
+            from the first dimension; the other dimension should equal
+            `sample_shape`.
+
+        Returns
+        -------
+        out : `~numpy.ndarray` of float or complex
+            The first dimension is sample-time, and the remainder given by
+            `sample_shape`.
+        """
+        print("fold read")
+        if self.closed:
+            raise ValueError("I/O operation on closed task/generator.")
+
+        # NOTE: this will return an EOF error when attempting to read partial
+        # frames, making it identical to fh.read().
+
+        samples_left = max(0, self.shape[0] - self.offset)
+        if out is None:
+            if count is None or count < 0:
+                count = samples_left
+            out = np.empty((count,) + self.shape[1:], dtype=self.dtype)
+            out = out.view(BaseData)
+            out.count = np.empty((count,) + self.shape[1:], dtype=int)
+        else:
+            assert out.shape[1:] == self.shape[1:], (
+                "'out' should have trailing shape {}".format(self.sample_shape))
+            count = out.shape[0]
+
+        # TODO: should this just return the maximum possible?
+        if count > samples_left:
+            raise EOFError("cannot read from beyond end of input.")
+
+        offset0 = self.offset
+        sample = 0
+        while count > 0:
+            # For current position, get frame plus offset in that frame.
+            frame_index, sample_offset = divmod(self.offset,
+                                                self._samples_per_frame)
+            if frame_index != self._frame_index:
+                self._frame = self._read_frame(frame_index)
+                self._frame_index = frame_index
+
+            nsample = min(count, len(self._frame) - sample_offset)
+            data = self._frame[sample_offset:sample_offset + nsample]
+            # Copy to relevant part of output.
+            out[sample:sample + nsample] = data
+            sample += nsample
+            self.offset = offset0 + sample
+            count -= nsample
+        print(out.count, type(out.count))
+        return out
