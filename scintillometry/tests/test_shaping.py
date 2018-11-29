@@ -26,7 +26,7 @@ class TestReshape:
     @pytest.mark.parametrize('sample_shape', ((4, 2), (2, 4)))
     def test_reshape(self, sample_shape):
         fh = vdif.open(SAMPLE_VDIF)
-        ref_data = fh.read()
+        ref_data = fh.read().reshape((-1,) + sample_shape)
 
         rt = Reshape(fh, sample_shape=sample_shape)
         assert fh.sample_shape == (8,)
@@ -35,7 +35,7 @@ class TestReshape:
         assert rt.sample_rate == fh.sample_rate
 
         data = rt.read()
-        assert_array_equal(data, ref_data.reshape((-1,) + sample_shape))
+        assert_array_equal(data, ref_data)
 
     def test_frequency_sideband_polarization_propagation1(self):
         fh = get_fh()
@@ -117,6 +117,10 @@ class TestTranspose:
         fh = vdif.open(SAMPLE_VDIF)
         with pytest.raises(ValueError):
             self.get_reshape_and_transpose(fh, (4, 2), (1, 0))
+        with pytest.raises(ValueError):
+            self.get_reshape_and_transpose(fh, (4, 2), (2, 3))
+        with pytest.raises(ValueError):
+            self.get_reshape_and_transpose(fh, (4, 2), (1, 1))
 
 
 class TestReshapeAndTranspose(TestTranspose):
@@ -217,3 +221,10 @@ class TestGetItem:
         assert_array_equal(gih.frequency, rh.frequency[:2].squeeze())
         assert gih.polarization.shape == ()
         assert_array_equal(gih.polarization, rh.polarization[0])
+
+    def test_wrong_item(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        with pytest.raises(IndexError):
+            GetItem(fh, 10)
+        with pytest.raises(IndexError):
+            GetItem(fh, (1, 1))

@@ -10,9 +10,11 @@ __all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose']
 class ChangeSampleShapeBase(TaskBase):
     """Base class for sample shape operations.
 
-    Assumes the subclass has a ``task`` method that will change the shape.
-    Adjusts ``frequency``, ``sideband``, and ``polarization`` attributes
-    similarly.
+    Similar to `~scintillometry.base.TaskBase`, where a subclass can define
+    a ``task`` method to operate on data, but specifically for methods that
+    change the shape of the samples, yet do not affect the time axis.  This
+    class ensures the operation is possible and that the ``frequency``,
+    ``sideband``, and ``polarization`` attributes are adjusted similarly.
 
     Parameters
     ----------
@@ -34,26 +36,30 @@ class ChangeSampleShapeBase(TaskBase):
         super().__init__(ih, shape=ih.shape[:1] + a.shape[1:])
 
     def _check_shape(self, value):
-        """Broadcast value to the sample shape and apply shape changes
+        """Broadcast value to the sample shape and apply shape changes.
 
         After application, axes in which all values are identical are removed.
         """
-        # This overrides Base._check_value. Here, an actual check is not
+        # This overrides Base._check_value. Here, an actual check is not really
         # necessary since the values are guaranteed to come from the underlying
-        # stream so should have been checked already. Instead, we apply the
-        # shape changing operation on the fully broadcast data, and then remove
-        # axes in which all values are the same.
-        broadcast = np.broadcast_to(value, (1,) + self.ih.sample_shape,
-                                    subok=True)
-        value = self.task(broadcast)[0, ...]  # don't decay to scalar.
+        # stream so should have been checked already. But we still do it.  With
+        # the fully broadcast data, we then apply the shape changing operation,
+        # and then remove axes in which all values are the same.
+        try:
+            broadcast = np.broadcast_to(value, (1,) + self.ih.sample_shape,
+                                        subok=True)
+        except ValueError as exc:
+            exc.args += ("value cannot be broadcast to sample shape",)
+            raise
+        # Remove sample time axis but ensure we do not decay to a scalar.
+        value = self.task(broadcast)[0, ...]
+        # For each axis, get first element of the sample, and keep only it if
+        # all other elements are the same (numpy broadcasting rules will ensure
+        # any operations using the result will work correctly).
         for axis in range(value.ndim):
-            # Get first element of the sample in the current axis.
             value_0 = value[(slice(None),) * axis + (slice(0, 1),)]
-            # If all samples are the same in this axis, just keep the first
-            # sample; numpy broadcasting rules will ensure operations are OK.
             if value.strides[axis] == 0 or np.all(value == value_0):
                 value = value_0
-
         # Remove leading ones, which are not needed in numpy broadcasting.
         first_not_unity = next((i for (i, s) in enumerate(value.shape)
                                 if s > 1), value.ndim)
@@ -69,8 +75,8 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
     ih : task or `baseband` stream reader
         Input data stream.
     task : callable
-        The function or method-like callable, The function be applicable
-        to any number of data samples and change the sample shape only.
+        The function or method-like callable, The function must work with
+        any number of data samples and change the sample shape only.
         It will also be applied to the ``frequency``, ``sideband``, and
         ``polarization`` attributes of the underlying stream (if present).
     method : bool, optional
@@ -82,6 +88,7 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
     Reshape : to reshape the samples
     Transpose : to transpose sample axes
     ReshapeAndTranspose : to reshape the samples and transpose the axes
+    GetItem : index or slice the samples
 
     Examples
     --------
@@ -109,8 +116,8 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
         >>> sh.sideband
         array(1, dtype=int8)
     """
-    # Override __init__ only to get rid of kwargs, which cannot be
-    # passed on to ChangeSampleShapeBase.
+    # Override __init__ only to get rid of kwargs of Task, since these cannot
+    # be passed on to ChangeSampleShapeBase anyway.
     def __init__(self, ih, task, method=None):
         super().__init__(ih, task, method=method)
 
@@ -132,6 +139,7 @@ class Reshape(ChangeSampleShapeBase):
     --------
     Transpose : to transpose sample axes
     ReshapeAndTranspose : to reshape the samples and transpose the axes
+    GetItem : index or slice the samples
     ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
@@ -188,6 +196,7 @@ class Transpose(ChangeSampleShapeBase):
     --------
     Reshape : to reshape the samples
     ReshapeAndTranspose : to reshape the samples and transpose the axes
+    GetItem : index or slice the samples
     ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
@@ -251,6 +260,7 @@ class ReshapeAndTranspose(Reshape):
     --------
     Reshape : to just reshape the samples
     Transpose : to just transpose sample axes
+    GetItem : index or slice the samples
     ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
@@ -287,6 +297,47 @@ class ReshapeAndTranspose(Reshape):
 
 
 class GetItem(ChangeSampleShapeBase):
+    """Index or slice the samples of a stream.
+
+    Useful to select, e.g., a specific frequency band or polariazation.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream.
+    item : int, slice, list of int, or array of int
+        Anything that can slice a numpy array.  Should only attempt to slice
+        the samples, not the time axis.
+
+    See Also
+    --------
+    Reshape : to just reshape the samples
+    Transpose : to just transpose sample axes
+    ReshapeAndTranspose : to reshape the samples and transpose the axes
+    ChangeSampleShape : to change the samples with a user-supplied function.
+
+    Examples
+    --------
+    The VDIF example file from ``Baseband`` has 8 threads which contain
+    4 channels and 2 polarizations, with very little data in the last channel.
+    To produce a stream with just the first three channels kept, one could do::
+
+        >>> import numpy as np, astropy.units as u, baseband
+        >>> from scintillometry.shaping import GetItem
+        >>> fh = baseband.open(baseband.data.SAMPLE_VDIF)
+        >>> fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        >>> fh.sideband = 1
+        >>> fh.polarization = np.tile(['L', 'R'], 4)
+        >>> gih = GetItem(fh, slice(0, 6))
+        >>> gih.read(2).shape
+        (2, 6)
+        >>> gih.polarization
+        array(['L', 'R', 'L', 'R', 'L', 'R'], dtype='<U1')
+        >>> gih.frequency  # doctest: +FLOAT_CMP
+        <Quantity [311.25, 311.25, 327.25, 327.25, 343.25, 343.25] MHz>
+        >>> gih.sideband
+        array(1, dtype=int8)
+    """
     def __init__(self, ih, item):
         if isinstance(item, tuple):
             self._item = (slice(None),) + item
