@@ -56,7 +56,7 @@ class TestTimeFolding(TestFoldingBase):
         self.fh.seek(0)
         fr = self.fh.read(3)
 
-        for ii, count in enumerate(self.fh.counts):
+        for ii, count in enumerate(fr.count):
             u_eff_phb =  np.where(count == 0)
             assert ((self.n_phase - len(u_eff_phb[0]) == eff_n_phase),
                    ("Sample {}'s does not have correct effective phase bin "
@@ -70,7 +70,7 @@ class TestTimeFolding(TestFoldingBase):
         self.fh.seek(0)
         fr = self.fh.read(10)
         # Compare the total counts of all the samples.
-        tot_counts = np.sum(self.fh.counts, axis=1)
+        tot_counts = np.sum(fr.count, axis=1)
         abs_diff = np.abs(tot_counts - tot_counts.mean())
         assert abs_diff.max() <= 1, ("Folding counts are not correct for over "
                                      "period folding.")
