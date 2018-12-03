@@ -9,6 +9,7 @@ Authors
 -------
 
 * Marten van Kerkwijk (@mhvk)
+* Jing Luo (@luojing1211)
 * Chenchong Charles Zhu (@cczhu)
 
 If you have contributed to Scintillometry but are not listed above, please send
