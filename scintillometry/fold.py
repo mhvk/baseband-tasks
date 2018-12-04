@@ -9,9 +9,10 @@ import astropy.time as time
 from .base import TaskBase, BaseData
 
 
-__all__ = ['TimeFold',]
+__all__ = ['TimeFold', ]
 
-#TODO add Fold base class for the future folding
+# TODO add Fold base class for the future folding
+
 class TimeFold(TaskBase):
     """ Fold pulse using a fixed time interval.
 
@@ -50,9 +51,9 @@ class TimeFold(TaskBase):
         self.phase = phase
         self.average = average
 
-        #NOTE The left over time samples will be truncated. Need warning msg
-        nsample = int(np.floor(ih.shape[0] / ih.sample_rate / self.fold_time
-                      // samples_per_frame) * samples_per_frame)
+        # NOTE The left over time samples will be truncated. Need warning msg
+        nsample = int(np.floor(ih.shape[0] / ih.sample_rate / self.fold_time //
+                      samples_per_frame) * samples_per_frame)
 
         super().__init__(ih, samples_per_frame=samples_per_frame,
                          sample_rate=1./fold_time,
@@ -62,17 +63,19 @@ class TimeFold(TaskBase):
     def _read_frame(self, frame_index):
         # Move to the start position
         result = np.zeros((self.samples_per_frame,) + self.shape[1:],
-                           dtype=self.dtype)
+                          dtype=self.dtype)
         count = np.zeros((self.samples_per_frame, self.shape[1]), dtype=np.int)
         count = count.reshape(count.shape + (1,) * (len(result.shape) - 2))
         self.ih.seek(frame_index * self._raw_samples_per_frame)
-        time_offset = (np.arange(self._raw_samples_per_frame)
-                       / self.ih.sample_rate)
-        sample_index = (time_offset
-                        / self.fold_time).to_value(u.one).astype(int)
+        time_offset = (np.arange(self._raw_samples_per_frame) /
+                       self.ih.sample_rate)
+        sample_index = (time_offset /
+                        self.fold_time).to_value(u.one).astype(int)
         # Evaluate the phase
         phases = self.phase(self.ih.time + time_offset)
         data = self.ih.read(self._raw_samples_per_frame)
+        self.readin_data.append(data)
+        self.phases.append(phases)
         # Map the phases to result indice.
         # normalize the phase
         # TODO, give a phase reference parameter, right now it is disabled
@@ -80,8 +83,9 @@ class TimeFold(TaskBase):
 
         # Compute the phase bin index
         phase_index = ((phases.to_value(u.one) * self.n_phase)
-                        % self.n_phase).astype(int)
-
+                       % self.n_phase).astype(int)
+        self.sample_index.append(sample_index)
+        self.phase_index.append(phase_index)
         # Do fold
         np.add.at(result, (sample_index, phase_index), data)
         # Consturct the fold counts
@@ -114,7 +118,6 @@ class TimeFold(TaskBase):
             The first dimension is sample-time, and the remainder given by
             `sample_shape`.
         """
-        print("fold read")
         if self.closed:
             raise ValueError("I/O operation on closed task/generator.")
 
@@ -125,9 +128,11 @@ class TimeFold(TaskBase):
         if out is None:
             if count is None or count < 0:
                 count = samples_left
-            out = np.empty((count,) + self.shape[1:], dtype=self.dtype)
+            out = np.empty((count, ) + self.shape[1:], dtype=self.dtype)
             out = out.view(BaseData)
-            out.count = np.empty((count,) + self.shape[1:], dtype=int)
+            # NOTE the shape of fold_count will be chnaged
+            fold_count = np.empty((count, ) + self.shape[1:], dtype=np.int)
+            out.count = fold_count
         else:
             assert out.shape[1:] == self.shape[1:], (
                 "'out' should have trailing shape {}".format(self.sample_shape))
@@ -154,5 +159,4 @@ class TimeFold(TaskBase):
             sample += nsample
             self.offset = offset0 + sample
             count -= nsample
-        print(out.count, type(out.count))
         return out
