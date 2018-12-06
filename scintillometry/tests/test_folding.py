@@ -60,8 +60,8 @@ class TestTimeFolding(TestFoldingBase):
             u_eff_phb = np.where(count == 0)
             assert np.isclose(self.n_phase  - len(u_eff_phb[0]) / 8,
                               eff_n_phase, 1), \
-                   ("Sample {}'s does not have correct effective phase bin "
-                    "number.".format(ii))
+                  ("Sample {}'s does not have correct effective phase bin "
+                   "number.".format(ii))
 
     def test_over_period(self):
         # Test when folding time is bigger than one or multiple pulse period
@@ -77,16 +77,16 @@ class TestTimeFolding(TestFoldingBase):
                                      "period folding.")
         # Test the output result
         ph0_bins = [0, 1, -1, -2]
-        pulse_power = np.sum(fr[:,ph0_bins, 0, 0], axis=1)
+        pulse_power = np.sum(fr[:, ph0_bins, 0, 0], axis=1)
         assert np.logical_and(pulse_power[0] > 30, pulse_power[0] < 33), \
-               "Folding power is not correct for over period folding."
+              "Folding power is not correct for over period folding."
 
         assert np.logical_and(np.all(pulse_power[1:] > 20),
                               np.all(pulse_power[1:] < 23)), \
-               "Folding power is not correct for over period folding."
+              "Folding power is not correct for over period folding."
         # Test average
         self.fh2 = TimeFold(self.sh, self.n_phase, self.phase, fold_time,
                             samples_per_frame=20, average=True)
         self.fh2.seek(0)
         fr2 = self.fh2.read(10)
-        assert np.all(fr2[:,2:-1] == 0.125), "Averaged result is not correct."
+        assert np.all(fr2[:, 2:-1] == 0.125), "Averaged result is not correct."
