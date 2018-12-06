@@ -13,6 +13,7 @@ __all__ = ['TimeFold', ]
 
 # TODO add Fold base class for the future folding
 
+
 class TimeFold(TaskBase):
     """ Fold pulse using a fixed time interval.
 
