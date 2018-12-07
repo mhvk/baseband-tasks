@@ -75,8 +75,6 @@ class TimeFold(TaskBase):
         # Evaluate the phase
         phases = self.phase(self.ih.time + time_offset)
         data = self.ih.read(self._raw_samples_per_frame)
-        self.readin_data.append(data)
-        self.phases.append(phases)
         # Map the phases to result indice.
         # normalize the phase
         # TODO, give a phase reference parameter, right now it is disabled
@@ -85,8 +83,6 @@ class TimeFold(TaskBase):
         # Compute the phase bin index
         phase_index = ((phases.to_value(u.one) * self.n_phase)
                        % self.n_phase).astype(int)
-        self.sample_index.append(sample_index)
-        self.phase_index.append(phase_index)
         # Do fold
         np.add.at(result, (sample_index, phase_index), data)
         # Consturct the fold counts
