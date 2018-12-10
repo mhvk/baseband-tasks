@@ -5,10 +5,12 @@ import warnings
 import numpy as np
 import astropy.units as u
 import astropy.time as time
+
 try:
     from .pint_utils import PintUtils
 except:
     pass
+from .predictor import Polyco
 
 __all__ = ['PhaseBase']
 
@@ -23,9 +25,17 @@ class PintPhase(object):
            Observatory name or observatory codeself.
        obs_freq : float or `~astropy.units.Quantity`.
            Observing frequency default units is 'MHz'
+       solar_ephem : str
+           The solar system ephemeris version.
+       bipm_version : str
+           The BIPM clock correction version.
+
+       Note
+       ----
+       This method provides high precision phase calculation.
     """
     def __init__(self, par_file, obs, obs_freq, solar_ephem='de436',
-                 bipm_version='BIPM2017' frac_phase=False):
+                 bipm_version='BIPM2017'):
         self.par_file = par_file
         self.pu = PintUtils(self.par_file)
         self.obs = obs
@@ -39,3 +49,13 @@ class PintPhase(object):
                         bipm_version=self.bipm_version)
        ph = self.pu.compute_phase()
        return (ph.frac, ph.int)
+
+
+class PolycoPhase(object):
+    """A utility class for a Tempo style polyco phase calculation
+    """
+    def __init__(self, polyco_file):
+        self.ployco_table = predictor.Polyco(polyco_file)
+
+    def __call__(self, t):
+        ph = 
