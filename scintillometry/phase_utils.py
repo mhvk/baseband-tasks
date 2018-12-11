@@ -35,7 +35,7 @@ class PintPhase(object):
        This method provides high precision phase calculation.
     """
     def __init__(self, par_file, obs, obs_freq, solar_ephem='de436',
-                 bipm_version='BIPM2017'):
+                 bipm_version='BIPM2015'):
         self.par_file = par_file
         self.pu = PintUtils(self.par_file)
         self.obs = obs
@@ -43,19 +43,21 @@ class PintPhase(object):
         self.solar_ephem = solar_ephem
         self.bipm_version = bipm_version
 
-   def __call__(self, t):
-       self.pu.get_toas(times=t, obs=self.obs, obs_freq=self.obs_freq,
-                        solar_ephem=self.solar_ephem,
-                        bipm_version=self.bipm_version)
-       ph = self.pu.compute_phase()
-       return (ph.frac, ph.int)
+    def __call__(self, t):
+        self.pu.get_toas(time=t, obs=self.obs, obs_freq=self.obs_freq,
+                         solar_ephem=self.solar_ephem,
+                         bipm_version=self.bipm_version)
+        ph = self.pu.compute_phase()
+        return (ph.int, ph.frac)
 
 
 class PolycoPhase(object):
     """A utility class for a Tempo style polyco phase calculation
     """
     def __init__(self, polyco_file):
-        self.ployco_table = predictor.Polyco(polyco_file)
+        self.polyco = Polyco(polyco_file)
 
     def __call__(self, t):
-        ph = 
+        t = t._apply(np.atleast_1d)
+        ph = self.polyco(t)
+        return np.divmod(ph, 1 * u.cycle)
