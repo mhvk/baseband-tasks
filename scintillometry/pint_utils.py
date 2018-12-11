@@ -10,7 +10,7 @@ import pint.models as model
 from pint import pulsar_mjd
 
 
-__all__ = ['PintPhase', 'make_toa_list']
+__all__ = ['PintUtils', 'make_toa_list']
 
 
 class PintUtils(object):
@@ -55,24 +55,24 @@ class PintUtils(object):
         self.model = model.get_model(par_file)
         self.toas = None
 
-    def get_toas(self, tim_file=None, times=None, obs=None, obs_freq=None,
-                 solar_ephem='de436', bipm_version='BIPM2017', **kwargs):
+    def get_toas(self, tim_file=None, time=None, obs=None, obs_freq=None,
+                 solar_ephem='de436', bipm_version='BIPM2015', **kwargs):
         # Load toas from tim file.
         if tim_file is not None:
             self.toas = toa.get_TOAs(tim_file, ephem, bipm_version, **kwargs)
         # Load from time stemps.
         elif time is not None:
             if obs is None:
-                raise RunTimeError('Observatory name can not be None.')
+                raise RuntimeError('Observatory name can not be None.')
             if obs_freq is None:
-                raise RunTimeError('Observing frequency can not be None.')
+                raise RuntimeError('Observing frequency can not be None.')
 
-                self.toas = toa.get_TOAs_list(make_toa_list(t, obs, obs_freq,
-                                                             **kwargs),
-                                              ephem=solar_ephem,
-                                              bipm_version=bipm_version)
+            self.toas = toa.get_TOAs_list(make_toa_list(time, obs, obs_freq,
+                                                        **kwargs),
+                                          ephem=solar_ephem,
+                                          bipm_version=bipm_version)
         else:
-            raise RunTimeError("PINT utilities requires the stemps. Please "
+            raise RuntimeError("PINT utilities requires the stemps. Please "
                                "input them from 'tim_file' or 'times'.")
 
     def compute_phase(self):
@@ -86,7 +86,7 @@ def make_toa_list(t, obs, obs_freq, **other_meta):
 
     Parameters
     ----------
-    t : `~astropy.time.Time` or list of `~astropy.time.Time`
+    t : `~astropy.time.Time`
         Input time stemps
     obs : str
         The observatory code or names
@@ -94,13 +94,13 @@ def make_toa_list(t, obs, obs_freq, **other_meta):
         The observing frequency, the default unit is MHz
 
     """
-    t = np.atleast_1d(t)
+    t = t._apply(np.atleast_1d)
     toa_list = []
+    obs_freq = u.Quantity(obs_freq, u.MHz)
     for t_stemp in t:
         # This format converting should be done by PINT in the futureself.
         if t_stemp.scale == 'utc':
             t_stemp = time.Time(t_stemp, format='pulsar_mjd')
-        toa_entry = toa.TOA(t_stemp, obs=obs, freq=obs_freq, scale=scale,
-                            **other_meta)
+        toa_entry = toa.TOA(t_stemp, obs=obs, freq=obs_freq, **other_meta)
         toa_list.append(toa_entry)
     return toa_list
