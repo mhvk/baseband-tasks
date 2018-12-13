@@ -7,23 +7,21 @@ import astropy.units as u
 from astropy.time import Time
 
 from ..base import Task
-from ..generators import StreamGenerator
+from ..generators import EmptyStreamGenerator
 from ..integration import Fold
 from ..functions import Square
 
 
-class TestFoldingBase:
+class TestFoldBase:
     def setup(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 10. * u.kHz
         self.shape = (6000, 2, 4)
-        self.generator = lambda _: np.zeros(self.shape)
-        self.nh = StreamGenerator(function=self.generator,
-                                  shape=self.shape,
-                                  start_time=self.start_time,
-                                  sample_rate=self.sample_rate,
-                                  samples_per_frame=200, dtype=np.float)
-        self.sh = Task(self.nh, self.pulse_simulate, samples_per_frame=1)
+        self.eh = EmptyStreamGenerator(shape=self.shape,
+                                       start_time=self.start_time,
+                                       sample_rate=self.sample_rate,
+                                       samples_per_frame=200, dtype=np.float)
+        self.sh = Task(self.eh, self.pulse_simulate)
         self.period_bin = 125
         self.n_phase = 50
 
@@ -33,13 +31,14 @@ class TestFoldingBase:
         return F0 * dt
 
     def pulse_simulate(self, fh, data):
-        idx = fh.tell()
-        data[:] = 0
-        data += (10 if idx % self.period_bin == 0 else 0.125)
+        idx = fh.tell() + np.arange(data.shape[0])
+        result = np.where(idx % self.period_bin == 0, 10., 0.125)
+        result.shape = (-1,) + (1,) * (data.ndim - 1)
+        data[:] = result
         return data
 
 
-class TestFolding(TestFoldingBase):
+class TestFold(TestFoldBase):
     def test_input_data(self):
         indata = self.sh.read(1000)
         pulses = np.where(indata[:, 0, 0] == 10)[0]
