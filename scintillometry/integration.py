@@ -9,39 +9,43 @@ import astropy.time as time
 from .base import TaskBase, BaseData
 
 
-__all__ = ['TimeFold', ]
-
-# TODO add Fold base class for the future folding
+__all__ = ['Fold']
 
 
-class TimeFold(TaskBase):
-    """ Fold pulse using a fixed time interval.
-
-    NOTE
-    ----
-    This method does not require the folding time to be the pulse period.
-    However, the time integration for each phase bin will not be uniform.
+class Fold(TaskBase):
+    """Fold pulse profiles in fixed time intervals.
 
     Parameters
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
     n_phase : int
-        Number of bins in one result phase period.
+        Number of bins per pulse period.
     phase : callable
-        The method to compute pulse phases at a given time.
-        Note, the input time is in the format of '~astropy.time.Time' object.
-        The output phase should be an array.
+        Should return pulse phases for given input time(s), passed in as an
+        '~astropy.time.Time' object.  The output should be an array of float;
+        the phase can include the cycle count.
     fold_time : float or `~astropy.units.Quantity`, optional
-        Time interval for folding into one pulse period(result sample).
-        Default unit is second. If not given, the default value is whole file.
-    average : bool
-        If the output pulse profile averaged by the number of time integration
-        in each phase bin.
+        Time interval over which to fold, i.e., the sample time of the output.
+        Default unit is second. If not given, the whole file will be folded
+        into a single profile.
+    average : bool, optional
+        Whether the output pulse profile should be the average of all entries
+        that contributed to it, or rather the sum, in an array that also has
+        a ``count`` attribute.
     samples_per_frame : int, optional
-        Number of request folded period. If not given, it assumes 1.
-    """
+        Number of fold times to process in one go.  This can be used to
+        optimize the process, though in general the default of 1 should work.
 
+    Notes
+    -----
+    Since the fold time is not necessarily an integer multiple of the pulse
+    period, the returned profiles will generally not contain the same number
+    of samples in each phase bin.  For the default of ``average=False``, the
+    arrays returned by ``read`` contain the sum of the data in each bin as well
+    as a ``count`` attribute; for ``average=True``, the sums have been divided
+    by this ``count`` attribute, with bins with no points set to ``NaN``.
+    """
     def __init__(self, ih, n_phase, phase, fold_time=None, average=False,
                  samples_per_frame=1):
         self.n_phase = n_phase
@@ -52,7 +56,8 @@ class TimeFold(TaskBase):
         self.phase = phase
         self.average = average
 
-        # NOTE The left over time samples will be truncated. Need warning msg
+        # Note that there may be some time at the end that is never used.
+        # Probably not worth warning about this.
         nsample = int(np.floor(ih.shape[0] / ih.sample_rate / self.fold_time //
                       samples_per_frame) * samples_per_frame)
 

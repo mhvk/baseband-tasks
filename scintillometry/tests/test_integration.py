@@ -8,7 +8,7 @@ from astropy.time import Time
 
 from ..base import Task
 from ..generators import StreamGenerator
-from ..fold import TimeFold
+from ..integration import Fold
 from ..functions import Square
 
 
@@ -39,7 +39,7 @@ class TestFoldingBase:
         return data
 
 
-class TestTimeFolding(TestFoldingBase):
+class TestFolding(TestFoldingBase):
     def test_input_data(self):
         indata = self.sh.read(1000)
         pulses = np.where(indata[:, 0, 0] == 10)[0]
@@ -51,8 +51,8 @@ class TestTimeFolding(TestFoldingBase):
         fold_time = 11 * u.ms
         eff_n_phase = (11 * u.ms / (self.period_bin / self.sh.sample_rate) *
                        self.n_phase).to(u.Unit(1))
-        self.fh = TimeFold(self.sh, self.n_phase, self.phase, fold_time,
-                           samples_per_frame=1)
+        self.fh = Fold(self.sh, self.n_phase, self.phase, fold_time,
+                       samples_per_frame=1)
         self.fh.seek(0)
         fr = self.fh.read(3)
 
@@ -66,8 +66,8 @@ class TestTimeFolding(TestFoldingBase):
     def test_over_period(self):
         # Test when folding time is bigger than one or multiple pulse period
         fold_time = 26 * u.ms
-        self.fh = TimeFold(self.sh, self.n_phase, self.phase, fold_time,
-                           samples_per_frame=1)
+        self.fh = Fold(self.sh, self.n_phase, self.phase, fold_time,
+                       samples_per_frame=1)
         self.fh.seek(0)
         fr = self.fh.read(10)
         # Compare the total counts of all the samples.
@@ -85,8 +85,8 @@ class TestTimeFolding(TestFoldingBase):
                               np.all(pulse_power[1:] < 23)), \
             "Folding power is not correct for over period folding."
         # Test average
-        self.fh2 = TimeFold(self.sh, self.n_phase, self.phase, fold_time,
-                            samples_per_frame=20, average=True)
+        self.fh2 = Fold(self.sh, self.n_phase, self.phase, fold_time,
+                        samples_per_frame=20, average=True)
         self.fh2.seek(0)
         fr2 = self.fh2.read(10)
         assert np.all(fr2[:, 2:-1] == 0.125), "Averaged result is not correct."
