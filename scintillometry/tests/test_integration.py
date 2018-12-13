@@ -27,8 +27,7 @@ class TestFoldBase:
         self.n_phase = 50
 
     def phase(self, t):
-        dt = (t - self.start_time).to(u.s)
-        return self.F0 * dt
+        return self.F0 * (t - self.start_time)
 
     def pulse_simulate(self, fh, data):
         idx = fh.tell() + np.arange(data.shape[0])
@@ -91,3 +90,24 @@ class TestFold(TestFoldBase):
         fr = fh.read(10)
         assert np.all(fr[:, 2:-1] == 0.125), \
             "Average off-gate power is incorrect."
+
+    def test_non_integer_sample_rate_ratio(self):
+        fold_time = (1./3.) * u.s
+        fh = Fold(self.sh, self.n_phase, self.phase, fold_time, average=True)
+        fr = fh.read(1)
+        assert np.all(fr[:, 2:-1] == 0.125), \
+            "Average off-gate power is incorrect."
+
+    def test_read_whole_file(self):
+        ref_data = self.sh.read()[:, 0, 0]
+        phase = self.phase(self.start_time +
+                           np.arange(self.sh.shape[0]) / self.sh.sample_rate)
+        i_phase = ((phase * self.n_phase) % self.n_phase).astype(int)
+        expected = np.bincount(i_phase, ref_data) / np.bincount(i_phase)
+
+        fh = Fold(self.sh, self.n_phase, self.phase, average=True)
+        assert abs(fh.stop_time - self.sh.stop_time) < 1. * u.ns
+        fr = fh.read(1)
+        assert np.all(fr[:, 2:-1] == 0.125), \
+            "Average off-gate power is incorrect."
+        assert np.all(fr[0, :, 0, 0] == expected)
