@@ -108,8 +108,9 @@ class Fold(Base):
 
         if self.average:
             result /= count
-        result = result.view(BaseData)
-        result.count = count
+        else:
+            result = result.view(BaseData)
+            result.count = count
         return result
 
     def read(self, count=None, out=None):
@@ -143,9 +144,9 @@ class Fold(Base):
             if count is None or count < 0:
                 count = samples_left
             out = np.empty((count, ) + self.shape[1:], dtype=self.dtype)
-            out = out.view(BaseData)
-            fold_count = np.empty((count, ) + self.shape[1:], dtype=np.int)
-            out.count = fold_count
+            if not self.average:
+                out = out.view(BaseData)
+                out.count = np.zeros((count, ) + self.shape[1:], dtype=int)
         else:
             assert out.shape[1:] == self.shape[1:], (
                 "'out' should have trailing shape {}".format(self.sample_shape))
