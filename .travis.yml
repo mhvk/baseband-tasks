@@ -41,16 +41,13 @@ matrix:
         - env: SETUP_CMD='build_sphinx -w'
                CONDA_DEPENDENCIES='pyfftw'
 
-        # Check Python 3 with stable numpy, also verifying coverage.
+        # Check Python 3 with stable astropy and numpy, also verifying coverage.
         - env: SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES='pyfftw'
 
-        # Check pyfftw-dependent modules.
-        # See https://github.com/pyFFTW/pyFFTW/issues/40
-        - env: CONDA_DEPENDENCIES='pyfftw'
-
+        # Check oldest supported versions.
         - python: 3.5
-          env: NUMPY_VERSION=1.10
+          env: NUMPY_VERSION=1.10 ASTROPY_VERSION=3.0
 
         # Make sure that egg_info works without dependencies
         - env: SETUP_CMD='egg_info'
