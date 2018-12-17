@@ -50,14 +50,16 @@ class TestFold(TestFoldBase):
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(3)
+        # Note: API for accessing counts may change.
+        fr_count = fr['count']
         max_count = int(np.ceil(
             (self.sample_rate / self.F0 / self.n_phase).to_value(1)))
-        assert np.all(fr.count <= max_count)
+        assert np.all(fr_count <= max_count)
 
         # For each of the samples, check that the correct ones have not
         # gotten any data.
         eff_n_phase = (fold_time * self.F0 * self.n_phase).to_value(1)
-        for ii, count in enumerate(fr.count):
+        for ii, count in enumerate(fr_count):
             n_count_0 = (count == 0).sum()
             assert np.isclose(self.n_phase - n_count_0, eff_n_phase, 1), \
                 ("Sample {} has the wrong number of zero-count phase bins"
@@ -69,13 +71,15 @@ class TestFold(TestFoldBase):
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(10)
+        fr_count = fr['count']
+        fr_data = fr['data']
         # Compare the total counts of all the samples.
-        tot_counts = np.sum(fr.count, axis=1)
+        tot_counts = np.sum(fr_count, axis=1)
         assert np.all(np.abs(tot_counts - tot_counts.mean()) <= 1), \
             "Folding counts vary more than expected."
         # Test the output on and off gates.
         ph0_bins = [0, 1, -1, -2]
-        pulse_power = np.sum(fr[:, ph0_bins, 0, 0], axis=1)
+        pulse_power = np.sum(fr_data[:, ph0_bins, 0, 0], axis=1)
         assert 30 < pulse_power[0] < 33, \
             "Folded power of on-gate is incorrect."
 
