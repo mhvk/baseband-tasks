@@ -8,31 +8,6 @@ import numpy as np
 import astropy.units as u
 
 
-class BaseData(np.ndarray):
-    """NDArray subclass with a count attribute.
-
-    The count attribute is propagated in slicing; elements of this class
-    can only be set to items that themselves have a ``count`` attribute.
-
-    .. note : Work in progress, API may change.
-    """
-    def __array_finalize__(self, obj):
-        if hasattr(obj, 'count'):
-            self.count = obj.count
-
-    def __getitem__(self, item):
-        data = super().__getitem__(item)
-        # Check for scalars
-        if not data.shape and type(data) is not self.__class__:
-            data = data[...].view(self.__class__)
-        data.count = self.count[item]
-        return data
-
-    def __setitem__(self, item, value):
-        self.count[item] = value.count
-        super().__setitem__(item, value)
-
-
 class Base:
     """Base class of all tasks and generators.
 
