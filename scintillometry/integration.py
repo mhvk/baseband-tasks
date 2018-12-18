@@ -10,7 +10,7 @@ from .base import BaseTaskBase
 __all__ = ['Integrate', 'Fold']
 
 
-class Integrate(Base):
+class Integrate(BaseTaskBase):
     """Integrate a stream over specific time steps.
 
     Parameters
@@ -50,20 +50,14 @@ class Integrate(Base):
         nsample = int((total_time / sample_time).to_value(1))
 
         shape = (nsample,) + ih.shape[1:]
-        frequency = getattr(ih, 'frequency', None)
-        sideband = getattr(ih, 'sideband', None)
-        polarization = getattr(ih, 'polarization', None)
         if dtype is None:
             if self.average:
                 dtype = ih.dtype
             else:
                 dtype = np.dtype([('data', ih.dtype), ('count', int)])
 
-        super().__init__(start_time=ih.start_time,
-                         shape=shape, sample_rate=1./sample_time,
-                         samples_per_frame=1, frequency=frequency,
-                         sideband=sideband, polarization=polarization,
-                         dtype=dtype)
+        super().__init__(ih, shape=shape, sample_rate=1./sample_time,
+                         samples_per_frame=1, dtype=dtype)
 
     def _read_frame(self, frame_index):
         raw_stop = self.ih.seek((frame_index + 1) / self.sample_rate)
@@ -126,19 +120,19 @@ class Fold(BaseTaskBase):
 
     .. warning: The format for ``average=False`` may change in the future.
     """
-    def __init__(self, ih, n_phase, phase, fold_time=None, average=True,
+    def __init__(self, ih, n_phase, phase, sample_time=None, average=True,
                  samples_per_frame=1, dtype=None):
         self.n_phase = n_phase
         total_time = ih.stop_time - ih.start_time
-        if fold_time is None:
-            fold_time = total_time
-        self.fold_time = fold_time
+        if sample_time is None:
+            sample_time = total_time
+        self.sample_time = sample_time
         self.phase = phase
         self.average = average
 
         # Note that there may be some time at the end that is never used.
         # Might want to include it if, e.g., it is more than half used.
-        nsample = int((total_time / self.fold_time).to_value(u.one) //
+        nsample = int((total_time / self.sample_time).to_value(u.one) //
                       samples_per_frame) * samples_per_frame
         shape = (nsample, n_phase) + ih.shape[1:]
         if dtype is None:
@@ -147,7 +141,8 @@ class Fold(BaseTaskBase):
             else:
                 dtype = np.dtype([('data', ih.dtype), ('count', int)])
 
-        super().__init__(ih, shape=shape, sample_rate=1./fold_time,
+        super().__init__(ih, shape=shape,
+                         sample_rate=1./sample_time,
                          samples_per_frame=samples_per_frame, dtype=dtype)
 
     def _read_frame(self, frame_index):
@@ -171,8 +166,8 @@ class Fold(BaseTaskBase):
 
         # Get sample and phase indices.
         time_offset = np.arange(n_raw) / self.ih.sample_rate
-        sample_index = (time_offset /
-                        self.fold_time).to_value(u.one).astype(int)
+        sample_index = (time_offset *
+                        self.sample_rate).to_value(u.one).astype(int)
         # TODO: allow having a phase reference.
         phases = self.phase(raw_time + time_offset)
         phase_index = ((phases.to_value(u.one) * self.n_phase)

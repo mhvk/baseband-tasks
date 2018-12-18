@@ -1,5 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Full-package tests of pulse folding."""
+"""Tests of integration and pulse folding."""
 
 import pytest
 import numpy as np
@@ -113,9 +113,9 @@ class TestFold(TestFoldBase):
         # Check if the input data is set up right.
         assert len(pulses) == 8, "Pulses are not simulated right."
 
-    def test_fold_time_shorter_than_period(self):
-        fold_time = 11 * u.ms
-        fh = Fold(self.sh, self.n_phase, self.phase, fold_time,
+    def test_sample_time_shorter_than_period(self):
+        sample_time = 11 * u.ms
+        fh = Fold(self.sh, self.n_phase, self.phase, sample_time,
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(3)
@@ -127,16 +127,16 @@ class TestFold(TestFoldBase):
 
         # For each of the samples, check that the correct ones have not
         # gotten any data.
-        eff_n_phase = (fold_time * self.F0 * self.n_phase).to_value(1)
+        eff_n_phase = (sample_time * self.F0 * self.n_phase).to_value(1)
         for ii, count in enumerate(fr_count):
             n_count_0 = (count == 0).sum()
             assert np.isclose(self.n_phase - n_count_0, eff_n_phase, 1), \
                 ("Sample {} has the wrong number of zero-count phase bins"
                  .format(ii))
 
-    def test_fold_time_longer_than_period(self):
-        fold_time = 26 * u.ms
-        fh = Fold(self.sh, self.n_phase, self.phase, fold_time,
+    def test_sample_time_longer_than_period(self):
+        sample_time = 26 * u.ms
+        fh = Fold(self.sh, self.n_phase, self.phase, sample_time,
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(10)
@@ -157,7 +157,7 @@ class TestFold(TestFoldBase):
 
     def test_folding_with_averaging(self):
         # Test averaging
-        fh = Fold(self.sh, self.n_phase, self.phase, fold_time=26 * u.ms,
+        fh = Fold(self.sh, self.n_phase, self.phase, sample_time=26 * u.ms,
                   samples_per_frame=20, average=True)
         fh.seek(0)
         fr = fh.read(10)
@@ -165,8 +165,8 @@ class TestFold(TestFoldBase):
             "Average off-gate power is incorrect."
 
     def test_non_integer_sample_rate_ratio(self):
-        fold_time = (1./3.) * u.s
-        fh = Fold(self.sh, self.n_phase, self.phase, fold_time, average=True)
+        sample_time = (1./3.) * u.s
+        fh = Fold(self.sh, self.n_phase, self.phase, sample_time, average=True)
         fr = fh.read(1)
         assert np.all(fr[:, 2:-1] == 0.125), \
             "Average off-gate power is incorrect."
