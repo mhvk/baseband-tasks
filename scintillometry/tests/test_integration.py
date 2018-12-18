@@ -6,10 +6,79 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
+from baseband.data import SAMPLE_DADA
+from baseband import dada
+
 from ..base import Task
 from ..generators import EmptyStreamGenerator
-from ..integration import Fold
+from ..integration import Integrate, Fold
 from ..functions import Square
+
+
+class TestIntegrate:
+    """Test integrating intensities using Baseband's sample DADA file."""
+
+    def test_integrate_all(self):
+        # Load baseband file and get reference intensities.
+        fh = dada.open(SAMPLE_DADA)
+        raw = fh.read()
+        ref_data = np.real(raw * np.conj(raw)).mean(0)
+
+        st = Square(fh)
+        ip = Integrate(st)
+        assert ip.start_time == fh.start_time
+        assert (ip.stop_time - fh.stop_time) < 1. * u.ns
+        assert (ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
+
+        # Square and integrate everything.
+        data = ip.read()
+        assert ip.tell() == ip.shape[0]
+        assert st.dtype is ref_data.dtype is data.dtype
+        assert data.shape == (1, 2)
+        assert np.allclose(data, ref_data)
+
+    def test_integrate_all_no_average(self):
+        # Load baseband file and get reference intensities.
+        fh = dada.open(SAMPLE_DADA)
+        raw = fh.read()
+        ref_data = np.real(raw * np.conj(raw)).sum(0)
+
+        st = Square(fh)
+        ip = Integrate(st, average=False)
+        assert ip.start_time == fh.start_time
+        assert (ip.stop_time - fh.stop_time) < 1. * u.ns
+        assert (ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
+
+        # Square and integrate everything.
+        integrated = ip.read()
+        data = integrated['data']
+        count = integrated['count']
+        assert ip.tell() == ip.shape[0]
+        assert st.dtype is ref_data.dtype is data.dtype
+        assert data.shape == (1, 2)
+        assert np.allclose(data, ref_data)
+        assert np.all(count == fh.shape[0])
+
+    def test_integrate_1(self):
+        fh = dada.open(SAMPLE_DADA)
+        raw = fh.read(10)
+        ref_data = np.real(raw * np.conj(raw))
+
+        st = Square(fh)
+        ip = Integrate(st, 1./fh.sample_rate, average=False)
+        assert ip.start_time == fh.start_time
+        assert (ip.stop_time - fh.stop_time) < 1. * u.ns
+        assert fh.sample_rate == ip.sample_rate
+
+        # Square and integrate everything.
+        integrated = ip.read(10)
+        data = integrated['data']
+        count = integrated['count']
+        assert ip.tell() == 10
+        assert st.dtype is ref_data.dtype is data.dtype
+        assert data.shape == ref_data.shape
+        assert np.allclose(data, ref_data)
+        assert np.all(count == 1)
 
 
 class TestFoldBase:
