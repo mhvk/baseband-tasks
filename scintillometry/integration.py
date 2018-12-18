@@ -10,7 +10,43 @@ from .base import Base
 __all__ = ['Integrate', 'Fold']
 
 
-class Integrate(Base):
+class IntegrateBase(Base):
+    """Base class for integrations over fixed sample times."""
+
+    def __init__(self, ih, sample_time=None, average=True,
+                 samples_per_frame=1, sample_shape=None, dtype=None):
+        self.ih = ih
+        self.average = average
+
+        total_time = ih.stop_time - ih.start_time
+        if sample_time is None:
+            sample_time = total_time
+
+        nsample = int((total_time / sample_time).to_value(1) //
+                      samples_per_frame) * samples_per_frame
+        if sample_shape is None:
+            sample_shape = ih.sample_shape
+        shape = (nsample,) + sample_shape
+
+        if dtype is None:
+            if average:
+                dtype = ih.dtype
+            else:
+                dtype = np.dtype([('data', ih.dtype), ('count', int)])
+
+        frequency = getattr(ih, 'frequency', None)
+        sideband = getattr(ih, 'sideband', None)
+        polarization = getattr(ih, 'polarization', None)
+
+        super().__init__(start_time=ih.start_time,
+                         shape=shape, sample_rate=1./sample_time,
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband,
+                         polarization=polarization, dtype=dtype)
+        self._raw_samples_per_frame = samples_per_frame * sample_time
+
+
+class Integrate(IntegrateBase):
     """Integrate a stream over specific time steps.
 
     Parameters
@@ -42,34 +78,15 @@ class Integrate(Base):
     """
 
     def __init__(self, ih, sample_time=None, average=True, dtype=None):
-        self.ih = ih
-        self.average = average
-        total_time = ih.stop_time - ih.start_time
-        if sample_time is None:
-            sample_time = total_time
-        nsample = int((total_time / sample_time).to_value(1))
-
-        shape = (nsample,) + ih.shape[1:]
-        frequency = getattr(ih, 'frequency', None)
-        sideband = getattr(ih, 'sideband', None)
-        polarization = getattr(ih, 'polarization', None)
-        if dtype is None:
-            if self.average:
-                dtype = ih.dtype
-            else:
-                dtype = np.dtype([('data', ih.dtype), ('count', int)])
-
-        super().__init__(start_time=ih.start_time,
-                         shape=shape, sample_rate=1./sample_time,
-                         samples_per_frame=1, frequency=frequency,
-                         sideband=sideband, polarization=polarization,
-                         dtype=dtype)
+        super().__init__(ih, sample_time=sample_time, average=average, dtype=dtype)
 
     def _read_frame(self, frame_index):
-        raw_stop = self.ih.seek((frame_index + 1) / self.sample_rate)
-        raw_start = self.ih.seek(frame_index / self.sample_rate)
+        # Determine which raw samples to read, and read them.
+        # Note: self._raw_samples_per_frame can have units of time.
+        raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
+        raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
         data = self.ih.read(raw_stop - raw_start)
-        out = np.zeros((self.samples_per_frame,) + self.shape[1:],
+        out = np.zeros((self.samples_per_frame,) + self.sample_shape,
                        dtype=self.dtype)
         if self.average:
             result = out
@@ -85,7 +102,7 @@ class Integrate(Base):
         return out
 
 
-class Fold(Base):
+class Fold(IntegrateBase):
     """Fold pulse profiles in fixed time intervals.
 
     Parameters
@@ -128,48 +145,23 @@ class Fold(Base):
     """
     def __init__(self, ih, n_phase, phase, sample_time=None, average=True,
                  samples_per_frame=1, dtype=None):
-        self.ih = ih
         self.n_phase = n_phase
-        total_time = ih.stop_time - ih.start_time
-        if sample_time is None:
-            sample_time = total_time
-        self.sample_time = sample_time
         self.phase = phase
-        self.average = average
 
-        # Note that there may be some time at the end that is never used.
-        # Might want to include it if, e.g., it is more than half used.
-        nsample = int((total_time / self.sample_time).to_value(u.one) //
-                      samples_per_frame) * samples_per_frame
-        shape = (nsample, n_phase) + ih.shape[1:]
-        # This probably should be moved to a better base class; unfortunately,
-        # we cannot use TaskBase since it does not allow non-integer sample
-        # rate ratios.
-        frequency = getattr(ih, 'frequency', None)
-        sideband = getattr(ih, 'sideband', None)
-        polarization = getattr(ih, 'polarization', None)
-        if dtype is None:
-            if self.average:
-                dtype = ih.dtype
-            else:
-                dtype = np.dtype([('data', ih.dtype), ('count', int)])
-
-        super().__init__(shape=shape, start_time=ih.start_time,
-                         sample_rate=1./sample_time,
-                         samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization, dtype=dtype)
+        super().__init__(ih, sample_time=sample_time, average=average,
+                         sample_shape=(n_phase,) + ih.sample_shape,
+                         samples_per_frame=samples_per_frame, dtype=dtype)
 
     def _read_frame(self, frame_index):
         # Determine which raw samples to read, and read them.
-        frame_rate = self.sample_rate / self.samples_per_frame
-        raw_stop = self.ih.seek((frame_index + 1) / frame_rate)
-        raw_start = self.ih.seek(frame_index / frame_rate)
+        # Note: self._raw_samples_per_frame can have units of time.
+        raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
+        raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
         raw_time = self.ih.time
         n_raw = raw_stop - raw_start
         raw = self.ih.read(n_raw)
         # Set up output arrays.
-        out = np.zeros((self.samples_per_frame,) + self.shape[1:],
+        out = np.zeros((self.samples_per_frame,) + self.sample_shape,
                        dtype=self.dtype)
         if self.average:
             result = out
