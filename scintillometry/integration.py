@@ -126,20 +126,20 @@ class Fold(Base):
 
     .. warning: The format for ``average=False`` may change in the future.
     """
-    def __init__(self, ih, n_phase, phase, fold_time=None, average=True,
+    def __init__(self, ih, n_phase, phase, sample_time=None, average=True,
                  samples_per_frame=1, dtype=None):
         self.ih = ih
         self.n_phase = n_phase
         total_time = ih.stop_time - ih.start_time
-        if fold_time is None:
-            fold_time = total_time
-        self.fold_time = fold_time
+        if sample_time is None:
+            sample_time = total_time
+        self.sample_time = sample_time
         self.phase = phase
         self.average = average
 
         # Note that there may be some time at the end that is never used.
         # Might want to include it if, e.g., it is more than half used.
-        nsample = int((total_time / self.fold_time).to_value(u.one) //
+        nsample = int((total_time / self.sample_time).to_value(u.one) //
                       samples_per_frame) * samples_per_frame
         shape = (nsample, n_phase) + ih.shape[1:]
         # This probably should be moved to a better base class; unfortunately,
@@ -155,7 +155,7 @@ class Fold(Base):
                 dtype = np.dtype([('data', ih.dtype), ('count', int)])
 
         super().__init__(shape=shape, start_time=ih.start_time,
-                         sample_rate=1./fold_time,
+                         sample_rate=1./sample_time,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
@@ -181,8 +181,8 @@ class Fold(Base):
 
         # Get sample and phase indices.
         time_offset = np.arange(n_raw) / self.ih.sample_rate
-        sample_index = (time_offset /
-                        self.fold_time).to_value(u.one).astype(int)
+        sample_index = (time_offset *
+                        self.sample_rate).to_value(u.one).astype(int)
         # TODO: allow having a phase reference.
         phases = self.phase(raw_time + time_offset)
         phase_index = ((phases.to_value(u.one) * self.n_phase)
