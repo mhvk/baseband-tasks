@@ -10,6 +10,15 @@ from .base import BaseTaskBase
 __all__ = ['Integrate', 'Fold']
 
 
+class _IntegratorCallBack:
+    def __init__(self, shape, setitem):
+        self.shape = shape
+        self.setitem = setitem
+
+    def __setitem__(self, item, value):
+        return self.setitem(item, value)
+
+
 class IntegrateBase(BaseTaskBase):
     """Base class for integrations over fixed sample times."""
 
@@ -78,21 +87,27 @@ class Integrate(IntegrateBase):
         # Note: self._raw_samples_per_frame can have units of time.
         raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
         raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
-        data = self.ih.read(raw_stop - raw_start)
+        n_raw = raw_stop - raw_start
         out = np.zeros((self.samples_per_frame,) + self.sample_shape,
                        dtype=self.dtype)
         if self.average:
-            result = out
-            count = np.zeros(result.shape[:1] + (1,) * (result.ndim - 1),
-                             dtype=int)
+            self._result = out
+            self._count = np.zeros(out.shape[:1] + (1,) * (out.ndim - 1),
+                                   dtype=int)
         else:
-            result = out['data']
-            count = out['count']
-        result[:] = data.sum(0, keepdims=True)
-        count[:] = len(data)
+            self._result = out['data']
+            self._count = out['count']
+        fake_out = _IntegratorCallBack((n_raw,) + self.ih.sample_shape,
+                                       self._callback)
+        fake_out = self.ih.read(out=fake_out)
         if self.average:
-            out /= count
+            out /= self._count
         return out
+
+    def _callback(self, item, data):
+        assert type(item) is slice
+        self._result[:] += data.sum(0, keepdims=True)
+        self._count[:] += len(data)
 
 
 class Fold(IntegrateBase):
@@ -150,34 +165,38 @@ class Fold(IntegrateBase):
         # Note: self._raw_samples_per_frame can have units of time.
         raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
         raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
-        raw_time = self.ih.time
+        self._raw_time = self.ih.time
         n_raw = raw_stop - raw_start
-        raw = self.ih.read(n_raw)
         # Set up output arrays.
         out = np.zeros((self.samples_per_frame,) + self.sample_shape,
                        dtype=self.dtype)
         if self.average:
-            result = out
-            count = np.zeros(result.shape[:2] + (1,) * (result.ndim - 2),
-                             dtype=int)
+            self._result = out
+            self._count = np.zeros(out.shape[:2] + (1,) * (out.ndim - 2),
+                                   dtype=int)
         else:
-            result = out['data']
-            count = out['count']
+            self._result = out['data']
+            self._count = out['count']
 
+        fake_out = _IntegratorCallBack((n_raw,) + self.ih.sample_shape,
+                                       self._callback)
+        fake_out = self.ih.read(out=fake_out)
+        if self.average:
+            out /= self._count
+
+        return out
+
+    def _callback(self, item, raw):
+        assert type(item) is slice
         # Get sample and phase indices.
-        time_offset = np.arange(n_raw) / self.ih.sample_rate
+        time_offset = np.arange(item.start, item.stop) / self.ih.sample_rate
         sample_index = (time_offset *
                         self.sample_rate).to_value(u.one).astype(int)
         # TODO: allow having a phase reference.
-        phases = self.phase(raw_time + time_offset)
+        phases = self.phase(self._raw_time + time_offset)
         phase_index = ((phases.to_value(u.one) * self.n_phase)
                        % self.n_phase).astype(int)
         # Do the actual folding, adding the data to the sums and counts.
         # TODO: np.add.at is not very efficient; replace?
-        np.add.at(result, (sample_index, phase_index), raw)
-        np.add.at(count, (sample_index, phase_index), 1)
-
-        if self.average:
-            out /= count
-
-        return out
+        np.add.at(self._result, (sample_index, phase_index), raw)
+        np.add.at(self._count, (sample_index, phase_index), 1)
