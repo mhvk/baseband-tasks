@@ -3,6 +3,7 @@
 
 import numpy as np
 import astropy.units as u
+from astropy.utils import ShapedLikeNDArray
 
 from .base import Base
 
@@ -10,13 +11,27 @@ from .base import Base
 __all__ = ['Integrate', 'Fold']
 
 
-class _IntegratorCallBack:
+class _FakeOutput(ShapedLikeNDArray):
+    """Pretend output class that diverts setting.
+
+    It subclasses `~astropy.utils.ShapedLikeNDArray` to mimic all the
+    shape properties of `~numpy.ndarray` given a (fake) shape.
+    """
     def __init__(self, shape, setitem):
-        self.shape = shape
-        self.setitem = setitem
+            self._shape = shape
+            self._setitem = setitem
 
     def __setitem__(self, item, value):
-        return self.setitem(item, value)
+        # Call back on out[item] = value.
+        return self._setitem(item, value)
+
+    # The two required parts for ShapedLikeNDArray.
+    @property
+    def shape(self):
+        return self._shape
+
+    def _apply(self, *args, **kwargs):
+        raise NotImplementedError("No _apply possible for _FakeOutput")
 
 
 class IntegrateBase(Base):
@@ -54,6 +69,45 @@ class IntegrateBase(Base):
                          polarization=polarization, dtype=dtype)
         self._raw_samples_per_frame = samples_per_frame * sample_time
 
+    def _read_frame(self, frame_index):
+        """Determine which raw samples to read, and read them using integrating read.
+
+        This base implementation uses the default ``_raw_samples_per_frame`` attribute,
+        which will generally have units of time.
+        """
+        # Use seek to find the stop and start positions; this will round to the
+        # nearest offset if necessary.
+        raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
+        raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
+        return self._integrating_read(raw_stop - raw_start)
+
+    def _integrating_read(self, n_raw):
+        """Set up fake output for a read from the underlying stream.
+
+        Subclasses have to provide an ``_integrate method`` which will be
+        used to override ``__setitem__`` in the fake output.
+        """
+        out = np.zeros((self.samples_per_frame,) + self.sample_shape,
+                       dtype=self.dtype)
+        if self.average:
+            self._result = out
+            self._count = np.zeros(out.shape[:2] + (1,) * (out.ndim - 2),
+                                   dtype=int)
+        else:
+            self._result = out['data']
+            self._count = out['count']
+
+        # Set up fake output with a shape that tells read how many samples to read
+        # (and a remaining part that should pass consistency checks), plus a
+        # call-back for out[...]=....
+        integrating_out = _FakeOutput((n_raw,) + self.ih.sample_shape,
+                                      self._integrate)
+        self.ih.read(out=integrating_out)
+        if self.average:
+            out /= self._count
+
+        return out
+
 
 class Integrate(IntegrateBase):
     """Integrate a stream over specific time steps.
@@ -89,29 +143,7 @@ class Integrate(IntegrateBase):
     def __init__(self, ih, sample_time=None, average=True, dtype=None):
         super().__init__(ih, sample_time=sample_time, average=average, dtype=dtype)
 
-    def _read_frame(self, frame_index):
-        # Determine which raw samples to read, and read them.
-        # Note: self._raw_samples_per_frame can have units of time.
-        raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
-        raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
-        n_raw = raw_stop - raw_start
-        out = np.zeros((self.samples_per_frame,) + self.sample_shape,
-                       dtype=self.dtype)
-        if self.average:
-            self._result = out
-            self._count = np.zeros(out.shape[:1] + (1,) * (out.ndim - 1),
-                                   dtype=int)
-        else:
-            self._result = out['data']
-            self._count = out['count']
-        fake_out = _IntegratorCallBack((n_raw,) + self.ih.sample_shape,
-                                       self._callback)
-        fake_out = self.ih.read(out=fake_out)
-        if self.average:
-            out /= self._count
-        return out
-
-    def _callback(self, item, data):
+    def _integrate(self, item, data):
         assert type(item) is slice
         self._result[:] += data.sum(0, keepdims=True)
         self._count[:] += len(data)
@@ -168,32 +200,14 @@ class Fold(IntegrateBase):
                          samples_per_frame=samples_per_frame, dtype=dtype)
 
     def _read_frame(self, frame_index):
-        # Determine which raw samples to read, and read them.
-        # Note: self._raw_samples_per_frame can have units of time.
+        # Override base implementation since we need to know the start time
+        # in the underlying frame in order to calculate phases in _integrate.
         raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
         raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
         self._raw_time = self.ih.time
-        n_raw = raw_stop - raw_start
-        # Set up output arrays.
-        out = np.zeros((self.samples_per_frame,) + self.sample_shape,
-                       dtype=self.dtype)
-        if self.average:
-            self._result = out
-            self._count = np.zeros(out.shape[:2] + (1,) * (out.ndim - 2),
-                                   dtype=int)
-        else:
-            self._result = out['data']
-            self._count = out['count']
+        return self._integrating_read(raw_stop - raw_start)
 
-        fake_out = _IntegratorCallBack((n_raw,) + self.ih.sample_shape,
-                                       self._callback)
-        fake_out = self.ih.read(out=fake_out)
-        if self.average:
-            out /= self._count
-
-        return out
-
-    def _callback(self, item, raw):
+    def _integrate(self, item, raw):
         assert type(item) is slice
         # Get sample and phase indices.
         time_offset = np.arange(item.start, item.stop) / self.ih.sample_rate
