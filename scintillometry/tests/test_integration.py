@@ -59,16 +59,17 @@ class TestIntegrate:
         assert np.allclose(data, ref_data)
         assert np.all(count == fh.shape[0])
 
-    def test_integrate_1(self):
+    @pytest.mark.parametrize('n', (1, 3))
+    def test_integrate_n(self, n):
         fh = dada.open(SAMPLE_DADA)
-        raw = fh.read(10)
-        ref_data = np.real(raw * np.conj(raw))
+        raw = fh.read(10 * n)
+        ref_data = np.real(raw * np.conj(raw)).reshape(-1, n, 2).sum(1)
 
         st = Square(fh)
-        ip = Integrate(st, 1./fh.sample_rate, average=False)
+        ip = Integrate(st, n/fh.sample_rate, average=False)
         assert ip.start_time == fh.start_time
         assert (ip.stop_time - fh.stop_time) < 1. * u.ns
-        assert fh.sample_rate == ip.sample_rate
+        assert ip.sample_rate == fh.sample_rate / n
 
         # Square and integrate everything.
         integrated = ip.read(10)
@@ -78,7 +79,12 @@ class TestIntegrate:
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
-        assert np.all(count == 1)
+        assert np.all(count == n)
+
+    def test_time_too_large(self):
+        fh = dada.open(SAMPLE_DADA)
+        with pytest.raises(AssertionError):
+            Integrate(fh, sample_time=1.*u.hr)
 
 
 class TestFoldBase:
@@ -184,3 +190,9 @@ class TestFold(TestFoldBase):
         assert np.all(fr[:, 2:-1] == 0.125), \
             "Average off-gate power is incorrect."
         assert np.all(fr[0, :, 0, 0] == expected)
+
+    def test_time_too_large(self):
+        with pytest.raises(AssertionError):
+            Fold(self.sh, 8, self.phase, sample_time=1.*u.hr)
+        with pytest.raises(AssertionError):
+            Fold(self.sh, 8, self.phase, samples_per_frame=2)
