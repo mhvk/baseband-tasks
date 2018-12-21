@@ -48,6 +48,7 @@ class IntegrateBase(BaseTaskBase):
 
         nsample = int((total_time / sample_time).to_value(1) //
                       samples_per_frame) * samples_per_frame
+        assert nsample > 0, "time per frame larger than total time in stream"
         if sample_shape is None:
             sample_shape = ih.sample_shape
         shape = (nsample,) + sample_shape
