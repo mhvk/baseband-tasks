@@ -227,8 +227,11 @@ class Fold(IntegrateBase):
         assert type(item) is slice
         # Get sample and phase indices.
         time_offset = np.arange(item.start, item.stop) / self.ih.sample_rate
-        sample_index = (time_offset *
-                        self.sample_rate).to_value(u.one).astype(int)
+        if self.samples_per_frame == 1:
+            sample_index = 0
+        else:
+            sample_index = (time_offset *
+                            self.sample_rate).to_value(u.one).astype(int)
         # TODO: allow having a phase reference.
         phases = self.phase(self._raw_time + time_offset)
         phase_index = ((phases.to_value(u.one) * self.n_phase)
