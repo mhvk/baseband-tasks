@@ -27,8 +27,8 @@ class TestIntegrate:
         st = Square(fh)
         ip = Integrate(st)
         assert ip.start_time == fh.start_time
-        assert (ip.stop_time - fh.stop_time) < 1. * u.ns
-        assert (ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
+        assert abs(ip.stop_time - fh.stop_time) < 1. * u.ns
+        assert abs(ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
 
         # Square and integrate everything.
         data = ip.read()
@@ -46,8 +46,8 @@ class TestIntegrate:
         st = Square(fh)
         ip = Integrate(st, average=False)
         assert ip.start_time == fh.start_time
-        assert (ip.stop_time - fh.stop_time) < 1. * u.ns
-        assert (ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
+        assert abs(ip.stop_time - fh.stop_time) < 1. * u.ns
+        assert abs(ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
 
         # Square and integrate everything.
         integrated = ip.read()
@@ -66,9 +66,29 @@ class TestIntegrate:
         ref_data = np.real(raw * np.conj(raw)).reshape(-1, n, 2).sum(1)
 
         st = Square(fh)
+        ip = Integrate(st, n, average=False)
+        assert ip.start_time == fh.start_time
+        assert ip.sample_rate == fh.sample_rate / n
+
+        # Square and integrate everything.
+        integrated = ip.read(10)
+        data = integrated['data']
+        count = integrated['count']
+        assert ip.tell() == 10
+        assert st.dtype is ref_data.dtype is data.dtype
+        assert data.shape == ref_data.shape
+        assert np.allclose(data, ref_data)
+        assert np.all(count == n)
+
+    @pytest.mark.parametrize('n', (1, 3))
+    def test_integrate_n_via_time(self, n):
+        fh = dada.open(SAMPLE_DADA)
+        raw = fh.read(10 * n)
+        ref_data = np.real(raw * np.conj(raw)).reshape(-1, n, 2).sum(1)
+
+        st = Square(fh)
         ip = Integrate(st, n/fh.sample_rate, average=False)
         assert ip.start_time == fh.start_time
-        assert (ip.stop_time - fh.stop_time) < 1. * u.ns
         assert ip.sample_rate == fh.sample_rate / n
 
         # Square and integrate everything.
@@ -84,7 +104,7 @@ class TestIntegrate:
     def test_time_too_large(self):
         fh = dada.open(SAMPLE_DADA)
         with pytest.raises(AssertionError):
-            Integrate(fh, sample_time=1.*u.hr)
+            Integrate(fh, n_sample=1.*u.hr)
 
 
 class TestFoldBase:
@@ -119,9 +139,9 @@ class TestFold(TestFoldBase):
         # Check if the input data is set up right.
         assert len(pulses) == 8, "Pulses are not simulated right."
 
-    def test_sample_time_shorter_than_period(self):
-        sample_time = 11 * u.ms
-        fh = Fold(self.sh, self.n_phase, self.phase, sample_time,
+    def test_n_sample_shorter_than_period(self):
+        n_sample = 11 * u.ms
+        fh = Fold(self.sh, self.n_phase, self.phase, n_sample,
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(3)
@@ -133,16 +153,16 @@ class TestFold(TestFoldBase):
 
         # For each of the samples, check that the correct ones have not
         # gotten any data.
-        eff_n_phase = (sample_time * self.F0 * self.n_phase).to_value(1)
+        eff_n_phase = (n_sample * self.F0 * self.n_phase).to_value(1)
         for ii, count in enumerate(fr_count):
             n_count_0 = (count == 0).sum()
             assert np.isclose(self.n_phase - n_count_0, eff_n_phase, 1), \
                 ("Sample {} has the wrong number of zero-count phase bins"
                  .format(ii))
 
-    def test_sample_time_longer_than_period(self):
-        sample_time = 26 * u.ms
-        fh = Fold(self.sh, self.n_phase, self.phase, sample_time,
+    def test_n_sample_longer_than_period(self):
+        n_sample = 26 * u.ms
+        fh = Fold(self.sh, self.n_phase, self.phase, n_sample,
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(10)
@@ -163,7 +183,7 @@ class TestFold(TestFoldBase):
 
     def test_folding_with_averaging(self):
         # Test averaging
-        fh = Fold(self.sh, self.n_phase, self.phase, sample_time=26 * u.ms,
+        fh = Fold(self.sh, self.n_phase, self.phase, n_sample=26 * u.ms,
                   samples_per_frame=20, average=True)
         fh.seek(0)
         fr = fh.read(10)
@@ -171,8 +191,8 @@ class TestFold(TestFoldBase):
             "Average off-gate power is incorrect."
 
     def test_non_integer_sample_rate_ratio(self):
-        sample_time = (1./3.) * u.s
-        fh = Fold(self.sh, self.n_phase, self.phase, sample_time, average=True)
+        n_sample = (1./3.) * u.s
+        fh = Fold(self.sh, self.n_phase, self.phase, n_sample, average=True)
         fr = fh.read(1)
         assert np.all(fr[:, 2:-1] == 0.125), \
             "Average off-gate power is incorrect."
@@ -193,6 +213,6 @@ class TestFold(TestFoldBase):
 
     def test_time_too_large(self):
         with pytest.raises(AssertionError):
-            Fold(self.sh, 8, self.phase, sample_time=1.*u.hr)
+            Fold(self.sh, 8, self.phase, n_sample=1.*u.hr)
         with pytest.raises(AssertionError):
             Fold(self.sh, 8, self.phase, samples_per_frame=2)

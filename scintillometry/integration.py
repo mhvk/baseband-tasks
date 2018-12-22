@@ -1,6 +1,8 @@
 # Licensed under the GPLv3 - see LICENSE
 """Tasks for integration over time and pulse phase."""
 
+import operator
+
 import numpy as np
 import astropy.units as u
 from astropy.utils import ShapedLikeNDArray
@@ -37,21 +39,30 @@ class _FakeOutput(ShapedLikeNDArray):
 class IntegrateBase(Base):
     """Base class for integrations over fixed sample times."""
 
-    def __init__(self, ih, sample_time=None, average=True,
+    def __init__(self, ih, n_sample=None, average=True,
                  samples_per_frame=1, sample_shape=None, dtype=None):
         self.ih = ih
         self.average = average
 
         total_time = ih.stop_time - ih.start_time
-        if sample_time is None:
-            sample_time = total_time
+        if n_sample is None:
+            n_sample = self.ih.shape[0]
 
-        nsample = int((total_time / sample_time).to_value(1) //
-                      samples_per_frame) * samples_per_frame
-        assert nsample > 0, "time per frame larger than total time in stream"
+        try:
+            n_sample = operator.index(n_sample)
+        except TypeError:
+            sample_rate = 1. / n_sample
+            nframes = int((total_time / n_sample).to_value(u.one))
+        else:
+            sample_rate = self.ih.sample_rate / n_sample
+            nframes = self.ih.shape[0] // n_sample
+
         if sample_shape is None:
             sample_shape = ih.sample_shape
-        shape = (nsample,) + sample_shape
+
+        nframes = (nframes // samples_per_frame) * samples_per_frame
+        assert nframes > 0, "time per frame larger than total time in stream"
+        shape = (nframes,) + sample_shape
 
         if dtype is None:
             if average:
@@ -64,17 +75,18 @@ class IntegrateBase(Base):
         polarization = getattr(ih, 'polarization', None)
 
         super().__init__(start_time=ih.start_time,
-                         shape=shape, sample_rate=1./sample_time,
+                         shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
-        self._raw_samples_per_frame = samples_per_frame * sample_time
+        self._n_sample = n_sample
+        self._raw_samples_per_frame = samples_per_frame * n_sample
 
     def _read_frame(self, frame_index):
         """Determine which raw samples to read, and read them using integrating read.
 
-        This base implementation uses the default ``_raw_samples_per_frame`` attribute,
-        which will generally have units of time.
+        This base implementation uses the default ``_raw_samples_per_frame`` attribute;
+        note that this can have units of time.
         """
         # Use seek to find the stop and start positions; this will round to the
         # nearest offset if necessary.
@@ -117,8 +129,9 @@ class Integrate(IntegrateBase):
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
-    sample_time : `~astropy.units.Quantity`, optional
-        With units of time.  By default, will integrate the whole input stream.
+    n_sample : int or `~astropy.units.Quantity`, optional
+        Number of input samples or time interval over which to integrate.
+        If not given, the whole file will be integrated over.
     average : bool, optional
         Whether to calculate sums (with a ``count`` attribute) or to average
         values.
@@ -130,19 +143,21 @@ class Integrate(IntegrateBase):
 
     Notes
     -----
-    Since the sample time is not necessarily an integer multiple of the pulse
-    period, the returned profiles will generally not contain the same number
-    of samples in each phase bin.  The actual number of samples is counted,
-    and for ``average=True``, the sums have been divided by these counts, with
-    bins with no points set to ``NaN``.  For ``average=False``, the arrays
-    returned by ``read`` are structured arrays with ``data`` and ``count``
-    fields.
+
+    If ``n_sample`` is a time interval and not an integer multiple of the
+    sample time of the underlying file, the returned integrated samples may
+    not all contain the same number of samples.  The actual number of samples
+    is counted, and for ``average=True``, the sums have been divided by these
+    counts, with bins with no points set to ``NaN``.  For ``average=False``,
+    the arrays returned by ``read`` are structured arrays with ``data`` and
+    ``count`` fields.
 
     .. warning: The format for ``average=False`` may change in the future.
+
     """
 
-    def __init__(self, ih, sample_time=None, average=True, dtype=None):
-        super().__init__(ih, sample_time=sample_time, average=average, dtype=dtype)
+    def __init__(self, ih, n_sample=None, average=True, dtype=None):
+        super().__init__(ih, n_sample=n_sample, average=average, dtype=dtype)
 
     def _integrate(self, item, data):
         assert type(item) is slice
@@ -163,8 +178,8 @@ class Fold(IntegrateBase):
         Should return pulse phases for given input time(s), passed in as an
         '~astropy.time.Time' object.  The output should be an array of float;
         the phase can include the cycle count.
-    sample_time : `~astropy.units.Quantity`, optional
-        Time interval over which to fold, i.e., the sample time of the output.
+    n_sample : int or `~astropy.units.Quantity`, optional
+        Number of input samples or time interval over which to fold.
         If not given, the whole file will be folded into a single profile.
     average : bool, optional
         Whether the output pulse profile should be the average of all entries
@@ -191,12 +206,12 @@ class Fold(IntegrateBase):
 
     .. warning: The format for ``average=False`` may change in the future.
     """
-    def __init__(self, ih, n_phase, phase, sample_time=None, average=True,
+    def __init__(self, ih, n_phase, phase, n_sample=None, average=True,
                  samples_per_frame=1, dtype=None):
         self.n_phase = n_phase
         self.phase = phase
 
-        super().__init__(ih, sample_time=sample_time, average=average,
+        super().__init__(ih, n_sample=n_sample, average=average,
                          sample_shape=(n_phase,) + ih.sample_shape,
                          samples_per_frame=samples_per_frame, dtype=dtype)
 
