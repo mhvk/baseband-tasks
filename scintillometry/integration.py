@@ -85,16 +85,17 @@ class IntegrateBase(Base):
     def _read_frame(self, frame_index):
         """Determine which raw samples to read, and read them using integrating read.
 
-        This base implementation uses the default ``_raw_samples_per_frame`` attribute;
+        Uses the ``_n_sample`` attribute to seek in the underlying stream;
         note that this can have units of time.
         """
+        base_offset = frame_index * self.samples_per_frame
+        raw_offsets = [self.ih.seek((base_offset + i) * self._n_sample)
+                       for i in range(self.samples_per_frame + 1)]
         # Use seek to find the stop and start positions; this will round to the
         # nearest offset if necessary.
-        raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
-        raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
-        return self._integrating_read(raw_stop - raw_start)
+        return self._integrating_read(*raw_offsets)
 
-    def _integrating_read(self, n_raw):
+    def _integrating_read(self, *raw_offsets):
         """Set up fake output for a read from the underlying stream.
 
         Subclasses have to provide an ``_integrate method`` which will be
@@ -110,10 +111,12 @@ class IntegrateBase(Base):
             self._result = out['data']
             self._count = out['count']
 
+        self.ih.seek(raw_offsets[0])
+        self._offsets = [(off - raw_offsets[0]) for off in raw_offsets]
         # Set up fake output with a shape that tells read how many samples to read
         # (and a remaining part that should pass consistency checks), plus a
         # call-back for out[...]=....
-        integrating_out = _FakeOutput((n_raw,) + self.ih.sample_shape,
+        integrating_out = _FakeOutput((self._offsets[-1],) + self.ih.sample_shape,
                                       self._integrate)
         self.ih.read(out=integrating_out)
         if self.average:
@@ -156,13 +159,18 @@ class Integrate(IntegrateBase):
 
     """
 
-    def __init__(self, ih, n_sample=None, average=True, dtype=None):
-        super().__init__(ih, n_sample=n_sample, average=average, dtype=dtype)
+    def __init__(self, ih, n_sample=None, average=True, samples_per_frame=1,
+                 dtype=None):
+        super().__init__(ih, n_sample=n_sample, average=average,
+                         samples_per_frame=samples_per_frame, dtype=dtype)
 
     def _integrate(self, item, data):
         assert type(item) is slice
-        self._result[:] += data.sum(0, keepdims=True)
-        self._count[:] += len(data)
+        indices = [0] + [(i - item.start) for i in self._offsets
+                         if item.start < i < item.stop]
+        self._result[:] += np.add.reduceat(data, indices)
+        self._count[:] += (np.diff(indices + [item.stop])
+                           .reshape((-1,) + (1,) * (self._count.ndim - 1)))
 
 
 class Fold(IntegrateBase):
@@ -221,7 +229,7 @@ class Fold(IntegrateBase):
         raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
         raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
         self._raw_time = self.ih.time
-        return self._integrating_read(raw_stop - raw_start)
+        return self._integrating_read(raw_start, raw_stop)
 
     def _integrate(self, item, raw):
         assert type(item) is slice

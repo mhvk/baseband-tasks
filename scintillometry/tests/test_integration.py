@@ -59,14 +59,16 @@ class TestIntegrate:
         assert np.allclose(data, ref_data)
         assert np.all(count == fh.shape[0])
 
+    @pytest.mark.parametrize('samples_per_frame', (1, 4, 10))
     @pytest.mark.parametrize('n', (1, 3))
-    def test_integrate_n(self, n):
+    def test_integrate_n(self, n, samples_per_frame):
         fh = dada.open(SAMPLE_DADA)
         raw = fh.read(10 * n)
         ref_data = np.real(raw * np.conj(raw)).reshape(-1, n, 2).sum(1)
 
         st = Square(fh)
-        ip = Integrate(st, n, average=False)
+        ip = Integrate(st, n, average=False,
+                       samples_per_frame=samples_per_frame)
         assert ip.start_time == fh.start_time
         assert ip.sample_rate == fh.sample_rate / n
 
@@ -80,14 +82,16 @@ class TestIntegrate:
         assert np.allclose(data, ref_data)
         assert np.all(count == n)
 
+    @pytest.mark.parametrize('samples_per_frame', (1, 4, 10))
     @pytest.mark.parametrize('n', (1, 3))
-    def test_integrate_n_via_time(self, n):
+    def test_integrate_n_via_time(self, n, samples_per_frame):
         fh = dada.open(SAMPLE_DADA)
         raw = fh.read(10 * n)
         ref_data = np.real(raw * np.conj(raw)).reshape(-1, n, 2).sum(1)
 
         st = Square(fh)
-        ip = Integrate(st, n/fh.sample_rate, average=False)
+        ip = Integrate(st, n/fh.sample_rate, average=False,
+                       samples_per_frame=samples_per_frame)
         assert ip.start_time == fh.start_time
         assert ip.sample_rate == fh.sample_rate / n
 
@@ -100,6 +104,35 @@ class TestIntegrate:
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
         assert np.all(count == n)
+
+    @pytest.mark.parametrize('samples_per_frame', (1, 4, 10))
+    def test_integrate_time_non_integer_ratio(self, samples_per_frame):
+        # Getting non-integer number of samples.  With 2.26,
+        # 1st sample will be 0.00 - 2.26 -> 2 samples;
+        # 2nd ..             2.26 - 4.52 -> 3 samples;
+        # 3rd ..             4.52 - 6.78 -> 2 samples; etc.
+        expected_count = [2, 3, 2, 2, 2, 3, 2, 2]
+        n_sample = 2.26
+        fh = dada.open(SAMPLE_DADA)
+        raw = fh.read(18)
+        ref_data = np.add.reduceat(np.real(raw * np.conj(raw)),
+                                   np.add.accumulate([0] + expected_count[:-1]))
+
+        st = Square(fh)
+        ip = Integrate(st, n_sample / fh.sample_rate, average=False,
+                       samples_per_frame=samples_per_frame)
+        assert ip.start_time == fh.start_time
+        assert ip.sample_rate == fh.sample_rate / n_sample
+
+        # Square and integrate everything.
+        integrated = ip.read(8)
+        data = integrated['data']
+        count = integrated['count']
+        assert ip.tell() == 8
+        assert st.dtype is ref_data.dtype is data.dtype
+        assert data.shape == ref_data.shape
+        assert np.allclose(data, ref_data)
+        assert np.all(count.T == expected_count)
 
     def test_time_too_large(self):
         fh = dada.open(SAMPLE_DADA)
