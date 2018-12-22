@@ -230,6 +230,8 @@ class Fold(IntegrateBase):
         if self.samples_per_frame == 1:
             sample_index = 0
         else:
+            # This is not quite correct: should take into account possible
+            # time offset between self and underlying stream.
             sample_index = (time_offset *
                             self.sample_rate).to_value(u.one).astype(int)
         # TODO: allow having a phase reference.
