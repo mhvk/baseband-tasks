@@ -36,11 +36,41 @@ class _FakeOutput(ShapedLikeNDArray):
         raise NotImplementedError("No _apply possible for _FakeOutput")
 
 
-class IntegrateBase(Base):
-    """Base class for integrations over fixed sample times."""
+class Integrate(Base):
+    """Integrate a stream over specific time steps.
 
-    def __init__(self, ih, n_sample=None, average=True,
-                 samples_per_frame=1, sample_shape=None, dtype=None):
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    n_sample : int or `~astropy.units.Quantity`, optional
+        Number of input samples or time interval over which to integrate.
+        If not given, the whole file will be integrated over.
+    average : bool, optional
+        Whether to calculate sums (with a ``count`` attribute) or to average
+        values.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  Generally, the default of the dtype of the underlying
+        stream is good enough, but can be used to increase precision.  Note
+        that if ``average=True``, it is the user's responsibilty to pass in
+        a structured dtype.
+
+    Notes
+    -----
+
+    If ``n_sample`` is a time interval and not an integer multiple of the
+    sample time of the underlying file, the returned integrated samples may
+    not all contain the same number of samples.  The actual number of samples
+    is counted, and for ``average=True``, the sums have been divided by these
+    counts, with bins with no points set to ``NaN``.  For ``average=False``,
+    the arrays returned by ``read`` are structured arrays with ``data`` and
+    ``count`` fields.
+
+    .. warning: The format for ``average=False`` may change in the future.
+
+    """
+    def __init__(self, ih, n_sample=None, average=True, samples_per_frame=1,
+                 dtype=None):
         self.ih = ih
         self.average = average
 
@@ -57,12 +87,9 @@ class IntegrateBase(Base):
             sample_rate = self.ih.sample_rate / n_sample
             nframes = self.ih.shape[0] // n_sample
 
-        if sample_shape is None:
-            sample_shape = ih.sample_shape
-
         nframes = (nframes // samples_per_frame) * samples_per_frame
         assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes,) + sample_shape
+        shape = (nframes,) + ih.sample_shape
 
         if dtype is None:
             if average:
@@ -80,7 +107,6 @@ class IntegrateBase(Base):
                          frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
         self._n_sample = n_sample
-        self._raw_samples_per_frame = samples_per_frame * n_sample
 
     def _read_frame(self, frame_index):
         """Determine which raw samples to read, and read them using integrating read.
@@ -121,46 +147,6 @@ class IntegrateBase(Base):
 
         return out
 
-
-class Integrate(IntegrateBase):
-    """Integrate a stream over specific time steps.
-
-    Parameters
-    ----------
-    ih : task or `baseband` stream reader
-        Input data stream, with time as the first axis.
-    n_sample : int or `~astropy.units.Quantity`, optional
-        Number of input samples or time interval over which to integrate.
-        If not given, the whole file will be integrated over.
-    average : bool, optional
-        Whether to calculate sums (with a ``count`` attribute) or to average
-        values.
-    dtype : `~numpy.dtype`, optional
-        Output dtype.  Generally, the default of the dtype of the underlying
-        stream is good enough, but can be used to increase precision.  Note
-        that if ``average=True``, it is the user's responsibilty to pass in
-        a structured dtype.
-
-    Notes
-    -----
-
-    If ``n_sample`` is a time interval and not an integer multiple of the
-    sample time of the underlying file, the returned integrated samples may
-    not all contain the same number of samples.  The actual number of samples
-    is counted, and for ``average=True``, the sums have been divided by these
-    counts, with bins with no points set to ``NaN``.  For ``average=False``,
-    the arrays returned by ``read`` are structured arrays with ``data`` and
-    ``count`` fields.
-
-    .. warning: The format for ``average=False`` may change in the future.
-
-    """
-
-    def __init__(self, ih, n_sample=None, average=True, samples_per_frame=1,
-                 dtype=None):
-        super().__init__(ih, n_sample=n_sample, average=average,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
-
     def _integrate(self, item, data):
         assert type(item) is slice
         # Have offsets for raw frames 0, f1, f2, ..., fn.  Need to select all
@@ -175,7 +161,7 @@ class Integrate(IntegrateBase):
                                     .reshape((-1,) + (1,) * (self._count.ndim - 1)))
 
 
-class Fold(IntegrateBase):
+class Fold(Integrate):
     """Fold pulse profiles in fixed time intervals.
 
     Parameters
@@ -220,14 +206,15 @@ class Fold(IntegrateBase):
                  samples_per_frame=1, dtype=None):
         self.n_phase = n_phase
         self.phase = phase
-
+        # First set up as for integration.
         super().__init__(ih, n_sample=n_sample, average=average,
-                         sample_shape=(n_phase,) + ih.sample_shape,
                          samples_per_frame=samples_per_frame, dtype=dtype)
+        # But then adjust the shape to take into account that we're folding.
+        self._shape = (self._shape[0], n_phase) + ih.sample_shape
 
     def _read_frame(self, frame_index):
-        # Override base implementation since we need to know the start time
-        # in the underlying frame in order to calculate phases in _integrate.
+        # Before calling the base implementation, get the start time in the
+        # underlying frame, which we need to calculate phases in _integrate.
         self.ih.seek(frame_index * self._n_sample * self.samples_per_frame)
         self._raw_time = self.ih.time
         return super()._read_frame(frame_index)
