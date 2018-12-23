@@ -43,7 +43,7 @@ class Integrate(Base):
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
-    n_sample : int or `~astropy.units.Quantity`, optional
+    step : int or `~astropy.units.Quantity`, optional
         Number of input samples or time interval over which to integrate.
         If not given, the whole file will be integrated over.
     average : bool, optional
@@ -58,7 +58,7 @@ class Integrate(Base):
     Notes
     -----
 
-    If ``n_sample`` is a time interval and not an integer multiple of the
+    If ``step`` is a time interval and not an integer multiple of the
     sample time of the underlying file, the returned integrated samples may
     not all contain the same number of samples.  The actual number of samples
     is counted, and for ``average=True``, the sums have been divided by these
@@ -69,23 +69,23 @@ class Integrate(Base):
     .. warning: The format for ``average=False`` may change in the future.
 
     """
-    def __init__(self, ih, n_sample=None, average=True, samples_per_frame=1,
+    def __init__(self, ih, step=None, average=True, samples_per_frame=1,
                  dtype=None):
         self.ih = ih
         self.average = average
 
         total_time = ih.stop_time - ih.start_time
-        if n_sample is None:
-            n_sample = self.ih.shape[0]
+        if step is None:
+            step = self.ih.shape[0]
 
         try:
-            n_sample = operator.index(n_sample)
+            step = operator.index(step)
         except TypeError:
-            sample_rate = 1. / n_sample
-            nframes = int((total_time / n_sample).to_value(u.one))
+            sample_rate = 1. / step
+            nframes = int((total_time / step).to_value(u.one))
         else:
-            sample_rate = self.ih.sample_rate / n_sample
-            nframes = self.ih.shape[0] // n_sample
+            sample_rate = self.ih.sample_rate / step
+            nframes = self.ih.shape[0] // step
 
         nframes = (nframes // samples_per_frame) * samples_per_frame
         assert nframes > 0, "time per frame larger than total time in stream"
@@ -106,12 +106,12 @@ class Integrate(Base):
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
-        self._n_sample = n_sample
+        self._step = step
 
     def _read_frame(self, frame_index):
         """Determine which raw samples to read, and read them using integrating read.
 
-        Uses the ``_n_sample`` attribute to seek in the underlying stream;
+        Uses the ``_step`` attribute to seek in the underlying stream;
         note that this can have units of time.
 
         Subclasses have to provide an ``_integrate method`` which will be
@@ -120,7 +120,7 @@ class Integrate(Base):
         # Use seek to find the positions of all the output samples; this will
         # round to the nearest offset in the raw stream if necessary.
         base_offset = frame_index * self.samples_per_frame
-        offsets = np.array([self.ih.seek((base_offset + i) * self._n_sample)
+        offsets = np.array([self.ih.seek((base_offset + i) * self._step)
                             for i in range(self.samples_per_frame + 1)])
         self.ih.seek(offsets[0])
         offsets -= offsets[0]
@@ -174,7 +174,7 @@ class Fold(Integrate):
         Should return pulse phases for given input time(s), passed in as an
         '~astropy.time.Time' object.  The output should be an array of float;
         the phase can include the cycle count.
-    n_sample : int or `~astropy.units.Quantity`, optional
+    step : int or `~astropy.units.Quantity`, optional
         Number of input samples or time interval over which to fold.
         If not given, the whole file will be folded into a single profile.
     average : bool, optional
@@ -202,12 +202,12 @@ class Fold(Integrate):
 
     .. warning: The format for ``average=False`` may change in the future.
     """
-    def __init__(self, ih, n_phase, phase, n_sample=None, average=True,
+    def __init__(self, ih, n_phase, phase, step=None, average=True,
                  samples_per_frame=1, dtype=None):
         self.n_phase = n_phase
         self.phase = phase
         # First set up as for integration.
-        super().__init__(ih, n_sample=n_sample, average=average,
+        super().__init__(ih, step=step, average=average,
                          samples_per_frame=samples_per_frame, dtype=dtype)
         # But then adjust the shape to take into account that we're folding.
         self._shape = (self._shape[0], n_phase) + ih.sample_shape
@@ -215,7 +215,7 @@ class Fold(Integrate):
     def _read_frame(self, frame_index):
         # Before calling the base implementation, get the start time in the
         # underlying frame, which we need to calculate phases in _integrate.
-        self.ih.seek(frame_index * self._n_sample * self.samples_per_frame)
+        self.ih.seek(frame_index * self._step * self.samples_per_frame)
         self._raw_time = self.ih.time
         return super()._read_frame(frame_index)
 

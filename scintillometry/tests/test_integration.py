@@ -129,15 +129,15 @@ class TestIntegrate(TestFakePulsarBase):
         # 2nd ..             2.26 - 4.52 -> 3 samples;
         # 3rd ..             4.52 - 6.78 -> 2 samples; etc.
         expected_count = [2, 3, 2, 2, 2, 3, 2, 2]
-        n_sample = 2.26
+        step = 2.26
         raw = self.raw_power[:18]
         ref_data = np.add.reduceat(raw, np.add.accumulate([0] + expected_count[:-1]))
 
         st = Square(self.sh)
-        ip = Integrate(st, n_sample / self.sh.sample_rate, average=False,
+        ip = Integrate(st, step / self.sh.sample_rate, average=False,
                        samples_per_frame=samples_per_frame)
         assert ip.start_time == self.sh.start_time
-        assert ip.sample_rate == self.sh.sample_rate / n_sample
+        assert ip.sample_rate == self.sh.sample_rate / step
 
         # Square and integrate everything.
         integrated = ip.read(8)
@@ -151,7 +151,7 @@ class TestIntegrate(TestFakePulsarBase):
 
     def test_time_too_large(self):
         with pytest.raises(AssertionError):
-            Integrate(self.sh, n_sample=1.*u.hr)
+            Integrate(self.sh, step=1.*u.hr)
 
 
 class TestFold(TestFakePulsarBase):
@@ -161,9 +161,9 @@ class TestFold(TestFakePulsarBase):
         # Check if the input data is set up right.
         assert len(pulses) == 8, "Pulses are not simulated right."
 
-    def test_n_sample_shorter_than_period(self):
-        n_sample = 11 * u.ms
-        fh = Fold(self.sh, self.n_phase, self.phase, n_sample,
+    def test_step_shorter_than_period(self):
+        step = 11 * u.ms
+        fh = Fold(self.sh, self.n_phase, self.phase, step,
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(3)
@@ -175,16 +175,16 @@ class TestFold(TestFakePulsarBase):
 
         # For each of the samples, check that the correct ones have not
         # gotten any data.
-        eff_n_phase = (n_sample * self.F0 * self.n_phase).to_value(1)
+        eff_n_phase = (step * self.F0 * self.n_phase).to_value(1)
         for ii, count in enumerate(fr_count):
             n_count_0 = (count == 0).sum()
             assert np.isclose(self.n_phase - n_count_0, eff_n_phase, 1), \
                 ("Sample {} has the wrong number of zero-count phase bins"
                  .format(ii))
 
-    def test_n_sample_longer_than_period(self):
-        n_sample = 26 * u.ms
-        fh = Fold(self.sh, self.n_phase, self.phase, n_sample,
+    def test_step_longer_than_period(self):
+        step = 26 * u.ms
+        fh = Fold(self.sh, self.n_phase, self.phase, step,
                   samples_per_frame=1, average=False)
         fh.seek(0)
         fr = fh.read(10)
@@ -205,7 +205,7 @@ class TestFold(TestFakePulsarBase):
 
     def test_folding_with_averaging(self):
         # Test averaging
-        fh = Fold(self.sh, self.n_phase, self.phase, n_sample=26 * u.ms,
+        fh = Fold(self.sh, self.n_phase, self.phase, step=26 * u.ms,
                   samples_per_frame=20, average=True)
         fh.seek(0)
         fr = fh.read(10)
@@ -213,8 +213,8 @@ class TestFold(TestFakePulsarBase):
             "Average off-gate power is incorrect."
 
     def test_non_integer_sample_rate_ratio(self):
-        n_sample = (1./3.) * u.s
-        fh = Fold(self.sh, self.n_phase, self.phase, n_sample, average=True)
+        step = (1./3.) * u.s
+        fh = Fold(self.sh, self.n_phase, self.phase, step, average=True)
         fr = fh.read(1)
         assert np.all(fr[:, 2:-1] == 0.125), \
             "Average off-gate power is incorrect."
@@ -235,6 +235,6 @@ class TestFold(TestFakePulsarBase):
 
     def test_time_too_large(self):
         with pytest.raises(AssertionError):
-            Fold(self.sh, 8, self.phase, n_sample=1.*u.hr)
+            Fold(self.sh, 8, self.phase, step=1.*u.hr)
         with pytest.raises(AssertionError):
             Fold(self.sh, 8, self.phase, samples_per_frame=2)
