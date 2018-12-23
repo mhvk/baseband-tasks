@@ -262,9 +262,9 @@ class IntegrateByPhase(Integrate):
 
     def _read_frame(self, frame_index):
         sample0 = frame_index * self.samples_per_frame
-        offsets = np.array([self._seek_phase(self._start_phase +
-                                             (sample0 + i) / self._sample_rate)
-                            for i in range(self.samples_per_frame + 1)])
+        phases = self._start_phase + np.arange(
+            sample0, sample0 + self.samples_per_frame + 1) / self._sample_rate
+        offsets = self._seek_phase(phases)
         self.ih.seek(offsets[0])
         offsets -= offsets[0]
         out = self._integrating_read(offsets)
@@ -272,13 +272,21 @@ class IntegrateByPhase(Integrate):
 
     def _seek_phase(self, phase):
         """Seek to the raw sample nearest to phase."""
-        self.ih.seek(self._raw_offset)
-        guess_offset = int(((phase - self._raw_phase) *
-                            self._raw_mean_step_phase).to(u.one).round())
-        while guess_offset:
-            self._raw_offset = self.ih.seek(guess_offset, whence=1)
-            self._raw_phase = self.phase(self.ih.time)
-            guess_offset = int(((phase - self._raw_phase) *
-                                self._raw_mean_step_phase).to(u.one).round())
+        # raw_offset = np.full(phase.shape, self._raw_offset, dtype=int)
+        raw_offset = self._raw_offset
+        raw_phase = self._raw_phase
+        guess_offset = ((phase - raw_phase) *
+                        self._raw_mean_step_phase).to_value(u.one).round().astype(int)
+        mask = guess_offset != 0
+        while np.any(mask):
+            raw_offset += guess_offset
+            # Use mask to avoid calculating more phases than necessary.
+            raw_time = self.ih.start_time + raw_offset[mask] / self.ih.sample_rate
+            raw_phase = self.phase(raw_time)
+            guess_offset[mask] = ((phase[mask] - raw_phase) *
+                                  self._raw_mean_step_phase).to_value(u.one).round()
+            mask = guess_offset != 0
 
-        return self._raw_offset
+        self._raw_offset = raw_offset[-1] if phase.shape else raw_offset
+        self._raw_phase = raw_phase[-1] if phase.shape else raw_phase
+        return raw_offset
