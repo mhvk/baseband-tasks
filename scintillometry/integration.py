@@ -10,7 +10,7 @@ from astropy.utils import ShapedLikeNDArray
 from .base import BaseTaskBase
 
 
-__all__ = ['Integrate', 'Fold']
+__all__ = ['Integrate', 'Fold', 'IntegrateByPhase']
 
 
 class _FakeOutput(ShapedLikeNDArray):
@@ -117,6 +117,9 @@ class Integrate(BaseTaskBase):
                             for i in range(self.samples_per_frame + 1)])
         self.ih.seek(offsets[0])
         offsets -= offsets[0]
+        return self._integrating_read(offsets)
+
+    def _integrating_read(self, offsets):
         # Set up real output.
         out = np.zeros((self.samples_per_frame,) + self.sample_shape,
                        dtype=self.dtype)
@@ -144,11 +147,12 @@ class Integrate(BaseTaskBase):
         assert type(item) is slice
         # Have offsets for raw frames 0, f1, f2, ..., fn.  Need to select all
         # that have any overlap with start, stop.
-        start = np.searchsorted(self._offsets[1:], item.start, side='left')
-        stop = np.searchsorted(self._offsets[:-1], item.stop, side='right')
+        start = np.searchsorted(self._offsets[1:], item.start, side='right')
+        stop = np.searchsorted(self._offsets[:-1], item.stop, side='left')
         indices = self._offsets[start:stop + 1] - item.start  # Don't do in-place!
         indices[0] = 0
         indices[-1] = item.stop - item.start
+        print(item, self._offsets, indices)
         self._result[start:stop] += np.add.reduceat(data, indices[:-1])
         self._count[start:stop] += (np.diff(indices)
                                     .reshape((-1,) + (1,) * (self._count.ndim - 1)))
@@ -229,3 +233,52 @@ class Fold(Integrate):
         # TODO: np.add.at is not very efficient; replace?
         np.add.at(self._result, (sample_index, phase_index), raw)
         np.add.at(self._count, (sample_index, phase_index), 1)
+
+
+class IntegrateByPhase(Integrate):
+    def __init__(self, ih, n_phase, phase, average=True,
+                 samples_per_frame=1, dtype=None):
+        self.phase = phase
+        start_phase = phase(ih.start_time)
+        stop_phase = phase(ih.stop_time)
+        step_phase = 1. / n_phase
+
+        mean_time_step = ((ih.stop_time - ih.start_time) /
+                          ((stop_phase - start_phase) / step_phase))
+        super().__init__(ih, step=mean_time_step,
+                         average=average, samples_per_frame=samples_per_frame,
+                         dtype=dtype)
+        self._start_phase = start_phase
+        self._raw_mean_step_phase = (mean_time_step / step_phase *
+                                     self.ih.sample_rate)  # bin/cycle
+        self._raw_offset = 0
+        self._raw_phase = start_phase
+        self._sample_rate = 1. / step_phase
+        self._stop_time = self.start_time + self.shape[0] * mean_time_step
+
+    @property
+    def stop_time(self):
+        return self._stop_time
+
+    def _read_frame(self, frame_index):
+        sample0 = frame_index * self.samples_per_frame
+        offsets = np.array([self._seek_phase(self._start_phase +
+                                             (sample0 + i) / self._sample_rate)
+                            for i in range(self.samples_per_frame + 1)])
+        self.ih.seek(offsets[0])
+        offsets -= offsets[0]
+        out = self._integrating_read(offsets)
+        return out
+
+    def _seek_phase(self, phase):
+        """Seek to the raw sample nearest to phase."""
+        self.ih.seek(self._raw_offset)
+        guess_offset = int(((phase - self._raw_phase) *
+                            self._raw_mean_step_phase).to(u.one).round())
+        while guess_offset:
+            self._raw_offset = self.ih.seek(guess_offset, whence=1)
+            self._raw_phase = self.phase(self.ih.time)
+            guess_offset = int(((phase - self._raw_phase) *
+                                self._raw_mean_step_phase).to(u.one).round())
+
+        return self._raw_offset
