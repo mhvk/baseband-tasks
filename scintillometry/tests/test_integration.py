@@ -6,29 +6,52 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
-from baseband.data import SAMPLE_DADA
-from baseband import dada
-
 from ..base import Task
 from ..generators import EmptyStreamGenerator
 from ..integration import Integrate, Fold
 from ..functions import Square
 
 
-class TestIntegrate:
+class TestFakePulsarBase:
+    def setup(self):
+        self.start_time = Time('2010-11-12T13:14:15')
+        self.sample_rate = 10. * u.kHz
+        self.shape = (16000, 2)
+        self.eh = EmptyStreamGenerator(shape=self.shape,
+                                       start_time=self.start_time,
+                                       sample_rate=self.sample_rate,
+                                       samples_per_frame=200, dtype=np.float)
+        self.sh = Task(self.eh, self.pulse_simulate)
+        self.period_bin = 125
+        self.F0 = 1.0 / (self.period_bin / self.sh.sample_rate)
+        self.n_phase = 50
+        self.raw_data = self.sh.read()
+        self.raw_power = np.abs(self.raw_data)**2
+        self.sh.seek(0)
+
+    def phase(self, t):
+        return self.F0 * (t - self.start_time)
+
+    def pulse_simulate(self, fh, data):
+        idx = fh.tell() + np.arange(data.shape[0])
+        result = np.where(idx % self.period_bin == 0, 10., 0.125)
+        result.shape = (-1,) + (1,) * (data.ndim - 1)
+        data[:] = result
+        return data
+
+
+class TestIntegrate(TestFakePulsarBase):
     """Test integrating intensities using Baseband's sample DADA file."""
 
     def test_integrate_all(self):
         # Load baseband file and get reference intensities.
-        fh = dada.open(SAMPLE_DADA)
-        raw = fh.read()
-        ref_data = np.real(raw * np.conj(raw)).mean(0)
+        ref_data = self.raw_power.mean(0)
 
-        st = Square(fh)
+        st = Square(self.sh)
         ip = Integrate(st)
-        assert ip.start_time == fh.start_time
-        assert abs(ip.stop_time - fh.stop_time) < 1. * u.ns
-        assert abs(ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
+        assert ip.start_time == self.sh.start_time
+        assert abs(ip.stop_time - self.sh.stop_time) < 1. * u.ns
+        assert abs(ip.stop_time - self.sh.start_time - 1./ip.sample_rate) < 1. * u.ns
 
         # Square and integrate everything.
         data = ip.read()
@@ -39,15 +62,13 @@ class TestIntegrate:
 
     def test_integrate_all_no_average(self):
         # Load baseband file and get reference intensities.
-        fh = dada.open(SAMPLE_DADA)
-        raw = fh.read()
-        ref_data = np.real(raw * np.conj(raw)).sum(0)
+        ref_data = self.raw_power.sum(0)
 
-        st = Square(fh)
+        st = Square(self.sh)
         ip = Integrate(st, average=False)
-        assert ip.start_time == fh.start_time
-        assert abs(ip.stop_time - fh.stop_time) < 1. * u.ns
-        assert abs(ip.stop_time - fh.start_time - 1./ip.sample_rate) < 1. * u.ns
+        assert ip.start_time == self.sh.start_time
+        assert abs(ip.stop_time - self.sh.stop_time) < 1. * u.ns
+        assert abs(ip.stop_time - self.sh.start_time - 1./ip.sample_rate) < 1. * u.ns
 
         # Square and integrate everything.
         integrated = ip.read()
@@ -57,26 +78,24 @@ class TestIntegrate:
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == (1, 2)
         assert np.allclose(data, ref_data)
-        assert np.all(count == fh.shape[0])
+        assert np.all(count == self.sh.shape[0])
 
     @pytest.mark.parametrize('samples_per_frame', (1, 4, 10))
     @pytest.mark.parametrize('n', (1, 3))
     def test_integrate_n(self, n, samples_per_frame):
-        fh = dada.open(SAMPLE_DADA)
-        raw = fh.read(10 * n)
-        ref_data = np.real(raw * np.conj(raw)).reshape(-1, n, 2).sum(1)
+        ref_data = self.raw_power[121 * n:131 * n].reshape(-1, n, 2).sum(1)
 
-        st = Square(fh)
+        st = Square(self.sh)
         ip = Integrate(st, n, average=False,
                        samples_per_frame=samples_per_frame)
-        assert ip.start_time == fh.start_time
-        assert ip.sample_rate == fh.sample_rate / n
+        assert ip.start_time == self.sh.start_time
+        assert ip.sample_rate == self.sh.sample_rate / n
 
-        # Square and integrate everything.
+        ip.seek(121)
         integrated = ip.read(10)
         data = integrated['data']
         count = integrated['count']
-        assert ip.tell() == 10
+        assert ip.tell() == 131
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
@@ -85,21 +104,19 @@ class TestIntegrate:
     @pytest.mark.parametrize('samples_per_frame', (1, 4, 10))
     @pytest.mark.parametrize('n', (1, 3))
     def test_integrate_n_via_time(self, n, samples_per_frame):
-        fh = dada.open(SAMPLE_DADA)
-        raw = fh.read(10 * n)
-        ref_data = np.real(raw * np.conj(raw)).reshape(-1, n, 2).sum(1)
+        ref_data = self.raw_power[151*n:161*n].reshape(-1, n, 2).sum(1)
 
-        st = Square(fh)
-        ip = Integrate(st, n/fh.sample_rate, average=False,
+        st = Square(self.sh)
+        ip = Integrate(st, n/self.sh.sample_rate, average=False,
                        samples_per_frame=samples_per_frame)
-        assert ip.start_time == fh.start_time
-        assert ip.sample_rate == fh.sample_rate / n
+        assert ip.start_time == self.sh.start_time
+        assert ip.sample_rate == self.sh.sample_rate / n
 
-        # Square and integrate everything.
+        ip.seek(151)
         integrated = ip.read(10)
         data = integrated['data']
         count = integrated['count']
-        assert ip.tell() == 10
+        assert ip.tell() == 161
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
@@ -113,16 +130,14 @@ class TestIntegrate:
         # 3rd ..             4.52 - 6.78 -> 2 samples; etc.
         expected_count = [2, 3, 2, 2, 2, 3, 2, 2]
         n_sample = 2.26
-        fh = dada.open(SAMPLE_DADA)
-        raw = fh.read(18)
-        ref_data = np.add.reduceat(np.real(raw * np.conj(raw)),
-                                   np.add.accumulate([0] + expected_count[:-1]))
+        raw = self.raw_power[:18]
+        ref_data = np.add.reduceat(raw, np.add.accumulate([0] + expected_count[:-1]))
 
-        st = Square(fh)
-        ip = Integrate(st, n_sample / fh.sample_rate, average=False,
+        st = Square(self.sh)
+        ip = Integrate(st, n_sample / self.sh.sample_rate, average=False,
                        samples_per_frame=samples_per_frame)
-        assert ip.start_time == fh.start_time
-        assert ip.sample_rate == fh.sample_rate / n_sample
+        assert ip.start_time == self.sh.start_time
+        assert ip.sample_rate == self.sh.sample_rate / n_sample
 
         # Square and integrate everything.
         integrated = ip.read(8)
@@ -135,40 +150,14 @@ class TestIntegrate:
         assert np.all(count.T == expected_count)
 
     def test_time_too_large(self):
-        fh = dada.open(SAMPLE_DADA)
         with pytest.raises(AssertionError):
-            Integrate(fh, n_sample=1.*u.hr)
+            Integrate(self.sh, n_sample=1.*u.hr)
 
 
-class TestFoldBase:
-    def setup(self):
-        self.start_time = Time('2010-11-12T13:14:15')
-        self.sample_rate = 10. * u.kHz
-        self.shape = (6000, 2, 4)
-        self.eh = EmptyStreamGenerator(shape=self.shape,
-                                       start_time=self.start_time,
-                                       sample_rate=self.sample_rate,
-                                       samples_per_frame=200, dtype=np.float)
-        self.sh = Task(self.eh, self.pulse_simulate)
-        self.period_bin = 125
-        self.F0 = 1.0 / (self.period_bin / self.sh.sample_rate)
-        self.n_phase = 50
-
-    def phase(self, t):
-        return self.F0 * (t - self.start_time)
-
-    def pulse_simulate(self, fh, data):
-        idx = fh.tell() + np.arange(data.shape[0])
-        result = np.where(idx % self.period_bin == 0, 10., 0.125)
-        result.shape = (-1,) + (1,) * (data.ndim - 1)
-        data[:] = result
-        return data
-
-
-class TestFold(TestFoldBase):
+class TestFold(TestFakePulsarBase):
     def test_input_data(self):
-        indata = self.sh.read(1000)
-        pulses = np.where(indata[:, 0, 0] == 10)[0]
+        indata = self.raw_data[:1000]
+        pulses = np.where(indata[:, 0] == 10)[0]
         # Check if the input data is set up right.
         assert len(pulses) == 8, "Pulses are not simulated right."
 
@@ -207,7 +196,7 @@ class TestFold(TestFoldBase):
             "Folding counts vary more than expected."
         # Test the output on and off gates.
         ph0_bins = [0, 1, -1, -2]
-        pulse_power = np.sum(fr_data[:, ph0_bins, 0, 0], axis=1)
+        pulse_power = np.sum(fr_data[:, ph0_bins, 0], axis=1)
         assert 30 < pulse_power[0] < 33, \
             "Folded power of on-gate is incorrect."
 
@@ -231,7 +220,7 @@ class TestFold(TestFoldBase):
             "Average off-gate power is incorrect."
 
     def test_read_whole_file(self):
-        ref_data = self.sh.read()[:, 0, 0]
+        ref_data = self.raw_data[:, 0]
         phase = self.phase(self.start_time +
                            np.arange(self.sh.shape[0]) / self.sh.sample_rate)
         i_phase = ((phase * self.n_phase) % self.n_phase).astype(int)
@@ -242,7 +231,7 @@ class TestFold(TestFoldBase):
         fr = fh.read(1)
         assert np.all(fr[:, 2:-1] == 0.125), \
             "Average off-gate power is incorrect."
-        assert np.all(fr[0, :, 0, 0] == expected)
+        assert np.all(fr[0, :, 0] == expected)
 
     def test_time_too_large(self):
         with pytest.raises(AssertionError):
