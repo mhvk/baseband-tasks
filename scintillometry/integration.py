@@ -89,13 +89,13 @@ class IntegrateBase(Base):
         note that this can have units of time.
         """
         base_offset = frame_index * self.samples_per_frame
-        raw_offsets = [self.ih.seek((base_offset + i) * self._n_sample)
-                       for i in range(self.samples_per_frame + 1)]
+        raw_offsets = np.array([self.ih.seek((base_offset + i) * self._n_sample)
+                                for i in range(self.samples_per_frame + 1)])
         # Use seek to find the stop and start positions; this will round to the
         # nearest offset if necessary.
-        return self._integrating_read(*raw_offsets)
+        return self._integrating_read(raw_offsets)
 
-    def _integrating_read(self, *raw_offsets):
+    def _integrating_read(self, raw_offsets):
         """Set up fake output for a read from the underlying stream.
 
         Subclasses have to provide an ``_integrate method`` which will be
@@ -112,7 +112,7 @@ class IntegrateBase(Base):
             self._count = out['count']
 
         self.ih.seek(raw_offsets[0])
-        self._offsets = [(off - raw_offsets[0]) for off in raw_offsets]
+        self._offsets = raw_offsets - raw_offsets[0]
         # Set up fake output with a shape that tells read how many samples to read
         # (and a remaining part that should pass consistency checks), plus a
         # call-back for out[...]=....
@@ -166,11 +166,16 @@ class Integrate(IntegrateBase):
 
     def _integrate(self, item, data):
         assert type(item) is slice
-        indices = [0] + [(i - item.start) for i in self._offsets
-                         if item.start < i < item.stop]
-        self._result[:] += np.add.reduceat(data, indices)
-        self._count[:] += (np.diff(indices + [item.stop])
-                           .reshape((-1,) + (1,) * (self._count.ndim - 1)))
+        # Have offsets for raw frames 0, f1, f2, ..., fn.  Need to select all
+        # that have any overlap with start, stop.
+        start = np.searchsorted(self._offsets[1:], item.start, side='left')
+        stop = np.searchsorted(self._offsets[:-1], item.stop, side='right')
+        indices = self._offsets[start:stop + 1] - item.start  # Don't do in-place!
+        indices[0] = 0
+        indices[-1] = item.stop - item.start
+        self._result[start:stop] += np.add.reduceat(data, indices[:-1])
+        self._count[start:stop] += (np.diff(indices)
+                                    .reshape((-1,) + (1,) * (self._count.ndim - 1)))
 
 
 class Fold(IntegrateBase):
@@ -229,7 +234,7 @@ class Fold(IntegrateBase):
         raw_stop = self.ih.seek((frame_index + 1) * self._raw_samples_per_frame)
         raw_start = self.ih.seek(frame_index * self._raw_samples_per_frame)
         self._raw_time = self.ih.time
-        return self._integrating_read(raw_start, raw_stop)
+        return self._integrating_read(np.array([raw_start, raw_stop]))
 
     def _integrate(self, item, raw):
         assert type(item) is slice
