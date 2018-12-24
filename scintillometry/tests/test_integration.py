@@ -8,7 +8,7 @@ from astropy.time import Time
 
 from ..base import Task
 from ..generators import EmptyStreamGenerator
-from ..integration import Integrate, Fold, IntegrateByPhase
+from ..integration import Integrate, Fold, IntegrateByPhase, Stack
 from ..functions import Square
 
 
@@ -241,7 +241,8 @@ class TestFold(TestFakePulsarBase):
 
 
 class TestIntegrateByPhase(TestFakePulsarBase):
-    def test_basic_stack(self):
+    # More detailed tests done in TestStack.
+    def test_basics(self):
         ref_data = self.raw_data[:100].reshape(-1, 5, 2).mean(1)
 
         fh = IntegrateByPhase(self.sh, 25, self.phase)
@@ -251,11 +252,33 @@ class TestIntegrateByPhase(TestFakePulsarBase):
         data = fh.read(20)
         assert np.all(data == ref_data)
 
-    def test_full_stack(self):
+    def test_samples_per_frame(self):
         ref_data = self.raw_data.reshape(-1, 5, 2).mean(1)
 
         fh = IntegrateByPhase(self.sh, 25, self.phase,
                               samples_per_frame=160)
+        assert fh.start_time == self.sh.start_time
+        assert fh.stop_time == self.sh.stop_time
+
+        data = fh.read()
+        assert np.all(data == ref_data)
+
+
+class TestStack(TestFakePulsarBase):
+    def test_basics(self):
+        ref_data = self.raw_data[:250].reshape(2, 25, 5, 2).mean(2)
+
+        fh = Stack(self.sh, 25, self.phase)
+        assert fh.start_time == self.sh.start_time
+        assert fh.stop_time == self.sh.stop_time
+
+        data = fh.read(2)
+        assert np.all(data == ref_data)
+
+    def test_samples_per_frame(self):
+        ref_data = self.raw_data.reshape(-1, 25, 5, 2).mean(2)
+
+        fh = Stack(self.sh, 25, self.phase, samples_per_frame=16)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
 

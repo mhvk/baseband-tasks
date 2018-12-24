@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as u
 from astropy.utils import ShapedLikeNDArray
 
-from .base import BaseTaskBase
+from .base import BaseTaskBase, TaskBase
 
 
 __all__ = ['Integrate', 'Fold', 'IntegrateByPhase']
@@ -280,7 +280,7 @@ class IntegrateByPhase(Integrate):
                                     self.ih.sample_rate)  # bin/cycle
         self._last_offset = 0
         self._last_phase = start_phase
-        self._sample_rate = 1. / step_phase
+        self._sample_rate = u.cycle / step_phase
         self._stop_time = self.start_time + self.shape[0] * mean_time_step
 
     @property
@@ -306,3 +306,28 @@ class IntegrateByPhase(Integrate):
         self._last_offset = offsets[-1] if phase.shape else offsets
         self._last_phase = ih_phase[-1] if phase.shape else ih_phase
         return offsets
+
+
+class Stack(TaskBase):
+    def __init__(self, ih, n_phase, phase, average=True,
+                 samples_per_frame=1, dtype=None):
+        # Set up the integration in phase bins.
+        phased = IntegrateByPhase(ih, n_phase, phase, average=average,
+                                  samples_per_frame=samples_per_frame*n_phase,
+                                  dtype=dtype)
+        # And ensure we reshape it to cycles.
+        shape = (phased.shape[0] // n_phase, n_phase) + phased.shape[1:]
+        super().__init__(phased, shape=shape,
+                         sample_rate=phased.sample_rate / n_phase,
+                         samples_per_frame=samples_per_frame,
+                         dtype=dtype)
+        self._n_phase = n_phase
+
+    def _read_frame(self, frame_index):
+        # Read frame in phased directly, bypassing its ``read`` method.
+        out = self.ih._read_frame(frame_index)
+        return out.reshape((self.samples_per_frame,) + self.sample_shape)
+
+    @property
+    def stop_time(self):
+        return self.ih.stop_time
