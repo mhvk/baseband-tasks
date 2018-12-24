@@ -206,9 +206,10 @@ class TestNoise:
             assert data.shape == nh.shape
             # Check repeatability.
             assert np.all(data1 == data[10:12])
-            nh.seek(10)
-            data2 = nh.read(2)
-            assert np.all(data2 == data[10:12])
+            # On purpose read over a frame boundary; gh-52.
+            nh.seek(9)
+            data2 = nh.read(3)
+            assert np.all(data2 == data[9:12])
             nh.seek(9000)
             data3 = nh.read()
             assert np.all(data3 == data[9000:])
