@@ -102,25 +102,29 @@ class Integrate(BaseTaskBase):
         self._step = step
 
     def _read_frame(self, frame_index):
-        """Determine which raw samples to read, and read them using integrating read.
+        """Determine which samples to read, and integrate over them.
 
-        Uses the ``_step`` attribute to seek in the underlying stream;
-        note that this can have units of time.
+        Uses the a ``_get_offsets`` method to determine where in the underlying
+        stream the samples should be gotten from.
 
-        Subclasses have to provide an ``_integrate method`` which will be
-        used to override ``__setitem__`` in the fake output that is constructed.
+        Integration is done by setting up a fake output array whose setter
+        calls back to the ``_integrate`` method that does the actual summing.
         """
-        # Use seek to find the positions of all the output samples; this will
-        # round to the nearest offset in the raw stream if necessary.
-        base_offset = frame_index * self.samples_per_frame
-        offsets = np.array([self.ih.seek((base_offset + i) * self._step)
-                            for i in range(self.samples_per_frame + 1)])
+        # Get offsets in the underlying stream for the current samples (and
+        # the next one to get the upper edge). For integration over time
+        # intervals, these offsets are not necessarily evenly spaced.
+        samples = (frame_index * self.samples_per_frame +
+                   np.arange(self.samples_per_frame + 1))
+        offsets = self._get_offsets(samples)
         self.ih.seek(offsets[0])
         offsets -= offsets[0]
-        return self._integrating_read(offsets)
-
-    def _integrating_read(self, offsets):
-        # Set up real output.
+        # Set up fake output with a shape that tells the reader of the
+        # underlying stream how many samples should be read (and a remaining
+        # part that should pass consistency checks), and which has a callback
+        # for the actual setting of output in the reader.
+        integrating_out = _FakeOutput((offsets[-1],) + self.ih.sample_shape,
+                                      setitem=self._integrate)
+        # Set up real output and store information used in self._integrate
         out = np.zeros((self.samples_per_frame,) + self.sample_shape,
                        dtype=self.dtype)
         if self.average:
@@ -132,30 +136,52 @@ class Integrate(BaseTaskBase):
             self._count = out['count']
         self._offsets = offsets
 
-        # Set up fake output with a shape that tells read how many samples to read
-        # (and a remaining part that should pass consistency checks), plus a
-        # call-back for out[...]=....
-        integrating_out = _FakeOutput((offsets[-1],) + self.ih.sample_shape,
-                                      self._integrate)
+        # Do the actual reading.
         self.ih.read(out=integrating_out)
         if self.average:
             out /= self._count
 
         return out
 
+    def _get_offsets(self, samples):
+        """Get offsets in the underlying stream nearest to samples."""
+        if type(self._step) is int:
+            return samples * self._step
+        else:
+            return np.round((samples * self._step * self.ih.sample_rate)
+                            .to_value(u.one)).astype(int)
+
     def _integrate(self, item, data):
-        assert type(item) is slice
-        # Have offsets for raw frames 0, f1, f2, ..., fn.  Need to select all
-        # that have any overlap with start, stop.
+        """Sum data in the correct samples.
+
+        Here, item will be a slice with start and stop being indices in the
+        underlying stream relative to the start of the current output frame,
+        and data the corresponding slice of underlying stream.
+        """
+        # Note that this is not entirely trivial even for integrating over an
+        # integer number of samples, since underlying data frames do not
+        # necessarily contain integer multiples of this number of samples.
+        #
+        # First find all samples that have any overlap with the slice, i.e.,
+        # for which start < offset_right and stop > offset_left.  Here, we use
+        # the offsets in the underlying stream for each sample in the current
+        # frame, plus the one just above, i.e., f[0]=0, f[1], f[2], ..., f[n].
+        # (E.g., bin 0 should be included only when start < f[1]; bin n-1
+        # only when stop > f[n-1].)
         start = np.searchsorted(self._offsets[1:], item.start, side='right')
         stop = np.searchsorted(self._offsets[:-1], item.stop, side='left')
-        indices = self._offsets[start:stop + 1] - item.start  # Don't do in-place!
+        # Calculate corresponding indices in ``data`` by extracting the offsets
+        # that have any overlap (we take one more -- guaranteed to exist --
+        # so that we can count the number of items more easily), subtracting
+        # the start offset, and clipping to the right range.
+        indices = self._offsets[start:stop + 1] - item.start
         indices[0] = 0
         indices[-1] = item.stop - item.start
-        print(item, self._offsets, indices)
+        # Finally, sum within slices constructed from consecutive indices
+        # (reduceat always adds the end point itself).
         self._result[start:stop] += np.add.reduceat(data, indices[:-1])
         self._count[start:stop] += (np.diff(indices)
-                                    .reshape((-1,) + (1,) * (self._count.ndim - 1)))
+                                    .reshape((-1,) + (1,) * (self.ndim - 1)))
 
 
 class Fold(Integrate):
@@ -249,10 +275,11 @@ class IntegrateByPhase(Integrate):
                          average=average, samples_per_frame=samples_per_frame,
                          dtype=dtype)
         self._start_phase = start_phase
-        self._raw_mean_step_phase = (mean_time_step / step_phase *
-                                     self.ih.sample_rate)  # bin/cycle
-        self._raw_offset = 0
-        self._raw_phase = start_phase
+        self._step_phase = step_phase
+        self._ih_mean_step_phase = (mean_time_step / step_phase *
+                                    self.ih.sample_rate)  # bin/cycle
+        self._last_offset = 0
+        self._last_phase = start_phase
         self._sample_rate = 1. / step_phase
         self._stop_time = self.start_time + self.shape[0] * mean_time_step
 
@@ -260,33 +287,22 @@ class IntegrateByPhase(Integrate):
     def stop_time(self):
         return self._stop_time
 
-    def _read_frame(self, frame_index):
-        sample0 = frame_index * self.samples_per_frame
-        phases = self._start_phase + np.arange(
-            sample0, sample0 + self.samples_per_frame + 1) / self._sample_rate
-        offsets = self._seek_phase(phases)
-        self.ih.seek(offsets[0])
-        offsets -= offsets[0]
-        out = self._integrating_read(offsets)
-        return out
-
-    def _seek_phase(self, phase):
-        """Seek to the raw sample nearest to phase."""
-        # raw_offset = np.full(phase.shape, self._raw_offset, dtype=int)
-        raw_offset = self._raw_offset
-        raw_phase = self._raw_phase
-        guess_offset = ((phase - raw_phase) *
-                        self._raw_mean_step_phase).to_value(u.one).round().astype(int)
-        mask = guess_offset != 0
+    def _get_offsets(self, samples):
+        """Get offsets in the underlying stream nearest to samples."""
+        phase = self._start_phase + samples * self._step_phase
+        offsets = self._last_offset
+        check = ((phase - self._last_phase) *
+                 self._ih_mean_step_phase).to_value(u.one).round().astype(int)
+        mask = check != 0
         while np.any(mask):
-            raw_offset += guess_offset
+            offsets += check
             # Use mask to avoid calculating more phases than necessary.
-            raw_time = self.ih.start_time + raw_offset[mask] / self.ih.sample_rate
-            raw_phase = self.phase(raw_time)
-            guess_offset[mask] = ((phase[mask] - raw_phase) *
-                                  self._raw_mean_step_phase).to_value(u.one).round()
-            mask = guess_offset != 0
+            ih_time = self.ih.start_time + offsets[mask] / self.ih.sample_rate
+            ih_phase = self.phase(ih_time)
+            check[mask] = ((phase[mask] - ih_phase) *
+                           self._ih_mean_step_phase).to_value(u.one).round()
+            mask = check != 0
 
-        self._raw_offset = raw_offset[-1] if phase.shape else raw_offset
-        self._raw_phase = raw_phase[-1] if phase.shape else raw_phase
-        return raw_offset
+        self._last_offset = offsets[-1] if phase.shape else offsets
+        self._last_phase = ih_phase[-1] if phase.shape else ih_phase
+        return offsets
