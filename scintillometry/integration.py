@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as u
 from astropy.utils import ShapedLikeNDArray
 
-from .base import BaseTaskBase, TaskBase
+from .base import BaseTaskBase
 
 
 __all__ = ['Integrate', 'Fold', 'IntegrateByPhase']
@@ -243,7 +243,6 @@ class Fold(Integrate):
         return super()._read_frame(frame_index)
 
     def _integrate(self, item, raw):
-        assert type(item) is slice
         # Get sample and phase indices.
         raw_items = np.arange(item.start, item.stop)
         if self.samples_per_frame == 1:
@@ -262,6 +261,46 @@ class Fold(Integrate):
 
 
 class IntegrateByPhase(Integrate):
+    """Integrate a stream over fixed phase intervals.
+
+    This class is not that useful directly, but is used to help produce pulse
+    stacks in `~scintillometry.integration.Stack`.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    n_phase : int
+        Number of bins per pulse period.
+    phase : callable
+        Should return pulse phases for given input time(s), passed in as an
+        '~astropy.time.Time' object.  The output should be an array of float,
+        and has to include the cycle count.
+    average : bool, optional
+        Whether to calculate sums (with a ``count`` attribute) or to average
+        values in each bin.
+    samples_per_frame : int, optional
+        Number of sample times to process in one go.  This can be used to
+        optimize the process, though with many samples per bin the default
+        of 1 should work.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  Generally, the default of the dtype of the underlying
+        stream is good enough, but can be used to increase precision.  Note
+        that if ``average=True``, it is the user's responsibilty to pass in
+        a structured dtype.
+
+    Notes
+    -----
+    Since phase bins are typically not an integer multiple of the underlying
+    bin spacing, the integrated samples will generally not contain the same
+    number of samples.  The actual number of samples is counted, and for
+    ``average=True``, the sums have been divided by these counts, with bins
+    with no points set to ``NaN``.  For ``average=False``, the arrays returned
+    by ``read`` are structured arrays with ``data`` and ``count`` fields.
+
+    .. warning: The format for ``average=False`` may change in the future.
+
+    """
     def __init__(self, ih, n_phase, phase, average=True,
                  samples_per_frame=1, dtype=None):
         self.phase = phase
@@ -280,7 +319,7 @@ class IntegrateByPhase(Integrate):
                                     self.ih.sample_rate)  # bin/cycle
         self._last_offset = 0
         self._last_phase = start_phase
-        self._sample_rate = u.cycle / step_phase
+        self._sample_rate = n_phase / u.cycle
         self._stop_time = self.start_time + self.shape[0] * mean_time_step
 
     @property
@@ -308,7 +347,44 @@ class IntegrateByPhase(Integrate):
         return offsets
 
 
-class Stack(TaskBase):
+class Stack(BaseTaskBase):
+    """Create a stream of pulse profiles.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    n_phase : int
+        Number of bins per pulse period.
+    phase : callable
+        Should return pulse phases for given input time(s), passed in as an
+        '~astropy.time.Time' object.  The output should be an array of float,
+        and has to include the cycle count.
+    average : bool, optional
+        Whether to calculate sums (with a ``count`` attribute) or to average
+        values in each phase bin.
+    samples_per_frame : int, optional
+        Number of sample times to process in one go.  This can be used to
+        optimize the process, though with many samples per pulse perdiod the
+        default of 1 should be fine.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  Generally, the default of the dtype of the underlying
+        stream is good enough, but can be used to increase precision.  Note
+        that if ``average=True``, it is the user's responsibilty to pass in
+        a structured dtype.
+
+    Notes
+    -----
+    Since phase bins are typically not an integer multiple of the underlying
+    bin spacing, the integrated samples will generally not contain the same
+    number of samples.  The actual number of samples is counted, and for
+    ``average=True``, the sums have been divided by these counts, with bins
+    with no points set to ``NaN``.  For ``average=False``, the arrays returned
+    by ``read`` are structured arrays with ``data`` and ``count`` fields.
+
+    .. warning: The format for ``average=False`` may change in the future.
+
+    """
     def __init__(self, ih, n_phase, phase, average=True,
                  samples_per_frame=1, dtype=None):
         # Set up the integration in phase bins.
