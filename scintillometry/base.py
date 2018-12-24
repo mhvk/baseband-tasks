@@ -266,6 +266,9 @@ class Base:
                                                 self._samples_per_frame)
 
             if frame_index != self._frame_index:
+                # Read the frame required.  Set offset at the start so
+                # that _read_frame can count on tell() being correct.
+                self.offset = frame_index * self._samples_per_frame
                 self._frame = self._read_frame(frame_index)
                 self._frame_index = frame_index
 
