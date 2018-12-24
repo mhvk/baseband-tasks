@@ -242,45 +242,43 @@ class TestFold(TestFakePulsarBase):
 
 class TestIntegrateByPhase(TestFakePulsarBase):
     # More detailed tests done in TestStack.
-    def test_basics(self):
-        ref_data = self.raw_data[:100].reshape(-1, 5, 2).mean(1)
-
-        fh = IntegrateByPhase(self.sh, 25, self.phase)
-        assert fh.start_time == self.sh.start_time
-        assert fh.stop_time == self.sh.stop_time
-
-        data = fh.read(20)
-        assert np.all(data == ref_data)
-
-    def test_samples_per_frame(self):
+    @pytest.mark.parametrize('samples_per_frame', (1, 160))
+    def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 5, 2).mean(1)
 
         fh = IntegrateByPhase(self.sh, 25, self.phase,
-                              samples_per_frame=160)
+                              samples_per_frame=samples_per_frame)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
+        assert fh.sample_rate == 25 / u.cycle
+        assert fh.samples_per_frame == samples_per_frame
 
-        data = fh.read()
-        assert np.all(data == ref_data)
+        data = fh.read(20)
+        assert np.all(data == ref_data[:20])
+        fh.seek(250)
+        data = fh.read(75)
+        assert np.all(data == ref_data[250:325])
+        if samples_per_frame > 1:  # very slow otherwise.
+            data = fh.read()
+            assert np.all(data == ref_data[325:])
 
 
 class TestStack(TestFakePulsarBase):
-    def test_basics(self):
-        ref_data = self.raw_data[:250].reshape(2, 25, 5, 2).mean(2)
-
-        fh = Stack(self.sh, 25, self.phase)
-        assert fh.start_time == self.sh.start_time
-        assert fh.stop_time == self.sh.stop_time
-
-        data = fh.read(2)
-        assert np.all(data == ref_data)
-
-    def test_samples_per_frame(self):
+    @pytest.mark.parametrize('samples_per_frame', (1, 16))
+    def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 25, 5, 2).mean(2)
 
-        fh = Stack(self.sh, 25, self.phase, samples_per_frame=16)
+        fh = Stack(self.sh, 25, self.phase,
+                   samples_per_frame=samples_per_frame)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
+        assert fh.sample_rate == 1. / u.cycle
+        assert fh.samples_per_frame == samples_per_frame
 
+        data = fh.read(2)
+        assert np.all(data == ref_data[:2])
+        fh.seek(10)
+        data = fh.read(3)
+        assert np.all(data == ref_data[10:13])
         data = fh.read()
-        assert np.all(data == ref_data)
+        assert np.all(data == ref_data[13:])
