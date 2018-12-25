@@ -25,6 +25,8 @@ class Base:
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.
+    start_time : `~astropy.time.Time`
+        Start time of the stream.
     sample_rate : `~astropy.units.Quantity`
         Rate at which complete samples are produced.
     samples_per_frame : int, optional
@@ -293,7 +295,86 @@ class Base:
         self._frame = None  # clear possibly cached frame
 
 
-class TaskBase(Base):
+class BaseTaskBase(Base):
+    """Base for all classes that operate on underlying streams.
+
+    Following the design of `baseband` stream readers, features properties
+    describing the size, shape, data type, sample rate and start/stop times of
+    the task's output.  Also defines methods to move a sample pointer across
+    the output data in units of either complete samples or time.
+
+    Subclasses should define
+
+      ``_read_frame``: method to read and process a single block of data
+
+    By default, all parameters are taken from the underlying stream.
+
+    Note that no consistency checks are done between the parameters passed in
+    and those of the underlying stream; the appropriate base class for most
+    tasks is `~scintillometry.base.TaskBase`.
+
+    Parameters
+    ----------
+    ih : stream handle
+        Handle of a stream reader or another task.
+    shape : tuple, optional
+        Overall shape of the stream, with first entry the total number
+        of complete samples, and the remainder the sample shape.
+    start_time : `~astropy.time.Time`, optional
+        Start time of the stream.
+    sample_rate : `~astropy.units.Quantity`, optional
+        With units of a rate.
+    samples_per_frame : int, optional
+        Number of samples to be read and processed in one go.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.
+
+    """
+
+    def __init__(self, ih, start_time=None, shape=None, sample_rate=None,
+                 samples_per_frame=None, frequency=None, sideband=None,
+                 polarization=None, dtype=None):
+        self.ih = ih
+        if shape is None:
+            shape = ih.shape
+        if start_time is None:
+            start_time = ih.start_time
+        if sample_rate is None:
+            sample_rate = ih.sample_rate
+        if samples_per_frame is None:
+            samples_per_frame = ih.samples_per_frame
+        if dtype is None:
+            dtype = ih.dtype
+        if frequency is None:
+            frequency = getattr(ih, 'frequency', None)
+        if sideband is None:
+            sideband = getattr(ih, 'sideband', None)
+        if polarization is None:
+            polarization = getattr(ih, 'polarization', None)
+
+        super().__init__(shape=shape, start_time=ih.start_time,
+                         sample_rate=sample_rate,
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband,
+                         polarization=polarization, dtype=dtype)
+
+    def close(self):
+        """Close task, in particular closing its input source."""
+        super().close()
+        self.ih.close()
+
+
+class TaskBase(BaseTaskBase):
     """Base class of all tasks.
 
     Following the design of `baseband` stream readers, features properties
@@ -342,7 +423,6 @@ class TaskBase(Base):
     def __init__(self, ih, shape=None, sample_rate=None,
                  samples_per_frame=None, frequency=None, sideband=None,
                  polarization=None, dtype=None):
-        self.ih = ih
         if sample_rate is None:
             sample_rate = ih.sample_rate
             sample_rate_ratio = 1.
@@ -367,19 +447,7 @@ class TaskBase(Base):
             assert shape[0] <= nraw_frames * samples_per_frame, \
                 "passed in shape[0] too large"
 
-        if dtype is None:
-            dtype = ih.dtype
-
-        if frequency is None:
-            frequency = getattr(ih, 'frequency', None)
-
-        if sideband is None:
-            sideband = getattr(ih, 'sideband', None)
-
-        if polarization is None:
-            polarization = getattr(ih, 'polarization', None)
-
-        super().__init__(shape=shape, start_time=ih.start_time,
+        super().__init__(ih=ih, shape=shape,
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
@@ -392,11 +460,6 @@ class TaskBase(Base):
         # Apply function to the data.  Note that the read() function
         # in base ensures that our offset pointer is correct.
         return self.task(data)
-
-    def close(self):
-        """Close task, in particular closing its input source."""
-        super().close()
-        self.ih.close()
 
 
 class Task(TaskBase):
