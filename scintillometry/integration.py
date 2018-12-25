@@ -4,13 +4,13 @@
 import numpy as np
 import astropy.units as u
 
-from .base import Base
+from .base import BaseTaskBase
 
 
 __all__ = ['Fold']
 
 
-class Fold(Base):
+class Fold(BaseTaskBase):
     """Fold pulse profiles in fixed time intervals.
 
     Parameters
@@ -53,7 +53,6 @@ class Fold(Base):
     """
     def __init__(self, ih, n_phase, phase, fold_time=None, average=True,
                  samples_per_frame=1, dtype=None):
-        self.ih = ih
         self.n_phase = n_phase
         total_time = ih.stop_time - ih.start_time
         if fold_time is None:
@@ -67,23 +66,14 @@ class Fold(Base):
         nsample = int((total_time / self.fold_time).to_value(u.one) //
                       samples_per_frame) * samples_per_frame
         shape = (nsample, n_phase) + ih.shape[1:]
-        # This probably should be moved to a better base class; unfortunately,
-        # we cannot use TaskBase since it does not allow non-integer sample
-        # rate ratios.
-        frequency = getattr(ih, 'frequency', None)
-        sideband = getattr(ih, 'sideband', None)
-        polarization = getattr(ih, 'polarization', None)
         if dtype is None:
             if self.average:
                 dtype = ih.dtype
             else:
                 dtype = np.dtype([('data', ih.dtype), ('count', int)])
 
-        super().__init__(shape=shape, start_time=ih.start_time,
-                         sample_rate=1./fold_time,
-                         samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization, dtype=dtype)
+        super().__init__(ih, shape=shape, sample_rate=1./fold_time,
+                         samples_per_frame=samples_per_frame, dtype=dtype)
 
     def _read_frame(self, frame_index):
         # Determine which raw samples to read, and read them.
