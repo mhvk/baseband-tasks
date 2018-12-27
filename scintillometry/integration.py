@@ -36,61 +36,14 @@ class _FakeOutput(ShapedLikeNDArray):
         raise NotImplementedError("No _apply possible for _FakeOutput")
 
 
-class Integrate(BaseTaskBase):
-    """Integrate a stream over specific time steps.
+class IntegrateBase(BaseTaskBase):
+    """Base class for all integrators.
 
-    Parameters
-    ----------
-    ih : task or `baseband` stream reader
-        Input data stream, with time as the first axis.
-    step : int or `~astropy.units.Quantity`, optional
-        Number of input samples or time interval over which to integrate.
-        If not given, the whole file will be integrated over.
-    average : bool, optional
-        Whether to calculate sums (with a ``count`` attribute) or to average
-        values.
-    dtype : `~numpy.dtype`, optional
-        Output dtype.  Generally, the default of the dtype of the underlying
-        stream is good enough, but can be used to increase precision.  Note
-        that if ``average=True``, it is the user's responsibilty to pass in
-        a structured dtype.
-
-    Notes
-    -----
-
-    If ``step`` is a time interval and not an integer multiple of the
-    sample time of the underlying file, the returned integrated samples may
-    not all contain the same number of samples.  The actual number of samples
-    is counted, and for ``average=True``, the sums have been divided by these
-    counts, with bins with no points set to ``NaN``.  For ``average=False``,
-    the arrays returned by ``read`` are structured arrays with ``data`` and
-    ``count`` fields.
-
-    .. warning: The format for ``average=False`` may change in the future.
-
+    Subclasses need to define an __init__ and a ``_get_offsets`` method.
     """
-    def __init__(self, ih, step=None, average=True, samples_per_frame=1,
-                 dtype=None):
-        self.ih = ih
+    def __init__(self, ih, shape, sample_rate, average=True,
+                 samples_per_frame=1, dtype=None):
         self.average = average
-
-        total_time = ih.stop_time - ih.start_time
-        if step is None:
-            step = self.ih.shape[0]
-
-        try:
-            step = operator.index(step)
-        except TypeError:
-            sample_rate = 1. / step
-            nframes = int((total_time / step).to_value(u.one))
-        else:
-            sample_rate = self.ih.sample_rate / step
-            nframes = self.ih.shape[0] // step
-
-        nframes = (nframes // samples_per_frame) * samples_per_frame
-        assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes,) + ih.sample_shape
-
         if dtype is None:
             if average:
                 dtype = ih.dtype
@@ -99,7 +52,6 @@ class Integrate(BaseTaskBase):
 
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame, dtype=dtype)
-        self._step = step
 
     def _read_frame(self, frame_index):
         """Determine which samples to read, and integrate over them.
@@ -143,14 +95,6 @@ class Integrate(BaseTaskBase):
 
         return out
 
-    def _get_offsets(self, samples):
-        """Get offsets in the underlying stream nearest to samples."""
-        if type(self._step) is int:
-            return samples * self._step
-        else:
-            return np.round((samples * self._step * self.ih.sample_rate)
-                            .to_value(u.one)).astype(int)
-
     def _integrate(self, item, data):
         """Sum data in the correct samples.
 
@@ -182,6 +126,72 @@ class Integrate(BaseTaskBase):
         self._result[start:stop] += np.add.reduceat(data, indices[:-1])
         self._count[start:stop] += (np.diff(indices)
                                     .reshape((-1,) + (1,) * (self.ndim - 1)))
+
+
+class Integrate(IntegrateBase):
+    """Integrate a stream over specific time steps.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    step : int or `~astropy.units.Quantity`, optional
+        Number of input samples or time interval over which to integrate.
+        If not given, the whole file will be integrated over.
+    average : bool, optional
+        Whether to calculate sums (with a ``count`` attribute) or to average
+        values.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  Generally, the default of the dtype of the underlying
+        stream is good enough, but can be used to increase precision.  Note
+        that if ``average=True``, it is the user's responsibilty to pass in
+        a structured dtype.
+
+    Notes
+    -----
+
+    If ``step`` is a time interval and not an integer multiple of the
+    sample time of the underlying file, the returned integrated samples may
+    not all contain the same number of samples.  The actual number of samples
+    is counted, and for ``average=True``, the sums have been divided by these
+    counts, with bins with no points set to ``NaN``.  For ``average=False``,
+    the arrays returned by ``read`` are structured arrays with ``data`` and
+    ``count`` fields.
+
+    .. warning: The format for ``average=False`` may change in the future.
+
+    """
+    def __init__(self, ih, step=None, average=True, samples_per_frame=1,
+                 dtype=None):
+        total_time = ih.stop_time - ih.start_time
+        if step is None:
+            step = ih.shape[0]
+
+        try:
+            step = operator.index(step)
+        except TypeError:
+            sample_rate = 1. / step
+            nframes = int((total_time / step).to_value(u.one))
+        else:
+            sample_rate = ih.sample_rate / step
+            nframes = ih.shape[0] // step
+
+        nframes = (nframes // samples_per_frame) * samples_per_frame
+        assert nframes > 0, "time per frame larger than total time in stream"
+        shape = (nframes,) + ih.sample_shape
+
+        super().__init__(ih, shape=shape, sample_rate=sample_rate,
+                         average=average, samples_per_frame=samples_per_frame,
+                         dtype=dtype)
+        self._step = step
+
+    def _get_offsets(self, samples):
+        """Get offsets in the underlying stream nearest to samples."""
+        if type(self._step) is int:
+            return samples * self._step
+        else:
+            return np.round((samples * self._step * self.ih.sample_rate)
+                            .to_value(u.one)).astype(int)
 
 
 class Fold(Integrate):
@@ -260,7 +270,7 @@ class Fold(Integrate):
         np.add.at(self._count, (sample_index, phase_index), 1)
 
 
-class IntegrateByPhase(Integrate):
+class IntegrateByPhase(IntegrateBase):
     """Integrate a stream over fixed phase intervals.
 
     This class is not that useful directly, but is used to help produce pulse
@@ -308,9 +318,12 @@ class IntegrateByPhase(Integrate):
         stop_phase = phase(ih.stop_time)
         step_phase = 1. / n_phase
 
+        nframes = int((stop_phase - start_phase) * n_phase)
+        nframes = (nframes // samples_per_frame) * samples_per_frame
+        shape = (nframes,) + ih.sample_shape
         mean_time_step = ((ih.stop_time - ih.start_time) /
                           ((stop_phase - start_phase) / step_phase))
-        super().__init__(ih, step=mean_time_step,
+        super().__init__(ih, shape=shape, sample_rate=n_phase / u.cycle,
                          average=average, samples_per_frame=samples_per_frame,
                          dtype=dtype)
         self._start_phase = start_phase
