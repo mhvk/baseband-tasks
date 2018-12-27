@@ -299,7 +299,7 @@ class IntegratePhase(Integrate):
         stop = phase(ih.stop_time)
 
         shape = (int((stop - start) / step),) + ih.sample_shape
-        super().__init__(ih, shape=shape, sample_rate=1. / step / u.cycle,
+        super().__init__(ih, shape=shape, sample_rate=1. / step,
                          average=average, samples_per_frame=samples_per_frame,
                          dtype=dtype)
         self._start_phase = start
@@ -416,7 +416,7 @@ class Fold(IntegrateBase):
 
         # TODO: allow having a phase reference.
         phases = self.phase(self._raw_time + raw_items / self.ih.sample_rate)
-        phase_index = ((phases.to_value(u.one) * self.n_phase)
+        phase_index = ((phases.to_value(u.cycle) * self.n_phase)
                        % self.n_phase).astype(int)
         # Do the actual folding, adding the data to the sums and counts.
         # TODO: np.add.at is not very efficient; replace?
@@ -465,7 +465,7 @@ class Stack(BaseTaskBase):
     def __init__(self, ih, n_phase, phase, average=True,
                  samples_per_frame=1, dtype=None):
         # Set up the integration in phase bins.
-        phased = IntegratePhase(ih, 1./n_phase, phase, average=average,
+        phased = IntegratePhase(ih, u.cycle/n_phase, phase, average=average,
                                 samples_per_frame=samples_per_frame*n_phase,
                                 dtype=dtype)
         # And ensure we reshape it to cycles.

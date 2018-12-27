@@ -31,7 +31,7 @@ class TestFakePulsarBase:
         self.sh.seek(0)
 
     def phase(self, t):
-        return self.F0 * (t - self.start_time)
+        return u.cycle * self.F0 * (t - self.start_time)
 
     def pulse_simulate(self, fh, data):
         idx = fh.tell() + np.arange(data.shape[0])
@@ -226,7 +226,7 @@ class TestFold(TestFakePulsarBase):
         ref_data = self.raw_data[:, 0]
         phase = self.phase(self.start_time +
                            np.arange(self.sh.shape[0]) / self.sh.sample_rate)
-        i_phase = ((phase * self.n_phase) % self.n_phase).astype(int)
+        i_phase = ((phase.to_value(u.cycle) * self.n_phase) % self.n_phase).astype(int)
         expected = np.bincount(i_phase, ref_data) / np.bincount(i_phase)
 
         fh = Fold(self.sh, self.n_phase, self.phase, average=True)
@@ -249,7 +249,7 @@ class TestIntegratePhase(TestFakePulsarBase):
     def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 5, 2).mean(1)
 
-        fh = IntegratePhase(self.sh, 1/25, self.phase,
+        fh = IntegratePhase(self.sh, u.cycle/25, self.phase,
                             samples_per_frame=samples_per_frame)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
