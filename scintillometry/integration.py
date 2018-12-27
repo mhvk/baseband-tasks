@@ -45,9 +45,6 @@ class IntegrateBase(BaseTaskBase):
     def __init__(self, ih, shape, sample_rate, average=True,
                  samples_per_frame=1, dtype=None):
         self.average = average
-        nframes = (shape[0] // samples_per_frame) * samples_per_frame
-        assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes,) + shape[1:]
         if dtype is None:
             if average:
                 dtype = ih.dtype
