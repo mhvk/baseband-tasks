@@ -54,10 +54,6 @@ class Channelize(TaskBase):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
-        sample_rate = ih.sample_rate / n
-        nsample = samples_per_frame * (ih.shape[0] // n // samples_per_frame)
-        assert nsample > 0, "not enough samples to fill one frame of data!"
-
         # Initialize channelizer.
         if FFT is None:
             FFT = get_fft_maker()
@@ -65,8 +61,9 @@ class Channelize(TaskBase):
         self._fft = FFT((samples_per_frame, n) + ih.sample_shape,
                         ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
-        super().__init__(ih, shape=(nsample,) + self._fft.frequency_shape[1:],
-                         sample_rate=sample_rate,
+        sample_rate = ih.sample_rate / n
+        shape = (ih.shape[0] // n,) + self._fft.frequency_shape[1:]
+        super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          dtype=self._fft.frequency_dtype)
@@ -131,10 +128,7 @@ class Dechannelize(TaskBase):
                  frequency=None, sideband=None, dtype=None, FFT=None):
 
         assert ih.complex_data, "Dechannelization needs complex spectra."
-        if frequency is None and hasattr(ih, 'frequency'):
-            frequency = ih.frequency[0]
-        if sideband is None and hasattr(ih, 'sideband'):
-            sideband = ih.sideband
+
         if dtype is None:
             dtype = ih.dtype  # this keeps it complex by default.
 
@@ -143,7 +137,8 @@ class Dechannelize(TaskBase):
                 n = ih.sample_shape[0]
             else:
                 raise ValueError("Need to pass in explicit n for real transform.")
-        sample_rate = ih.sample_rate * n
+        else:
+            n = operator.index(n)
 
         # Initialize dechannelizer.
         if FFT is None:
@@ -151,6 +146,10 @@ class Dechannelize(TaskBase):
 
         self._ifft = FFT((ih.samples_per_frame, n) + ih.sample_shape[1:],
                          dtype=dtype, axis=1, direction='inverse')
+
+        sample_rate = ih.sample_rate * n
+        if frequency is None and hasattr(ih, 'frequency'):
+            frequency = ih.frequency[0]
 
         super().__init__(ih, shape=(ih.shape[0] * n,) + ih.shape[2:],
                          sample_rate=sample_rate,

@@ -51,7 +51,7 @@ class Base:
                  dtype=np.complex64):
         self._shape = shape
         self._start_time = start_time
-        self._samples_per_frame = samples_per_frame
+        self._samples_per_frame = operator.index(samples_per_frame)
         assert shape[0] % samples_per_frame == 0
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
@@ -361,6 +361,10 @@ class BaseTaskBase(Base):
             sideband = getattr(ih, 'sideband', None)
         if polarization is None:
             polarization = getattr(ih, 'polarization', None)
+        # Sanity check on shape.
+        nframes = (shape[0] // samples_per_frame) * samples_per_frame
+        assert nframes > 0, "time per frame larger than total time in stream"
+        shape = (nframes,) + shape[1:]
 
         super().__init__(shape=shape, start_time=ih.start_time,
                          sample_rate=sample_rate,
