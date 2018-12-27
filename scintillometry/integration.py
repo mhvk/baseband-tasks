@@ -45,6 +45,9 @@ class IntegrateBase(BaseTaskBase):
     def __init__(self, ih, shape, sample_rate, average=True,
                  samples_per_frame=1, dtype=None):
         self.average = average
+        nframes = (shape[0] // samples_per_frame) * samples_per_frame
+        assert nframes > 0, "time per frame larger than total time in stream"
+        shape = (nframes,) + shape[1:]
         if dtype is None:
             if average:
                 dtype = ih.dtype
@@ -167,11 +170,7 @@ class IntegrateSamples(IntegrateBase):
 
         step = operator.index(step)
         sample_rate = ih.sample_rate / step
-
-        nframes = ih.shape[0] // step
-        nframes = (nframes // samples_per_frame) * samples_per_frame
-        assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes,) + ih.sample_shape
+        shape = (ih.shape[0] // step,) + ih.sample_shape
 
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          average=average, samples_per_frame=samples_per_frame,
@@ -222,11 +221,7 @@ class IntegrateTime(IntegrateBase):
             step = total_time
 
         sample_rate = 1. / step
-
-        nframes = int((total_time / step).to_value(u.one))
-        nframes = (nframes // samples_per_frame) * samples_per_frame
-        assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes,) + ih.sample_shape
+        shape = (int((total_time / step).to_value(u.one)),) + ih.sample_shape
 
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          average=average, samples_per_frame=samples_per_frame,
@@ -287,9 +282,7 @@ class IntegratePhase(IntegrateBase):
         stop_phase = phase(ih.stop_time)
         step_phase = 1. / n_phase
 
-        nframes = int((stop_phase - start_phase) * n_phase)
-        nframes = (nframes // samples_per_frame) * samples_per_frame
-        shape = (nframes,) + ih.sample_shape
+        shape = (int((stop_phase - start_phase) * n_phase),) + ih.sample_shape
         super().__init__(ih, shape=shape, sample_rate=n_phase / u.cycle,
                          average=average, samples_per_frame=samples_per_frame,
                          dtype=dtype)
