@@ -8,7 +8,7 @@ from astropy.time import Time
 
 from ..base import Task
 from ..generators import EmptyStreamGenerator
-from ..integration import Integrate, Fold, IntegrateByPhase, Stack
+from ..integration import Integrate, Fold, IntegratePhase, Stack
 from ..functions import Square
 
 
@@ -240,14 +240,14 @@ class TestFold(TestFakePulsarBase):
             Fold(self.sh, 8, self.phase, samples_per_frame=2)
 
 
-class TestIntegrateByPhase(TestFakePulsarBase):
+class TestIntegratePhase(TestFakePulsarBase):
     # More detailed tests done in TestStack.
     @pytest.mark.parametrize('samples_per_frame', (1, 160))
     def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 5, 2).mean(1)
 
-        fh = IntegrateByPhase(self.sh, 25, self.phase,
-                              samples_per_frame=samples_per_frame)
+        fh = IntegratePhase(self.sh, 25, self.phase,
+                            samples_per_frame=samples_per_frame)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
         assert fh.sample_rate == 25 / u.cycle
