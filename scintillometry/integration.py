@@ -129,7 +129,27 @@ class IntegrateBase(BaseTaskBase):
                                     .reshape((-1,) + (1,) * (self.ndim - 1)))
 
 
-class IntegrateSamples(IntegrateBase):
+class Integrate(IntegrateBase):
+    def __new__(cls, ih, step=None, phase=None, average=True, samples_per_frame=1,
+                dtype=None):
+        if cls is Integrate:
+            if step is None:
+                cls = IntegrateSamples
+            elif isinstance(step, u.Quantity):
+                if step.unit.is_equivalent(u.s):
+                    cls = IntegrateTime
+            else:
+                try:
+                    step = operator.index(step)
+                except TypeError:
+                    pass
+                else:
+                    cls = IntegrateSamples
+
+        return super().__new__(cls)
+
+
+class IntegrateSamples(Integrate):
     """Integrate a stream over a number of samples.
 
     Parameters
@@ -179,7 +199,7 @@ class IntegrateSamples(IntegrateBase):
         return samples * self._step
 
 
-class IntegrateTime(IntegrateBase):
+class IntegrateTime(Integrate):
     """Integrate a stream over specific time steps.
 
     Parameters
@@ -231,7 +251,7 @@ class IntegrateTime(IntegrateBase):
                         .to_value(u.one)).astype(int)
 
 
-class IntegratePhase(IntegrateBase):
+class IntegratePhase(Integrate):
     """Integrate a stream over fixed phase intervals.
 
     This class is not that useful directly, but is used to help produce pulse
@@ -272,24 +292,22 @@ class IntegratePhase(IntegrateBase):
     .. warning: The format for ``average=False`` may change in the future.
 
     """
-    def __init__(self, ih, n_phase, phase, average=True,
+    def __init__(self, ih, step, phase, average=True,
                  samples_per_frame=1, dtype=None):
         self.phase = phase
-        start_phase = phase(ih.start_time)
-        stop_phase = phase(ih.stop_time)
-        step_phase = 1. / n_phase
+        start = phase(ih.start_time)
+        stop = phase(ih.stop_time)
 
-        shape = (int((stop_phase - start_phase) * n_phase),) + ih.sample_shape
-        super().__init__(ih, shape=shape, sample_rate=n_phase / u.cycle,
+        shape = (int((stop - start) / step),) + ih.sample_shape
+        super().__init__(ih, shape=shape, sample_rate=1. / step / u.cycle,
                          average=average, samples_per_frame=samples_per_frame,
                          dtype=dtype)
-        self._start_phase = start_phase
-        self._step_phase = step_phase
-        self._ih_mean_step_phase = (ih.shape[0] /
-                                    (stop_phase - start_phase))  # bin/cycle
+        self._start_phase = start
+        self._step_phase = step
+        self._ih_mean_step_phase = (ih.shape[0] / (stop - start))  # bin/cycle
         # Initialize values for _get_offsets.
         self._last_offset = 0
-        self._last_phase = start_phase
+        self._last_phase = start
 
     @lazyproperty
     def stop_time(self):
@@ -320,21 +338,6 @@ class IntegratePhase(IntegrateBase):
         self._last_offset = offsets[-1]
         self._last_phase = ih_phase[-1]
         return offsets[0] if getattr(samples, 'shape', ()) is () else offsets
-
-
-class Integrate(IntegrateBase):
-    def __new__(cls, ih, step=None, average=True, samples_per_frame=1,
-                dtype=None):
-        try:
-            step = operator.index(step)
-        except TypeError:
-            return IntegrateTime(ih, step=step, average=average,
-                                 samples_per_frame=samples_per_frame,
-                                 dtype=dtype)
-        else:
-            return IntegrateSamples(ih, step=step, average=average,
-                                    samples_per_frame=samples_per_frame,
-                                    dtype=dtype)
 
 
 class Fold(IntegrateBase):
@@ -462,7 +465,7 @@ class Stack(BaseTaskBase):
     def __init__(self, ih, n_phase, phase, average=True,
                  samples_per_frame=1, dtype=None):
         # Set up the integration in phase bins.
-        phased = IntegratePhase(ih, n_phase, phase, average=average,
+        phased = IntegratePhase(ih, 1./n_phase, phase, average=average,
                                 samples_per_frame=samples_per_frame*n_phase,
                                 dtype=dtype)
         # And ensure we reshape it to cycles.

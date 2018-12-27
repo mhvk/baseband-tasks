@@ -8,7 +8,8 @@ from astropy.time import Time
 
 from ..base import Task
 from ..generators import EmptyStreamGenerator
-from ..integration import Integrate, Fold, IntegratePhase, Stack
+from ..integration import (Integrate, IntegrateSamples, IntegrateTime,
+                           IntegratePhase, Fold, Stack)
 from ..functions import Square
 
 
@@ -43,12 +44,14 @@ class TestFakePulsarBase:
 class TestIntegrate(TestFakePulsarBase):
     """Test integrating intensities using Baseband's sample DADA file."""
 
-    def test_integrate_all(self):
+    @pytest.mark.parametrize('integrate_cls', (Integrate, IntegrateSamples,
+                                               IntegrateTime))
+    def test_integrate_all(self, integrate_cls):
         # Load baseband file and get reference intensities.
         ref_data = self.raw_power.mean(0)
 
         st = Square(self.sh)
-        ip = Integrate(st)
+        ip = integrate_cls(st)
         assert ip.start_time == self.sh.start_time
         assert abs(ip.stop_time - self.sh.stop_time) < 1. * u.ns
         assert abs(ip.stop_time - self.sh.start_time - 1./ip.sample_rate) < 1. * u.ns
@@ -246,7 +249,7 @@ class TestIntegratePhase(TestFakePulsarBase):
     def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 5, 2).mean(1)
 
-        fh = IntegratePhase(self.sh, 25, self.phase,
+        fh = IntegratePhase(self.sh, 1/25, self.phase,
                             samples_per_frame=samples_per_frame)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
