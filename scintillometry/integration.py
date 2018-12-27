@@ -130,6 +130,47 @@ class IntegrateBase(BaseTaskBase):
 
 
 class Integrate(IntegrateBase):
+    """Integrate a stream stepwize.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    step : int or `~astropy.units.Quantity`, optional
+        Number of bins or time or phase interval over which to integrate.
+        For time, should have units of time.  For phase, units consistent
+        with what the ``phase`` callable returns.  If not given, all samples
+        in the underlying stream are integrated over.
+    phase : callable
+        Should return pulse phases for given input time(s), passed in as an
+        '~astropy.time.Time' object.  The output should always include the
+        cycle count and be compatible with ``step``, i.e., generally be a
+        `~astropy.units.Quantity` with angular units.
+    average : bool, optional
+        Whether to calculate sums (with a ``count`` attribute) or to average
+        values in each bin.
+    samples_per_frame : int, optional
+        Number of sample times to process in one go.  This can be used to
+        optimize the process, though with many samples per bin the default
+        of 1 should work.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  Generally, the default of the dtype of the underlying
+        stream is good enough, but can be used to increase precision.  Note
+        that if ``average=True``, it is the user's responsibilty to pass in
+        a structured dtype.
+
+    Notes
+    -----
+    Since phase bins are typically not an integer multiple of the underlying
+    bin spacing, the integrated samples will generally not contain the same
+    number of samples.  The actual number of samples is counted, and for
+    ``average=True``, the sums have been divided by these counts, with bins
+    with no points set to ``NaN``.  For ``average=False``, the arrays returned
+    by ``read`` are structured arrays with ``data`` and ``count`` fields.
+
+    .. warning: The format for ``average=False`` may change in the future.
+
+    """
     def __new__(cls, ih, step=None, phase=None, average=True, samples_per_frame=1,
                 dtype=None):
         if cls is Integrate:
@@ -138,6 +179,8 @@ class Integrate(IntegrateBase):
             elif isinstance(step, u.Quantity):
                 if step.unit.is_equivalent(u.s):
                     cls = IntegrateTime
+                elif step.unit.is_equivalent(u.cycle):
+                    cls = IntegratePhase
             else:
                 try:
                     step = operator.index(step)
@@ -261,12 +304,13 @@ class IntegratePhase(Integrate):
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
-    n_phase : int
-        Number of bins per pulse period.
+    step : `~astropy.units.Quantity`
+        Phase interval over which to integrate.  Should have units of cycles
+        (or another angular unit).
     phase : callable
         Should return pulse phases for given input time(s), passed in as an
-        '~astropy.time.Time' object.  The output should be an array of float,
-        and has to include the cycle count.
+        '~astropy.time.Time' object.  The output should be quantities with
+        angular units (which have to include the cycle count).
     average : bool, optional
         Whether to calculate sums (with a ``count`` attribute) or to average
         values in each bin.
@@ -302,9 +346,9 @@ class IntegratePhase(Integrate):
         super().__init__(ih, shape=shape, sample_rate=1. / step,
                          average=average, samples_per_frame=samples_per_frame,
                          dtype=dtype)
-        self._start_phase = start
-        self._step_phase = step
-        self._ih_mean_step_phase = (ih.shape[0] / (stop - start))  # bin/cycle
+        self._start = start
+        self._step = step
+        self._ih_mean_sample_per_sample = ih.shape[0] / self.shape[0]
         # Initialize values for _get_offsets.
         self._last_offset = 0
         self._last_phase = start
@@ -321,18 +365,18 @@ class IntegratePhase(Integrate):
 
     def _get_offsets(self, samples):
         """Get offsets in the underlying stream nearest to samples."""
-        phase = self._start_phase + np.atleast_1d(samples) * self._step_phase
+        phase = self._start + np.atleast_1d(samples) * self._step
         offsets = self._last_offset
-        check = ((phase - self._last_phase) *
-                 self._ih_mean_step_phase).to_value(u.one).round().astype(int)
+        check = ((phase - self._last_phase) / self._step *
+                 self._ih_mean_sample_per_sample).to_value(u.one).round().astype(int)
         mask = check != 0
         while np.any(mask):
             offsets += check
             # Use mask to avoid calculating more phases than necessary.
             ih_time = self.ih.start_time + offsets[mask] / self.ih.sample_rate
             ih_phase = self.phase(ih_time)
-            check[mask] = ((phase[mask] - ih_phase) *
-                           self._ih_mean_step_phase).to_value(u.one).round()
+            check[mask] = ((phase[mask] - ih_phase) / self._step *
+                           self._ih_mean_sample_per_sample).to_value(u.one).round()
             mask = check != 0
 
         self._last_offset = offsets[-1]

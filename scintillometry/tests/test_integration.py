@@ -9,7 +9,7 @@ from astropy.time import Time
 from ..base import Task
 from ..generators import EmptyStreamGenerator
 from ..integration import (Integrate, IntegrateSamples, IntegrateTime,
-                           IntegratePhase, Fold, Stack)
+                           Fold, Stack)
 from ..functions import Square
 
 
@@ -249,8 +249,8 @@ class TestIntegratePhase(TestFakePulsarBase):
     def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 5, 2).mean(1)
 
-        fh = IntegratePhase(self.sh, u.cycle/25, self.phase,
-                            samples_per_frame=samples_per_frame)
+        fh = Integrate(self.sh, u.cycle/25, self.phase,
+                       samples_per_frame=samples_per_frame)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
         assert fh.sample_rate == 25 / u.cycle
