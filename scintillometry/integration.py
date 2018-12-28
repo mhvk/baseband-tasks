@@ -194,23 +194,24 @@ class Integrate(BaseTaskBase):
         integrating_out = _FakeOutput((offsets[-1],) + self.ih.sample_shape,
                                       setitem=self._integrate)
         # Set up real output and store information used in self._integrate
-        out = np.zeros((self.samples_per_frame,) + self.sample_shape,
-                       dtype=self.dtype)
+        frame = np.zeros((self.samples_per_frame,) + self.sample_shape,
+                         dtype=self.dtype)
         if self.average:
-            self._result = out
-            self._count = np.zeros(out.shape[:2] + (1,) * (out.ndim - 2),
-                                   dtype=int)
+            ndim_ih_sample = len(self.ih.sample_shape)
+            self._frame = {
+                'data': frame,
+                'count': np.zeros(frame.shape[:-ndim_ih_sample] +
+                                  (1,) * ndim_ih_sample, dtype=int)}
         else:
-            self._result = out['data']
-            self._count = out['count']
+            self._frame = frame
         self._offsets = offsets
 
         # Do the actual reading.
         self.ih.read(out=integrating_out)
         if self.average:
-            out /= self._count
+            frame /= self._frame['count']
 
-        return out
+        return frame
 
     def _integrate(self, item, data):
         """Sum data in the correct samples.
@@ -240,9 +241,9 @@ class Integrate(BaseTaskBase):
         indices[-1] = item.stop - item.start
         # Finally, sum within slices constructed from consecutive indices
         # (reduceat always adds the end point itself).
-        self._result[start:stop] += np.add.reduceat(data, indices[:-1])
-        self._count[start:stop] += (np.diff(indices)
-                                    .reshape((-1,) + (1,) * (self.ndim - 1)))
+        self._frame['data'][start:stop] += np.add.reduceat(data, indices[:-1])
+        self._frame['count'][start:stop] += (
+            np.diff(indices).reshape((-1,) + (1,) * (data.ndim - 1)))
 
 
 class Fold(Integrate):
@@ -296,9 +297,10 @@ class Fold(Integrate):
                  samples_per_frame=1, dtype=None):
         super().__init__(ih, step=step, average=average,
                          samples_per_frame=samples_per_frame)
+        # And ensure we reshape it to cycles.
+        self._shape = (self._shape[0], n_phase) + ih.sample_shape
         self.n_phase = n_phase
         self.phase = phase
-        self._shape = (self._shape[0], n_phase) + self.sample_shape
 
     def _read_frame(self, frame_index):
         # Before calling the underlying implementation, get the start time in
@@ -323,8 +325,8 @@ class Fold(Integrate):
         phase_index = ((phases * self.n_phase) % self.n_phase).astype(int)
         # Do the actual folding, adding the data to the sums and counts.
         # TODO: np.add.at is not very efficient; replace?
-        np.add.at(self._result, (sample_index, phase_index), raw)
-        np.add.at(self._count, (sample_index, phase_index), 1)
+        np.add.at(self._frame['data'], (sample_index, phase_index), raw)
+        np.add.at(self._frame['count'], (sample_index, phase_index), 1)
 
 
 class Stack(BaseTaskBase):
@@ -381,7 +383,7 @@ class Stack(BaseTaskBase):
                          sample_rate=phased.sample_rate / n_phase,
                          samples_per_frame=samples_per_frame,
                          dtype=dtype)
-        self._n_phase = n_phase
+        self.n_phase = n_phase
 
     def _read_frame(self, frame_index):
         # Read frame in phased directly, bypassing its ``read`` method.
