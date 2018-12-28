@@ -20,8 +20,8 @@ class _FakeOutput(ShapedLikeNDArray):
     shape properties of `~numpy.ndarray` given a (fake) shape.
     """
     def __init__(self, shape, setitem):
-            self._shape = shape
-            self._setitem = setitem
+        self._shape = shape
+        self._setitem = setitem
 
     def __setitem__(self, item, value):
         # Call back on out[item] = value.
@@ -36,18 +36,30 @@ class _FakeOutput(ShapedLikeNDArray):
         raise NotImplementedError("No _apply possible for _FakeOutput")
 
 
+def is_index(n):
+    """Helper that checks whether n is suitable for indexing."""
+    try:
+        operator.index(n)
+    except TypeError:
+        return False
+    else:
+        return True
+
+
 class Integrate(BaseTaskBase):
-    """Integrate a stream stepwize.
+    """Integrate a stream stepwise.
 
     Parameters
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
     step : int or `~astropy.units.Quantity`, optional
-        Number of bins or time or phase interval over which to integrate.
-        For time, should have units of time.  For phase, units consistent
-        with what the ``cycle`` callable returns.  If not given, all samples
-        in the underlying stream are integrated over.
+        Interval over which to integrate.  For time invervals, should have
+        units of time.  For phase intervals, units should be consistent with
+        what the ``phase`` callable returns.  If no ``phase`` callable is
+        passed in, then if step is integer, it is taken to be a number of
+        samples in the underlying stream that should be integrated over,
+        and if step is omitted, integration is over all samples.
     phase : callable
         Should return full pulse phase (i.e., including cycle count) for given
         input times (passed in as '~astropy.time.Time').  The output should be
@@ -57,9 +69,8 @@ class Integrate(BaseTaskBase):
         Whether to calculate sums (with a ``count`` attribute) or to average
         values in each bin.
     samples_per_frame : int, optional
-        Number of sample times to process in one go.  This can be used to
-        optimize the process, though with many samples per bin the default
-        of 1 should work.
+        Number of samples to process in one go.  This can be used to optimize
+        the process.  With many samples per bin, the default of 1 should be OK.
     dtype : `~numpy.dtype`, optional
         Output dtype.  Generally, the default of the dtype of the underlying
         stream is good enough, but can be used to increase precision.  Note
@@ -68,10 +79,11 @@ class Integrate(BaseTaskBase):
 
     Notes
     -----
-    Since phase bins are typically not an integer multiple of the underlying
-    bin spacing, the integrated samples will generally not contain the same
-    number of samples.  The actual number of samples is counted, and for
-    ``average=True``, the sums have been divided by these counts, with bins
+
+    Since time or phase bins are typically not an integer multiple of the
+    underlying bin spacing, the integrated samples will generally not contain
+    the same number of samples.  The actual number of samples is counted, and
+    for ``average=True``, the sums have been divided by these counts, with bins
     with no points set to ``NaN``.  For ``average=False``, the arrays returned
     by ``read`` are structured arrays with ``data`` and ``count`` fields.
 
@@ -80,22 +92,33 @@ class Integrate(BaseTaskBase):
     """
     def __init__(self, ih, step=None, phase=None, *,
                  average=True, samples_per_frame=1, dtype=None):
-        if step is None:
-            step = ih.shape[0]
+        if phase is None and (step is None or is_index(step)):
+            # For integer step, avoid doing any calculations of Time,
+            # since if a Stack was run before, start_time and stop_time
+            # are no longer reliable.
+            if step is None:
+                step = ih.shape[0]
 
-        try:
-            step = operator.index(step) / ih.sample_rate
-        except TypeError:
-            pass
+            sample_rate = ih.sample_rate / step
+            shape = (ih.shape[0] // step,) + ih.sample_shape
+            # Initialize values for _get_offsets.
+            self._mean_offset_size = 1. / step
+        else:
+            start = ih.start_time
+            stop = ih.stop_time
+            if phase is not None:
+                start = phase(start)
+                stop = phase(stop)
 
-        start = ih.start_time
-        stop = ih.stop_time
-        if phase is not None:
-            start = phase(ih.start_time)
-            stop = phase(ih.stop_time)
+            sample_rate = 1. / step
+            n_sample = ((stop - start) / step).to_value(u.one)
+            shape = (int(n_sample),) + ih.sample_shape
+            # Initialize values for _get_offsets.
+            self._mean_offset_size = n_sample / ih.shape[0]
+            self._start = start
+            self._last_phase = start
+            self._last_offset = 0
 
-        sample_rate = 1. / step
-        shape = (int(((stop - start) / step).to_value(u.one)),) + ih.sample_shape
         if dtype is None:
             if average:
                 dtype = ih.dtype
@@ -106,15 +129,13 @@ class Integrate(BaseTaskBase):
                          samples_per_frame=samples_per_frame, dtype=dtype)
         self.average = average
         self._phase = phase
-        self._start = start
-        self._step = step
-        self._ih_mean_sample_per_sample = ih.shape[0] / self.shape[0]
-        # Initialize values for _get_offsets.
-        self._last_offset = 0
-        self._last_phase = start
 
     @lazyproperty
     def stop_time(self):
+        """Time at the end of the output, just after the last sample.
+
+        See also `start_time` and `time`.
+        """
         raw_stop = self._get_offsets(self.shape[0])
         raw_offset = self.ih.tell()
         try:
@@ -126,21 +147,23 @@ class Integrate(BaseTaskBase):
     def _get_offsets(self, samples):
         """Get offsets in the underlying stream nearest to samples."""
         if self._phase is None:
-            return np.round((samples / self.sample_rate * self.ih.sample_rate)
-                            .to_value(u.one)).astype(int)
+            return np.round((samples / self._mean_offset_size)).astype(int)
 
+        # We assume that the frequency changes are sufficiently small that
+        # the bin size does not change significantly.
+        offset_phase_size = u.Unit(self._mean_offset_size / self.sample_rate)
         phase = self._start + np.atleast_1d(samples) / self.sample_rate
         offsets = self._last_offset
-        check = ((phase - self._last_phase) * self.sample_rate *
-                 self._ih_mean_sample_per_sample).to_value(u.one).round().astype(int)
+        check = np.round((phase - self._last_phase)
+                         .to_value(offset_phase_size)).astype(int)
         mask = check != 0
         while np.any(mask):
             offsets += check
             # Use mask to avoid calculating more phases than necessary.
             ih_time = self.ih.start_time + offsets[mask] / self.ih.sample_rate
             ih_phase = self._phase(ih_time)
-            check[mask] = ((phase[mask] - ih_phase) * self.sample_rate *
-                           self._ih_mean_sample_per_sample).to_value(u.one).round()
+            check[mask] = np.round((phase[mask] - ih_phase)
+                                   .to_value(offset_phase_size))
             mask = check != 0
 
         self._last_offset = offsets[-1]
@@ -252,6 +275,10 @@ class Fold(Integrate):
         that if ``average=True``, it is the user's responsibilty to pass in
         a structured dtype.
 
+    See Also
+    --------
+    Stack : to integrate over pulse phase and create pulse stacks
+
     Notes
     -----
     Since the sample time is not necessarily an integer multiple of the pulse
@@ -274,8 +301,8 @@ class Fold(Integrate):
         self._shape = (self._shape[0], n_phase) + self.sample_shape
 
     def _read_frame(self, frame_index):
-        # Before calling the underlying implementation, get the start time in the
-        # underlying frame, which we need to calculate phases in _integrate.
+        # Before calling the underlying implementation, get the start time in
+        # the underlying frame, to be used to calculate phases in _integrate.
         offset0 = self._get_offsets(frame_index * self.samples_per_frame)
         self.ih.seek(offset0)
         self._raw_time = self.ih.time
@@ -325,6 +352,10 @@ class Stack(BaseTaskBase):
         stream is good enough, but can be used to increase precision.  Note
         that if ``average=True``, it is the user's responsibilty to pass in
         a structured dtype.
+
+    See Also
+    --------
+    Fold : to calculate pulse profiles integrated over a given amount of time.
 
     Notes
     -----
