@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as u
 from astropy.utils import lazyproperty
 
-from .base import TaskBase
+from .base import BaseTaskBase
 from .fourier import get_fft_maker
 from .dm import DispersionMeasure
 
@@ -15,7 +15,7 @@ from .dm import DispersionMeasure
 __all__ = ['Disperse', 'Dedisperse']
 
 
-class Disperse(TaskBase):
+class Disperse(BaseTaskBase):
     """Coherently disperse a time stream.
 
     Parameters
@@ -116,12 +116,10 @@ class Disperse(TaskBase):
         self._ifft = self._fft.inverse()
 
         # Subtract padding since that is what we actually produce per frame,
-        # TODO: move the calculation of the number of frames to superclass?
-        # Some kind of convulution base class.
+        # TODO: move the padding calculation to some kind of convulution base class?
         samples_per_frame -= pad
-        n_frames = (ih.shape[0] - pad) // samples_per_frame
-        super().__init__(ih, samples_per_frame=samples_per_frame,
-                         shape=(n_frames * samples_per_frame,) + ih.shape[1:],
+        shape = (ih.shape[0] - pad,) + ih.sample_shape
+        super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband)
         self.dm = dm
         self.reference_frequency = reference_frequency
@@ -151,7 +149,6 @@ class Disperse(TaskBase):
         ft *= self.phase_factor
         return self._ifft(ft)
 
-    # Need to override _read_frame from TaskBase to include the padding.
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.
         self.ih.seek(frame_index * self.samples_per_frame)
