@@ -2,6 +2,7 @@
 """Tasks for integration over time and pulse phase."""
 
 import operator
+import warnings
 
 import numpy as np
 import astropy.units as u
@@ -116,8 +117,6 @@ class Integrate(BaseTaskBase):
             # Initialize values for _get_offsets.
             self._mean_offset_size = n_sample / ih.shape[0]
             self._start = start
-            self._last_phase = start
-            self._last_offset = 0
 
         if dtype is None:
             if average:
@@ -144,31 +143,51 @@ class Integrate(BaseTaskBase):
         finally:
             self.ih.seek(raw_offset)
 
-    def _get_offsets(self, samples):
-        """Get offsets in the underlying stream nearest to samples."""
+    def _get_offsets(self, samples, precision=1.e-3, max_iter=10):
+        """Get offsets in the underlying stream nearest to samples.
+
+        For a phase callable, this is done by iteratively guessing offsets,
+        calculating their associated phase, and updating, until the change
+        in guessed offset is less than ``precision`` or more than ``max_iter``
+        iterations are done.
+
+        Phase is assumed to increase monotonously with time.
+        """
         if self._phase is None:
             return np.round((samples / self._mean_offset_size)).astype(int)
 
-        # We assume that the frequency changes are sufficiently small that
-        # the bin size does not change significantly.
-        offset_phase_size = u.Unit(self._mean_offset_size / self.sample_rate)
-        phase = self._start + np.atleast_1d(samples) / self.sample_rate
-        offsets = self._last_offset
-        check = np.round((phase - self._last_phase)
-                         .to_value(offset_phase_size)).astype(int)
-        mask = check != 0
-        while np.any(mask):
-            offsets += check
+        # Requested phases.
+        phase = self._start + np.ravel(samples) / self.sample_rate
+        # Initial guesses for the associated offsets.
+        ih_mean_phase_size = self._mean_offset_size / self.sample_rate
+        offsets = ((phase - self._start) / ih_mean_phase_size).to_value(u.one)
+        # In order to update guesses, below we interpolate phase in offset.
+        # Add known boundaries to ensure we do not go out of bounds there.
+        all_offsets = np.hstack((0., offsets, self.ih.shape[0]))
+        # Associated phases; all but start, stop will be overwritten.
+        all_ih_phase = self._start + all_offsets * ih_mean_phase_size
+        # Select the parts we are going to modify (in-place).
+        offsets = all_offsets[1:-1]
+        ih_phase = all_ih_phase[1:-1]
+        mask = np.ones(offsets.shape, bool)
+        it = 0
+        while np.any(mask) and it < max_iter:
             # Use mask to avoid calculating more phases than necessary.
-            ih_time = self.ih.start_time + offsets[mask] / self.ih.sample_rate
-            ih_phase = self._phase(ih_time)
-            check[mask] = np.round((phase[mask] - ih_phase)
-                                   .to_value(offset_phase_size))
-            mask = check != 0
+            # First calculate phase associate with the current offset guesses.
+            old_offsets = offsets[mask]
+            ih_time = self.ih.start_time + old_offsets / self.ih.sample_rate
+            ih_phase[mask] = self._phase(ih_time)
+            # Next, interpolate in known phases to get improved offsets.
+            offsets[mask] = np.interp(phase[mask], all_ih_phase, all_offsets)
+            # Finally, update mask.
+            mask[mask] = abs(offsets[mask] - old_offsets) > precision
+            it += 1
 
-        self._last_offset = offsets[-1]
-        self._last_phase = ih_phase[-1]
-        return offsets[0] if getattr(samples, 'shape', ()) is () else offsets
+        if it >= max_iter:
+            warnings.warn('offset calculation did not converge. '
+                          'This should not happen!')
+
+        return offsets.round().astype(int).reshape(getattr(samples, 'shape', ()))
 
     def _read_frame(self, frame_index):
         """Determine which samples to read, and integrate over them.
