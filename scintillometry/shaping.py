@@ -4,7 +4,8 @@ import numpy as np
 from .base import TaskBase, Task
 
 
-__all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose']
+__all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose',
+           'GetItem']
 
 
 class ChangeSampleShapeBase(TaskBase):
