@@ -312,8 +312,8 @@ class GetItem(ChangeSampleShapeBase):
 
     See Also
     --------
-    Reshape : to just reshape the samples
-    Transpose : to just transpose sample axes
+    Reshape : to reshape the samples
+    Transpose : to transpose sample axes
     ReshapeAndTranspose : to reshape the samples and transpose the axes
     ChangeSampleShape : to change the samples with a user-supplied function.
 
