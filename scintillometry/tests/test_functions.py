@@ -136,6 +136,9 @@ class TestPower:
             Power(fh, polarization=[['L'], ['L']])
 
         fh = vdif.open(SAMPLE_VDIF)
+        with pytest.raises(AttributeError):
+            Power(fh)
+        fh.polarization = np.array(['L', 'R'] * 4)
         with pytest.raises(ValueError):
             Power(fh)
 
