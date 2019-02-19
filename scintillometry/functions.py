@@ -1,7 +1,7 @@
 # Licensed under the GPLv3 - see LICENSE
 import numpy as np
 
-from .base import TaskBase
+from .base import TaskBase, check_broadcast_to, simplify_shape
 
 
 __all__ = ['Square', 'Power']
@@ -74,25 +74,34 @@ class Power(TaskBase):
         not equal to two, or the polarization labels not unique.
     """
     def __init__(self, ih, polarization=None):
+        if polarization is None:
+            polarization = ih.polarization
+        else:
+            # Check that input has consistent shape
+            broadcast = check_broadcast_to(polarization, ih.sample_shape)
+            polarization = simplify_shape(broadcast)
+
+        if polarization.size != 2:
+            raise ValueError("need exactly 2 polarizations.  Reshape stream "
+                             "appropriately.")
+
+        pol_axis = polarization.shape.index(2)
+        pol_swap = polarization.swapaxes(0, pol_axis)
+        if pol_swap[0] == pol_swap[1]:
+            raise ValueError("need 2 unique polarizations.")
+        pol_swap = np.core.defchararray.add(pol_swap[[0, 1, 0, 1]],
+                                            pol_swap[[0, 1, 1, 0]])
+        polarization = pol_swap.swapaxes(0, pol_axis)
+
+        self._axis = ih.ndim - polarization.ndim + pol_axis
+        shape = ih.shape[:self._axis] + (4,) + ih.shape[self._axis+1:]
+
         ih_dtype = np.dtype(ih.dtype)
         if ih_dtype.kind != 'c':
             raise ValueError("{} only works on a complex timestream.")
         dtype = np.zeros(1, ih_dtype).real.dtype
-        super().__init__(ih, polarization=polarization, dtype=dtype)
-        polarization = self.polarization
-        if polarization.size != 2:
-            raise ValueError("need exactly 2 polarizations.  Reshape stream "
-                             "appropriately.")
-        pol_axis = polarization.shape.index(2)
-        polarization = polarization.swapaxes(0, pol_axis)
-        if polarization[0] == polarization[1]:
-            raise ValueError("need 2 unique polarizations.")
 
-        polarization = np.core.defchararray.add(polarization[[0, 1, 0, 1]],
-                                                polarization[[0, 1, 1, 0]])
-        self._polarization = polarization.swapaxes(0, pol_axis)
-        self._axis = ih.ndim - polarization.ndim + pol_axis
-        self._shape = self._shape[:self._axis] + (4,) + self._shape[self._axis+1:]
+        super().__init__(ih, shape=shape, polarization=polarization, dtype=dtype)
 
     def task(self, data):
         """Calculate the polarization powers and cross terms for one frame."""

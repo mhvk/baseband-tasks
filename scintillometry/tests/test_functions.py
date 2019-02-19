@@ -2,9 +2,12 @@
 
 import pytest
 import numpy as np
+from numpy.testing import assert_array_equal
 import astropy.units as u
+from astropy.time import Time
 
 from ..functions import Square, Power
+from ..generators import EmptyStreamGenerator
 
 from baseband import vdif, dada
 from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
@@ -86,11 +89,37 @@ class TestPower:
 
     def test_polarization_propagation(self):
         fh = dada.open(SAMPLE_DADA)
-        # Add frequency and sideband information by hand.
-        # (Note: sideband is incorrect; just for testing purposes)
+        # Add polarization information by hand.
         fh.polarization = np.array(['L', 'R'])
         pt = Power(fh)
         assert np.all(pt.polarization == np.array(['LL', 'RR', 'LR', 'RL']))
+        # Swap order.
+        fh.polarization = np.array(['R', 'L'])
+        pt = Power(fh)
+        assert np.all(pt.polarization == np.array(['RR', 'LL', 'RL', 'LR']))
+        # Check it also works in other axes, or with an overly detailed array.
+        # Use a fake stream a bit like the VDIF one, but with complex data.
+        eh = EmptyStreamGenerator((10000, 2, 4), sample_rate=1.*u.Hz,
+                                  start_time=Time('2018-01-01'))
+        pt = Power(eh, polarization=[['L'], ['R']])
+        expected = np.array([['LL'], ['RR'], ['LR'], ['RL']])
+        assert np.all(pt.polarization == expected)
+        pt = Power(eh, polarization=np.array([['L'] * 4, ['R'] * 4]))
+        assert np.all(pt.polarization == expected)
+
+    def test_frequency_sideband_propagation(self):
+        # Regression test for gh-60
+        frequency = np.array([[320.25], [320.25], [336.25], [336.25]]) * u.MHz
+        sideband = np.array([[-1], [1], [-1], [1]])
+        polarization = ['R', 'L']
+        # Create a fake stream a bit like the VDIF one, but with complex data.
+        eh = EmptyStreamGenerator((10000, 4, 2), sample_rate=1.*u.Hz,
+                                  start_time=Time('2018-01-01'),
+                                  frequency=frequency, sideband=sideband)
+        pt = Power(eh, polarization=polarization)
+        assert_array_equal(pt.polarization, np.array(['RR', 'LL', 'RL', 'LR']))
+        assert_array_equal(pt.frequency, eh.frequency)
+        assert_array_equal(pt.sideband, eh.sideband)
 
     def test_missing_polarization(self):
         fh = dada.open(SAMPLE_DADA)
@@ -107,5 +136,27 @@ class TestPower:
             Power(fh, polarization=[['L'], ['L']])
 
         fh = vdif.open(SAMPLE_VDIF)
+        with pytest.raises(AttributeError):
+            Power(fh)
+        fh.polarization = np.array(['L', 'R'] * 4)
         with pytest.raises(ValueError):
             Power(fh)
+
+    def test_frequency_sideband_mismatch(self):
+        frequency = np.array([[320.25], [320.25], [336.25], [336.25]]) * u.MHz
+        sideband = np.array([[-1], [1], [-1], [1]])
+        polarization = ['R', 'L']
+        # Create a fake stream a bit like the VDIF one, but with complex data.
+        bad_freq = np.array([[320, 320], [320, 320],
+                             [336, 336], [336, 337]]) * u.MHz
+        eh = EmptyStreamGenerator((10000, 4, 2), sample_rate=1.*u.Hz,
+                                  start_time=Time('2018-01-01'),
+                                  frequency=bad_freq, sideband=sideband)
+        with pytest.raises(ValueError):
+            Power(eh, polarization=polarization)
+        bad_side = np.array([[-1, -1], [1, -1], [-1, -1], [1, 1]])
+        eh = EmptyStreamGenerator((10000, 4, 2), sample_rate=1.*u.Hz,
+                                  start_time=Time('2018-01-01'),
+                                  frequency=frequency, sideband=bad_side)
+        with pytest.raises(ValueError):
+            Power(eh, polarization=polarization)

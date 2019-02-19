@@ -1,7 +1,7 @@
 # Licensed under the GPLv3 - see LICENSE
 import numpy as np
 
-from .base import TaskBase, Task
+from .base import TaskBase, Task, check_broadcast_to, simplify_shape
 
 
 __all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose',
@@ -46,26 +46,10 @@ class ChangeSampleShapeBase(TaskBase):
         # stream so should have been checked already. But we still do it.  With
         # the fully broadcast data, we then apply the shape changing operation,
         # and then remove axes in which all values are the same.
-        try:
-            broadcast = np.broadcast_to(value, (1,) + self.ih.sample_shape,
-                                        subok=True)
-        except ValueError as exc:
-            exc.args += ("value cannot be broadcast to sample shape",)
-            raise
+        broadcast = check_broadcast_to(value, (1,) + self.ih.sample_shape)
         # Remove sample time axis but ensure we do not decay to a scalar.
         value = self.task(broadcast)[0, ...]
-        # For each axis, get first element of the sample, and keep only it if
-        # all other elements are the same (numpy broadcasting rules will ensure
-        # any operations using the result will work correctly).
-        for axis in range(value.ndim):
-            value_0 = value[(slice(None),) * axis + (slice(0, 1),)]
-            if value.strides[axis] == 0 or np.all(value == value_0):
-                value = value_0
-        # Remove leading ones, which are not needed in numpy broadcasting.
-        first_not_unity = next((i for (i, s) in enumerate(value.shape)
-                                if s > 1), value.ndim)
-        value.shape = value.shape[first_not_unity:]
-        return value
+        return simplify_shape(value)
 
 
 class ChangeSampleShape(Task, ChangeSampleShapeBase):
