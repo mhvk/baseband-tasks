@@ -8,6 +8,37 @@ import numpy as np
 import astropy.units as u
 
 
+def check_broadcast_to(value, sample_shape):
+    """Broadcast values to the given shape.
+
+    Like `~numpy.broadcast_to`, but with an addition to any error message.
+    """
+    try:
+        broadcast = np.broadcast_to(value, sample_shape, subok=True)
+    except ValueError as exc:
+        exc.args += ("value cannot be broadcast to sample shape",)
+        raise
+    return broadcast
+
+
+def simplify_shape(value):
+    """Replace axes that contain only duplicates with broadcast values.
+
+    For each axis, get first element of the sample, and keep only it if
+    all other elements are the same (numpy broadcasting rules will ensure
+    any operations using the result will work correctly).
+    """
+    for axis in range(value.ndim):
+        value_0 = value[(slice(None),) * axis + (slice(0, 1),)]
+        if value.strides[axis] == 0 or np.all(value == value_0):
+            value = value_0
+    # Remove leading ones, which are not needed in numpy broadcasting.
+    first_not_unity = next((i for (i, s) in enumerate(value.shape)
+                            if s > 1), value.ndim)
+    value.shape = value.shape[first_not_unity:]
+    return value
+
+
 class Base:
     """Base class of all tasks and generators.
 
@@ -74,28 +105,8 @@ class Base:
 
     def _check_shape(self, value):
         """Check that value can be broadcast to the sample shape."""
-        value = np.array(value, subok=True, copy=False)
-        try:
-            broadcast = np.broadcast_to(value, self.sample_shape, subok=True)
-        except ValueError as exc:
-            exc.args += ("value cannot be broadcast to sample shape",)
-            raise
-        return self._remove_broadcast(broadcast)
-
-    @staticmethod
-    def _remove_broadcast(value):
-        # For each axis, get first element of the sample, and keep only it if
-        # all other elements are the same (numpy broadcasting rules will ensure
-        # any operations using the result will work correctly).
-        for axis in range(value.ndim):
-            value_0 = value[(slice(None),) * axis + (slice(0, 1),)]
-            if value.strides[axis] == 0 or np.all(value == value_0):
-                value = value_0
-        # Remove leading ones, which are not needed in numpy broadcasting.
-        first_not_unity = next((i for (i, s) in enumerate(value.shape)
-                                if s > 1), value.ndim)
-        value.shape = value.shape[first_not_unity:]
-        return value
+        broadcast = check_broadcast_to(value, self.sample_shape)
+        return simplify_shape(broadcast)
 
     @property
     def shape(self):

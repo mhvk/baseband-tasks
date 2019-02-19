@@ -1,7 +1,7 @@
 # Licensed under the GPLv3 - see LICENSE
 import numpy as np
 
-from .base import TaskBase, Task
+from .base import TaskBase, Task, check_broadcast_to, simplify_shape
 
 
 __all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose',
@@ -46,15 +46,10 @@ class ChangeSampleShapeBase(TaskBase):
         # stream so should have been checked already. But we still do it.  With
         # the fully broadcast data, we then apply the shape changing operation,
         # and then remove axes in which all values are the same.
-        try:
-            broadcast = np.broadcast_to(value, (1,) + self.ih.sample_shape,
-                                        subok=True)
-        except ValueError as exc:
-            exc.args += ("value cannot be broadcast to sample shape",)
-            raise
+        broadcast = check_broadcast_to(value, (1,) + self.ih.sample_shape)
         # Remove sample time axis but ensure we do not decay to a scalar.
         value = self.task(broadcast)[0, ...]
-        return self._remove_broadcast(value)
+        return simplify_shape(value)
 
 
 class ChangeSampleShape(Task, ChangeSampleShapeBase):
