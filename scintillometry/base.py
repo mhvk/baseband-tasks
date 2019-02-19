@@ -76,10 +76,25 @@ class Base:
         """Check that value can be broadcast to the sample shape."""
         value = np.array(value, subok=True, copy=False)
         try:
-            np.broadcast_to(value, self.sample_shape)
+            broadcast = np.broadcast_to(value, self.sample_shape, subok=True)
         except ValueError as exc:
             exc.args += ("value cannot be broadcast to sample shape",)
             raise
+        return self._remove_broadcast(broadcast)
+
+    @staticmethod
+    def _remove_broadcast(value):
+        # For each axis, get first element of the sample, and keep only it if
+        # all other elements are the same (numpy broadcasting rules will ensure
+        # any operations using the result will work correctly).
+        for axis in range(value.ndim):
+            value_0 = value[(slice(None),) * axis + (slice(0, 1),)]
+            if value.strides[axis] == 0 or np.all(value == value_0):
+                value = value_0
+        # Remove leading ones, which are not needed in numpy broadcasting.
+        first_not_unity = next((i for (i, s) in enumerate(value.shape)
+                                if s > 1), value.ndim)
+        value.shape = value.shape[first_not_unity:]
         return value
 
     @property

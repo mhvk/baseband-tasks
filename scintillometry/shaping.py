@@ -54,18 +54,7 @@ class ChangeSampleShapeBase(TaskBase):
             raise
         # Remove sample time axis but ensure we do not decay to a scalar.
         value = self.task(broadcast)[0, ...]
-        # For each axis, get first element of the sample, and keep only it if
-        # all other elements are the same (numpy broadcasting rules will ensure
-        # any operations using the result will work correctly).
-        for axis in range(value.ndim):
-            value_0 = value[(slice(None),) * axis + (slice(0, 1),)]
-            if value.strides[axis] == 0 or np.all(value == value_0):
-                value = value_0
-        # Remove leading ones, which are not needed in numpy broadcasting.
-        first_not_unity = next((i for (i, s) in enumerate(value.shape)
-                                if s > 1), value.ndim)
-        value.shape = value.shape[first_not_unity:]
-        return value
+        return self._remove_broadcast(value)
 
 
 class ChangeSampleShape(Task, ChangeSampleShapeBase):

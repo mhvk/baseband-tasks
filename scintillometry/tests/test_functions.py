@@ -3,8 +3,10 @@
 import pytest
 import numpy as np
 import astropy.units as u
+from astropy.time import Time
 
 from ..functions import Square, Power
+from ..generators import EmptyStreamGenerator
 
 from baseband import vdif, dada
 from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
@@ -86,11 +88,23 @@ class TestPower:
 
     def test_polarization_propagation(self):
         fh = dada.open(SAMPLE_DADA)
-        # Add frequency and sideband information by hand.
-        # (Note: sideband is incorrect; just for testing purposes)
+        # Add polarization information by hand.
         fh.polarization = np.array(['L', 'R'])
         pt = Power(fh)
         assert np.all(pt.polarization == np.array(['LL', 'RR', 'LR', 'RL']))
+        # Swap order.
+        fh.polarization = np.array(['R', 'L'])
+        pt = Power(fh)
+        assert np.all(pt.polarization == np.array(['RR', 'LL', 'RL', 'LR']))
+        # Check it also works in other axes, or with an overly detailed array.
+        # Use a fake stream a bit like the VDIF one, but with complex data.
+        eh = EmptyStreamGenerator((10000, 2, 4), sample_rate=1.*u.Hz,
+                                  start_time=Time('2018-01-01'))
+        pt = Power(eh, polarization=[['L'], ['R']])
+        expected = np.array([['LL'], ['RR'], ['LR'], ['RL']])
+        assert np.all(pt.polarization == expected)
+        pt = Power(eh, polarization=np.array([['L'] * 4, ['R'] * 4]))
+        assert np.all(pt.polarization == expected)
 
     def test_missing_polarization(self):
         fh = dada.open(SAMPLE_DADA)
