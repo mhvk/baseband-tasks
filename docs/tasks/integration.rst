@@ -1,11 +1,11 @@
 .. _integration:
 
-******************************************
-Integration (`scintillometry.integration`)
-******************************************
+******************************************************
+Integration and Folding (`scintillometry.integration`)
+******************************************************
 
 `~scintillometry.integration` contains tasks for integration, folding, and
-craating pulse stacks.
+creating pulse stacks.
 
 .. _integration_api:
 

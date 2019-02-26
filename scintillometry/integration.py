@@ -67,8 +67,9 @@ class Integrate(BaseTaskBase):
         compatible with ``step``, i.e., generally an `~astropy.units.Quantity`
         with angular units.
     average : bool, optional
-        Whether to calculate sums (with a ``count`` attribute) or to average
-        values in each bin.
+        Whether the output should be the average of all entries that
+        contributed to it, or rather the sum, in a structured array that holds
+        both ``'data'`` and ``'count'`` items.
     samples_per_frame : int, optional
         Number of samples to process in one go.  This can be used to optimize
         the process.  With many samples per bin, the default of 1 should be OK.
@@ -362,11 +363,12 @@ class Stack(BaseTaskBase):
         '~astropy.time.Time' object.  The output should be an array of float,
         and has to include the cycle count.
     average : bool, optional
-        Whether to calculate sums (with a ``count`` attribute) or to average
-        values in each phase bin.
+        Whether the output pulse profile should be the average of all entries
+        that contributed to it, or rather the sum, in a structured array that
+        holds both ``'data'`` and ``'count'`` items.
     samples_per_frame : int, optional
         Number of sample times to process in one go.  This can be used to
-        optimize the process, though with many samples per pulse perdiod the
+        optimize the process, though with many samples per pulse period the
         default of 1 should be fine.
     dtype : `~numpy.dtype`, optional
         Output dtype.  Generally, the default of the dtype of the underlying
@@ -380,6 +382,9 @@ class Stack(BaseTaskBase):
 
     Notes
     -----
+    One can follow this with a `~scintillometry.integration.Integrate` task
+    to average over multiple pulses.
+
     Since phase bins are typically not an integer multiple of the underlying
     bin spacing, the integrated samples will generally not contain the same
     number of samples.  The actual number of samples is counted, and for
