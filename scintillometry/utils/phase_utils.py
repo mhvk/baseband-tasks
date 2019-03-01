@@ -18,7 +18,7 @@ class PintPhase(object):
        ---------
        par_file : str
            TEMPO/TEMPO2 style parameter file.
-       obs : str
+       observatory : str
            Observatory name or observatory code.
        frequency : float or `~astropy.units.Quantity`.
            Observing frequency default units is 'MHz'
@@ -36,14 +36,12 @@ class PintPhase(object):
        This method provides high precision phase calculation(~10 Nanosecond
        timing precision). The fractional phase is between -0.5 to 0.5.
     """
-    def __init__(self, par_file, obs, frequency, ephem='de436', **kwargs):
+    def __init__(self, par_file, observatory, frequency, **kwargs):
         from .pint_utils import PintToas
         from pint.models import get_model
         self.par_file = par_file
         self.model = get_model(self.par_file)
-        self.toa_maker = PintToas(**kwargs)
-        self.obs = obs
-        self.frequency = frequency
+        self.toa_maker = PintToas(observatory, frequency, **kwargs)
 
     def __call__(self, t):
         """Compute the apparent phase at one or more time stemp
@@ -58,16 +56,11 @@ class PintPhase(object):
            The apparent pulse phase at time t. The phases are return as
            'integer phase, fractional phase'
         """
-        toas = self._make_toas(t)
+        toas = self.toa_maker(t)
         ph = self.model.phase(toas)
-        return (u.Quantity(ph.int, u.cycle, copy=False),
-                u.Quantity(ph.frac, u.cycle, copy=False))
-
-    def _make_toas(self, t):
-        from .pint_utils import make_toa_list
-        toa_list = make_toa_list(t, self.obs, self.frequency)
-        toas = self.toa_maker.make_toas(toa_list)
-        return toas
+        shape = getattr(t, 'shape', ())
+        return (u.Quantity(ph.int.reshape(shape), u.cycle, copy=False),
+                u.Quantity(ph.frac.reshape(shape), u.cycle, copy=False))
 
     def apparent_spin_freq(self, t):
         """Compute the apparent spin frequency at one or more time stamps.
@@ -81,8 +74,8 @@ class PintPhase(object):
             ------
             The apparent spin frequency at time t.
         """
-        toas = self._make_toas(t)
-        return self.model.d_phase_d_toa(toas)
+        toas = self.toa_maker(t)
+        return self.model.d_phase_d_toa(toas).reshape(getattr(t, 'shape', ()))
 
 
 class PolycoPhase(object):

@@ -14,48 +14,57 @@ pytest.importorskip('scintillometry.utils.pint_utils')
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
-class TestPhaseBase:
+class Base:
     def setup(self):
         self.start_time = Time('2018-05-06T23:00:00', format='isot',
                                scale='utc')
-        self.times = self.start_time + np.arange(1000) * 1.50 * u.min
+        self.times = self.start_time + np.arange(30) * 1.50 * u.min
+
+
+class PolycoBase(Base):
+    def setup(self):
+        super().setup()
         self.polyco_file = os.path.join(test_data, 'B1937_polyco.dat')
-        self.par_file = os.path.join(test_data,
-                                     'B1937+21_NANOGrav_11yv1.gls.par')
+        self.polyco_pu = PolycoPhase(self.polyco_file)
+        self.pu = self.polyco_pu
+
+
+class PintBase(Base):
+    def setup(self):
+        super().setup()
         self.obs = 'ao'
         self.obs_freq = 1440.0
-        self.pint_pu = PintPhase(self.par_file, obs=self.obs,
+        self.par_file = os.path.join(test_data,
+                                     'B1937+21_NANOGrav_11yv1.gls.par')
+        self.pint_pu = PintPhase(self.par_file, observatory=self.obs,
                                  frequency=self.obs_freq)
-        self.polyco_pu = PolycoPhase(self.polyco_file)
+        self.pu = self.pint_pu
 
 
-class TestPhase(TestPhaseBase):
-    def test_one_phase(self):
-        # Compute PINT phase and f0 for one time
-        pint_phase_one = self.pint_pu(self.times[0])
-        pint_f0_one = self.pint_pu.apparent_spin_freq(self.times[0])
-        assert isinstance(pint_phase_one[0], u.Quantity), \
-            "PINT phase did not return the expected list."
-        assert isinstance(pint_phase_one[1], u.Quantity), \
-            "PINT phase did not return the expected list."
-        assert pint_phase_one[0].shape == (1,), \
-            "PINT phase did not return the expected list length."
-        assert pint_phase_one[1].shape == (1,), \
-            "PINT phase did not return the expected list length."
-        assert isinstance(pint_f0_one, u.Quantity), \
-            "PINT f0 did not return the expected list."
-        assert len(pint_f0_one) == 1, \
-            "PINT f0 did not return the expected list length."
-        # Compute Polyco phase and f0 for one time
-        polyco_phase_one = self.polyco_pu(self.times[0])
-        polyco_f0_one = self.polyco_pu.apparent_spin_freq(self.times[0])
-        assert isinstance(polyco_phase_one[0], u.Quantity), \
-            "Polyco phase did not return the expected Quantity."
-        assert isinstance(polyco_phase_one[1], u.Quantity), \
-            "Polyco phase did not return the expected Quantity."
-        assert isinstance(polyco_f0_one, u.Quantity), \
-            "Polyco f0 did not return the expected Quantity."
+class PhaseTest:
+    @pytest.mark.parametrize('index', (0, slice(None)))
+    def test_basics(self, index):
+        # Compute phase and f0 for a single time
+        time = self.times[index]
+        phase = self.pu(time)
+        f0 = self.pu.apparent_spin_freq(time)
+        assert isinstance(phase[0], u.Quantity)
+        assert isinstance(phase[1], u.Quantity)
+        assert phase[0].shape == time.shape
+        assert phase[1].shape == time.shape
+        assert isinstance(f0, u.Quantity)
+        assert f0.shape == time.shape
 
+
+class TestPintPhase(PhaseTest, PintBase):
+    pass
+
+
+class TestPolycoPhase(PhaseTest, PolycoBase):
+    pass
+
+
+class TestPhaseComparison(PintBase, PolycoBase):
     def test_phase(self):
         # Compute PINT phase and f0
         pint_phase = self.pint_pu(self.times)
