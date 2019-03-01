@@ -66,6 +66,10 @@ class Integrate(BaseTaskBase):
         input times (passed in as '~astropy.time.Time').  The output should be
         compatible with ``step``, i.e., generally an `~astropy.units.Quantity`
         with angular units.
+    start : `~astropy.time.Time` or int, optional
+        Time or offset at which to start the integration. If an offset or if
+        ``step`` is integer, the actual start time will the underlying sample
+        time nearest to the requested one.  Default: 0 (start of stream).
     average : bool, optional
         Whether the output should be the average of all entries that
         contributed to it, or rather the sum, in a structured array that holds
@@ -93,20 +97,32 @@ class Integrate(BaseTaskBase):
 
     """
     def __init__(self, ih, step=None, phase=None, *,
-                 average=True, samples_per_frame=1, dtype=None):
+                 start=0, average=True, samples_per_frame=1, dtype=None):
+        ih_start = ih.seek(start)
+        ih_n_sample = ih.shape[0] - ih_start
+        if ih_start < 0 or ih_n_sample < 0:
+            raise ValueError("'start' is not within the underlying stream.")
+
         if phase is None and (step is None or is_index(step)):
-            # For integer step, avoid doing any calculations of Time,
+            # For integer step, avoid calculating time if possible,
             # since if a Stack was run before, start_time and stop_time
             # are no longer reliable.
+            start_time = False
             if step is None:
-                step = ih.shape[0]
+                step = ih_n_sample
 
             sample_rate = ih.sample_rate / step
-            shape = (ih.shape[0] // step,) + ih.sample_shape
+            shape = (ih_n_sample // step,) + ih.sample_shape
             # Initialize values for _get_offsets.
             self._mean_offset_size = 1. / step
+
         else:
-            start = ih.start_time
+            try:
+                # We may not be at an integer sample.
+                ih_start += ((start - ih.time) * ih.sample_rate).to_value(u.one)
+            except TypeError:  # start is not a Time
+                start = ih.time
+            start_time = start
             stop = ih.stop_time
             if phase is not None:
                 start = phase(start)
@@ -116,7 +132,7 @@ class Integrate(BaseTaskBase):
             n_sample = ((stop - start) / step).to_value(u.one)
             shape = (int(n_sample),) + ih.sample_shape
             # Initialize values for _get_offsets.
-            self._mean_offset_size = n_sample / ih.shape[0]
+            self._mean_offset_size = n_sample / ih_n_sample
             self._start = start
 
         if dtype is None:
@@ -126,9 +142,39 @@ class Integrate(BaseTaskBase):
                 dtype = np.dtype([('data', ih.dtype), ('count', int)])
 
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame, dtype=dtype)
+                         samples_per_frame=samples_per_frame,
+                         start_time=start_time, dtype=dtype)
         self.average = average
         self._phase = phase
+        self._ih_start = ih_start
+
+    def _ih_time(self, offset):
+        """Get time in underlying stream for given offset.
+
+        Ensures the offset is put back, and adds a hopefully helpful
+        note to any exception.
+        """
+        ih_offset = self.ih.tell()
+        try:
+            self.ih.seek(offset)
+            return self.ih.time
+        except Exception as exc:
+            exc.args += ('cannot calculate time; this can happen if '
+                         'integrating a pulse stack',)
+            raise exc
+        finally:
+            self.ih.seek(ih_offset)
+
+    @lazyproperty
+    def start_time(self):
+        """Start time of the output, left edge of the first sample.
+
+        See also `time` and `stop_time`.
+        """
+        if self._start_time:
+            return self._start_time
+        else:
+            return self._ih_time(self._ih_start)
 
     @lazyproperty
     def stop_time(self):
@@ -137,12 +183,7 @@ class Integrate(BaseTaskBase):
         See also `start_time` and `time`.
         """
         raw_stop = self._get_offsets(self.shape[0])
-        raw_offset = self.ih.tell()
-        try:
-            self.ih.seek(raw_stop)
-            return self.ih.time
-        finally:
-            self.ih.seek(raw_offset)
+        return self._ih_time(raw_stop)
 
     def _get_offsets(self, samples, precision=1.e-3, max_iter=10):
         """Get offsets in the underlying stream nearest to samples.
@@ -155,7 +196,8 @@ class Integrate(BaseTaskBase):
         Phase is assumed to increase monotonously with time.
         """
         if self._phase is None:
-            return np.round((samples / self._mean_offset_size)).astype(int)
+            return (np.round(samples / self._mean_offset_size +
+                             self._ih_start).astype(int))
 
         # Requested phases.
         phase = self._start + np.ravel(samples) / self.sample_rate
@@ -164,9 +206,11 @@ class Integrate(BaseTaskBase):
         offsets = ((phase - self._start) / ih_mean_phase_size).to_value(u.one)
         # In order to update guesses, below we interpolate phase in offset.
         # Add known boundaries to ensure we do not go out of bounds there.
-        all_offsets = np.hstack((0., offsets, self.ih.shape[0]))
+        all_offsets = np.hstack((0, offsets, self.ih.shape[0] - self._ih_start))
         # Associated phases; all but start, stop will be overwritten.
         all_ih_phase = self._start + all_offsets * ih_mean_phase_size
+        # Add in base offset in underlying file.
+        all_offsets += self._ih_start
         # Select the parts we are going to modify (in-place).
         offsets = all_offsets[1:-1]
         ih_phase = all_ih_phase[1:-1]
@@ -188,7 +232,8 @@ class Integrate(BaseTaskBase):
             warnings.warn('offset calculation did not converge. '
                           'This should not happen!')
 
-        return offsets.round().astype(int).reshape(getattr(samples, 'shape', ()))
+        shape = getattr(samples, 'shape', ())
+        return offsets.round().astype(int).reshape(shape)
 
     def _read_frame(self, frame_index):
         """Determine which samples to read, and integrate over them.
@@ -283,6 +328,10 @@ class Fold(Integrate):
     step : int or `~astropy.units.Quantity`, optional
         Number of input samples or time interval over which to fold.
         If not given, the whole file will be folded into a single profile.
+    start : `~astropy.time.Time` or int, optional
+        Time or offset at which to start the integration. If an offset or if
+        ``step`` is integer, the actual start time will the underlying sample
+        time nearest to the requested one.  Default: 0 (start of stream).
     average : bool, optional
         Whether the output pulse profile should be the average of all entries
         that contributed to it, or rather the sum, in a structured array that
@@ -313,9 +362,9 @@ class Fold(Integrate):
     .. warning: The format for ``average=False`` may change in the future.
 
     """
-    def __init__(self, ih, n_phase, phase, step=None, average=True,
-                 samples_per_frame=1, dtype=None):
-        super().__init__(ih, step=step, average=average,
+    def __init__(self, ih, n_phase, phase, step=None, *,
+                 start=0, average=True, samples_per_frame=1, dtype=None):
+        super().__init__(ih, step=step, start=start, average=average,
                          samples_per_frame=samples_per_frame)
         # And ensure we reshape it to cycles.
         self._shape = (self._shape[0], n_phase) + ih.sample_shape
@@ -362,6 +411,10 @@ class Stack(BaseTaskBase):
         Should return pulse phases for given input time(s), passed in as an
         '~astropy.time.Time' object.  The output should be an array of float,
         and has to include the cycle count.
+    start : `~astropy.time.Time` or int, optional
+        Time or offset at which to start the integration. If an offset or if
+        ``step`` is integer, the actual start time will the underlying sample
+        time nearest to the requested one.  Default: 0 (start of stream).
     average : bool, optional
         Whether the output pulse profile should be the average of all entries
         that contributed to it, or rather the sum, in a structured array that
@@ -395,10 +448,11 @@ class Stack(BaseTaskBase):
     .. warning: The format for ``average=False`` may change in the future.
 
     """
-    def __init__(self, ih, n_phase, phase, average=True,
-                 samples_per_frame=1, dtype=None):
+    def __init__(self, ih, n_phase, phase, *,
+                 start=0, average=True, samples_per_frame=1, dtype=None):
         # Set up the integration in phase bins.
-        phased = Integrate(ih, u.cycle/n_phase, phase, average=average,
+        phased = Integrate(ih, u.cycle/n_phase, phase,
+                           start=start, average=average,
                            samples_per_frame=samples_per_frame*n_phase,
                            dtype=dtype)
         # And ensure we reshape it to cycles.

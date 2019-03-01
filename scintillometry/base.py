@@ -392,7 +392,7 @@ class BaseTaskBase(Base):
         assert nframes > 0, "time per frame larger than total time in stream"
         shape = (nframes,) + shape[1:]
 
-        super().__init__(shape=shape, start_time=ih.start_time,
+        super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
