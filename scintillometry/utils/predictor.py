@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# Licensed under the GPLv3 - see LICENSE
 """Read in and use tempo1 polyco files (tempo2 predict to come).
 
 Examples
@@ -67,6 +67,7 @@ from astropy.time import Time
 
 
 __doctest_skip__ = ['*']
+__all__ = ['Polyco']
 
 
 class Polyco(Table):
@@ -152,7 +153,7 @@ class Polyco(Table):
         Returns
         -------
         polynomial : Polynomial
-            set up for MJDs between mjd_mid ± span
+            set up for MJDs between mjd_mid +/- span
 
         Notes
         -----
@@ -216,7 +217,7 @@ class Polyco(Table):
         Returns
         -------
         phasepol : Polynomial
-            set up for MJDs between mjd_mid ± span
+            set up for MJDs between mjd_mid +/- span
         """
         return self.polynomial(index, rphase, t0=t0, time_unit=time_unit,
                                convert=convert)
@@ -232,7 +233,7 @@ class Polyco(Table):
         Returns
         -------
         freqpol : Polynomial
-            set up for MJDs between mjd_mid ± span
+            set up for MJDs between mjd_mid +/- span
         """
         return self.polynomial(index, deriv=1.,
                                t0=t0, time_unit=time_unit, out_unit=u.s,

@@ -5,6 +5,7 @@ import numpy as np
 import os
 import astropy.units as u
 from astropy.time import Time
+
 from ..utils.predictor import Polyco
 
 
@@ -29,6 +30,7 @@ class TestPredictor:
         # Test scalar input
         p = self.polyco(time[0])
         assert p.shape == ()
+        assert p > self.polyco['rphase'][0] * u.cy
         # Test array input
         pa = self.polyco(time)
         assert len(pa) == len(time)
@@ -39,20 +41,25 @@ class TestPredictor:
         f1 = self.polyco(time, deriv=2, time_unit=u.min)
         assert len(f1) == len(time)
         assert f1.unit == u.cycle/(u.min**2)
+
         pr0 = self.polyco(self.polyco[0]['mjd_mid'], rphase=0)
         assert pr0 == 0.0 * u.cycle, "`reference phase` is not setup right."
         pf = self.polyco(self.polyco['mjd_mid'], rphase='fraction')
-        assert np.all(pf.value - self.polyco['rphase'] % 1.0  < 2e-5), \
+        assert np.all(pf.value - self.polyco['rphase'] % 1.0 < 2e-5), \
             "`reference phase` is not setup right."
 
+        pr = self.polyco(time, rphase='fraction')
+        assert pr[0] < 1 * u.cy
+
         # Test mjd input
-        time2 = (self.start_time.mjd +
-                 (np.linspace(0, 100) * 10.0 * u.min).to(u.day).value)
-        p = self.polyco(time2[0])
-        assert p.shape == ()
+        p2 = self.polyco(time[0].mjd)
+        assert p2.shape == ()
+        assert u.allclose(p2, p)
+
         # Test array input
-        pa = self.polyco(time2)
-        assert len(pa) == len(time2)
+        pa2 = self.polyco(time.mjd)
+        assert len(pa2) == len(time)
+        assert u.allclose(pa2, pa)
 
     def test_over_range(self):
         time = self.start_time + 10 * u.day
