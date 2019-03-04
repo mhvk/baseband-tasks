@@ -7,7 +7,7 @@ import os
 import astropy.units as u
 from astropy.time import Time
 
-from ..utils.phase_utils import PolycoPhase, PintPhase
+from ..phases import PolycoPhase, PintPhase
 
 pytest.importorskip('scintillometry.utils.pint_utils')
 

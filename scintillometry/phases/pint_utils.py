@@ -91,7 +91,7 @@ def make_toa_list(time, obs, freq, **other_meta):
     """
     toa_list = []
     for t_stamp in time.ravel():
-        # This format converting should be done by PINT in the futureself.
+        # This format converting should be done by PINT in the future.
         if t_stamp.scale == 'utc':
             t_stamp = t_stamp.replicate(format='pulsar_mjd')
         toa_entry = toa.TOA(t_stamp, obs=obs, freq=freq, **other_meta)

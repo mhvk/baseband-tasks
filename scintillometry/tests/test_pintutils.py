@@ -7,7 +7,7 @@ import astropy.units as u
 from astropy.time import Time
 
 
-pint_utils = pytest.importorskip('scintillometry.utils.pint_utils')
+pint_utils = pytest.importorskip('scintillometry.phases.pint_utils')
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
