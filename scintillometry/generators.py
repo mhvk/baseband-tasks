@@ -42,6 +42,10 @@ class StreamGenerator(Base):
     sideband : array, optional
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Should be broadcastable to the sample shape.  Default: unknown.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``.
 
@@ -67,11 +71,12 @@ class StreamGenerator(Base):
     """
     def __init__(self, function, shape, start_time, sample_rate,
                  samples_per_frame=1, frequency=None, sideband=None,
-                 dtype=np.complex64):
+                 polarization=None, dtype=np.complex64):
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband, dtype=dtype)
+                         frequency=frequency, sideband=sideband,
+                         polarization=polarization, dtype=dtype)
         self._function = function
 
     def _read_frame(self, frame_index):
@@ -103,6 +108,10 @@ class EmptyStreamGenerator(Base):
     sideband : array, optional
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Should be broadcastable to the sample shape.  Default: unknown.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``.
 
@@ -206,6 +215,10 @@ class NoiseGenerator(StreamGenerator):
     sideband : array, optional
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Should be broadcastable to the sample shape.  Default: unknown.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
     dtype : `~numpy.dtype` or anything that initializes one, optional
         Type of data produced.  Default: ``complex64``
     seed : int, optional
@@ -218,9 +231,11 @@ class NoiseGenerator(StreamGenerator):
     samples per frame.
     """
     def __init__(self, shape, start_time, sample_rate, samples_per_frame,
-                 frequency=None, sideband=None, dtype=np.complex64, seed=None):
+                 frequency=None, sideband=None, polarization=None,
+                 dtype=np.complex64, seed=None):
         generator = Noise(seed)
         super().__init__(function=generator, shape=shape,
                          start_time=start_time, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband, dtype=dtype)
+                         frequency=frequency, sideband=sideband,
+                         polarization=polarization, dtype=dtype)

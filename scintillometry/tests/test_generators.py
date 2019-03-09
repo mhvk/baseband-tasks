@@ -51,6 +51,20 @@ class TestGenerator(StreamBase):
                              sample_rate=self.sample_rate, samples_per_frame=1) as sh:
             assert np.all(sh.frequency == frequency)
             assert np.all(sh.sideband == sideband)
+            with pytest.raises(AttributeError):
+                sh.polarization
+
+    def test_frequency_sideband_polarization_setting(self):
+        frequency = np.array([320., 320., 350., 350.])[:, np.newaxis] * u.MHz
+        sideband = np.array([-1, 1, -1, 1])[:, np.newaxis]
+        polarization = np.array(['X', 'Y'])
+        with StreamGenerator(self.my_source, polarization=polarization,
+                             frequency=frequency, sideband=sideband,
+                             shape=self.shape, start_time=self.start_time,
+                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
+            assert np.all(sh.frequency == frequency)
+            assert np.all(sh.sideband == sideband)
+            assert np.all(sh.polarization == polarization)
 
     def test_exceptions(self):
         with StreamGenerator(self.my_source,
@@ -63,6 +77,8 @@ class TestGenerator(StreamBase):
                 sh.frequency
             with pytest.raises(AttributeError):
                 sh.sideband
+            with pytest.raises(AttributeError):
+                sh.polarization
 
         with pytest.raises(ValueError):
             StreamGenerator(self.my_source,
