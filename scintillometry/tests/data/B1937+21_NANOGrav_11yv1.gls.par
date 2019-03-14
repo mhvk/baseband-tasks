@@ -1,0 +1,68 @@
+PSR              B1937+21
+LAMBDA   301.9732445337270  1     0.0000000084648
+BETA      42.2967523367957  1     0.0000000091781
+PMLAMBDA           -0.0175  1              0.0071
+PMBETA             -0.3971  1              0.0104
+PX                  0.1515  1              0.0848
+POSEPOCH        55321.0000
+F0    641.9282333345544203  1  0.0000000000141080
+F1     -4.330901553450D-14  1  1.137298096353D-19
+PEPOCH        55321.000000
+START            53267.085
+FINISH           57376.799
+DM               71.090617
+FD1  5.71153240D-04  1      1.21359634D-04
+FD2 -5.69600202D-04  1      1.21637865D-04
+FD3  3.73405039D-04  1      8.15398274D-05
+FD4 -1.68250012D-04  1      3.88110057D-05
+FD5  3.94413688D-05  1      1.01767038D-05
+SOLARN0               0.00
+EPHEM               DE436
+ECL                 IERS2010
+CLK                 TT(BIPM2015)
+UNITS               TDB
+TIMEEPH             FB90
+T2CMETHOD           TEMPO
+CORRECT_TROPOSPHERE N
+PLANET_SHAPIRO      N
+DILATEFREQ          N
+NTOA                 14217
+TRES                  0.85
+TZRMJD  55337.18180550381786
+TZRFRQ            1730.480
+TZRSITE                  1
+MODE                     1
+NITS                     1
+INFO -f
+RNAMP         0.15726D+00
+RNIDX            -2.75890
+T2EFAC -f S-wide_ASP   1.438
+T2EFAC -f L-wide_PUPPI   2.597
+T2EFAC -f L-wide_ASP   2.034
+T2EFAC -f Rcvr_800_GUPPI   4.642
+T2EFAC -f S-wide_PUPPI   4.418
+T2EFAC -f Rcvr1_2_GASP   1.243
+T2EFAC -f Rcvr_800_GASP   2.464
+T2EFAC -f Rcvr1_2_GUPPI   1.553
+T2EQUAD -f S-wide_ASP   0.15610
+T2EQUAD -f L-wide_PUPPI   0.02360
+T2EQUAD -f L-wide_ASP   0.08010
+T2EQUAD -f Rcvr_800_GUPPI   0.04850
+T2EQUAD -f S-wide_PUPPI   0.01780
+T2EQUAD -f Rcvr1_2_GASP   0.06340
+T2EQUAD -f Rcvr_800_GASP   0.08320
+T2EQUAD -f Rcvr1_2_GUPPI   0.05250
+ECORR -f L-wide_ASP   0.18200
+ECORR -f L-wide_PUPPI   0.13040
+ECORR -f Rcvr1_2_GASP   0.09320
+ECORR -f Rcvr1_2_GUPPI   0.24850
+ECORR -f Rcvr_800_GASP   0.00330
+ECORR -f Rcvr_800_GUPPI   0.32920
+ECORR -f S-wide_ASP   0.24650
+ECORR -f S-wide_PUPPI   0.39360
+JUMP -fe Rcvr1_2      -0.000009641  1       0.000000026
+JUMP -fe Rcvr_800      -0.000012821  1       0.000000058
+JUMP -fe S-wide       0.000003134  1       0.000000051
+# Converted by make_release.py on Mon Mar  6 11:15:26 2017 by pdemores
+# Original filename: 'B1937+21/B1937+21.cng.v3.par'
+# Ran additional tempo iteration
