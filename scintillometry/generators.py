@@ -16,8 +16,8 @@ class StreamGenerator(Base):
     """Generator of data produced by a user-provided function.
 
     The function needs to be aware of stream structure.  As an alternative, generate
-    an empty stream with `~scintillometry.generator.EmptyStreamGenerator` and add a
-    `~scintillometry.functions.FunctionTask` that fills data arrays.
+    an empty stream with `~scintillometry.generators.EmptyStreamGenerator` and add a
+    `~scintillometry.base.Task` that fills data arrays.
 
     Parameters
     ----------
@@ -88,7 +88,7 @@ class StreamGenerator(Base):
 class EmptyStreamGenerator(Base):
     """Generator of an empty data stream.
 
-    The stream is meant to be filled with a `~scintillometry.functions.FunctionTask`.
+    The stream is meant to be filled with a `~scintillometry.base.Task`.
 
     Parameters
     ----------
@@ -142,7 +142,7 @@ class EmptyStreamGenerator(Base):
                         self.dtype)
 
 
-class Noise(np.random.RandomState):
+class Noise:
     """Helper class providing source callables for NoiseSource.
 
     When called, will provide a frame worth of normally distributed data,
@@ -161,29 +161,30 @@ class Noise(np.random.RandomState):
     read in the same order.
     """
     def __init__(self, seed=None):
-        super(Noise, self).__init__(seed)
+        self._random_state = np.random.RandomState(seed)
         self._states = {}
 
     def __call__(self, sh):
+        rs = self._random_state
         offset = sh.tell()
         done_this = offset in self._states
-        old_state = self.get_state()
+        old_state = rs.get_state()
         if done_this:
-            self.set_state(self._states[offset])
+            rs.set_state(self._states[offset])
         else:
             self._states[offset] = old_state
 
         shape = (sh.samples_per_frame,) + sh.sample_shape
         if sh.complex_data:
             shape = shape[:-1] + (shape[-1] * 2,)
-        numbers = self.normal(size=shape)
+        numbers = rs.normal(size=shape)
         if sh.complex_data:
             numbers = numbers.view(np.complex128)
         numbers = numbers.astype(sh.dtype, copy=False)
 
         # reset to old state if needed.
         if done_this:
-            self.set_state(old_state)
+            rs.set_state(old_state)
 
         return numbers
 
