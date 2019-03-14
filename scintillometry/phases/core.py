@@ -37,7 +37,7 @@ class PintPhase(object):
        timing precision). The fractional phase is between -0.5 to 0.5.
     """
     def __init__(self, par_file, observatory, frequency, **kwargs):
-        from .pint_utils import PintToas
+        from .pint_toas import PintToas
         from pint.models import get_model
         self.par_file = par_file
         self.model = get_model(self.par_file)
