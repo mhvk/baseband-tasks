@@ -82,6 +82,7 @@ Reference/API
 =============
 
 .. automodapi:: scintillometry.fourier
+   :include-all-objects:
 .. automodapi:: scintillometry.fourier.base
    :include-all-objects:
 .. automodapi:: scintillometry.fourier.numpy
