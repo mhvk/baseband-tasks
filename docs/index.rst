@@ -55,13 +55,15 @@ Helpers
 =======
 
 Scintillometry also contains helper modules that assist with calculations and
-that link it with other software, such as Fourier transform packages.
+that link it with other software, such as Fourier transform packages or pulsar
+timing software.
 
 .. toctree::
    :maxdepth: 1
 
    helpers/dm
    helpers/fourier
+   helpers/phases
 
 .. _project_details_toc:
 

@@ -16,8 +16,8 @@ __all__ = ['PintToas']
 class PintToas:
     """Convert time samples to PINT TOAs using given ephemeris, etc.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     observatory : str
         The observatory code or names
     frequency : float or `~astropy.units.Quantity`
@@ -38,9 +38,10 @@ class PintToas:
         The method to compute the TDB time scale. Default is using astropy
         time objects' method.
     **kwargs
-        Any further arguments to be passed on to `~pint.toa.get_TOAs_list`.
-    Note
-    ----
+        Any further arguments to be passed on to ``pint.toa.get_TOAs_list``.
+
+    Notes
+    -----
     A TOA (time of arrival) represents the pulse time of arrival.
     Combined with metadata, it can be considered a timestamp
     (e.g., observatory, observing frequency, etc.)
@@ -59,12 +60,12 @@ class PintToas:
         self.control_params.update(kwargs)
 
     def __call__(self, time):
-        """Read TOAs from a list the of timestamps.
+        """Create list of TOAs for one or more times.
 
-           Parameter
-           ---------
-           time : `~astropy.time.Time`
-               Input time stamps.
+        Parameters
+        ----------
+        time : `~astropy.time.Time`
+            Input time stamps.
         """
         toa_list = make_toa_list(time, self.observatory, self.frequency)
         return toa.get_TOAs_list(toa_list, **self.control_params)

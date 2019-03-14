@@ -1,5 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Read in and use tempo1 polyco files (tempo2 predict to come).
+r"""Read in and use tempo1 polyco files (tempo2 predict to come).
 
 Examples
 --------
@@ -16,44 +16,49 @@ Notes
 -----
 The format of the polyco files is (from
 http://tempo.sourceforge.net/ref_man_sections/tz-polyco.txt)
-Line  Columns     Item
-----  -------   -----------------------------------
-1      1-10   Pulsar Name
-      11-19   Date (dd-mmm-yy)
-      20-31   UTC (hhmmss.ss)
-      32-51   TMID (MJD)
-      52-72   DM
-      74-79   Doppler shift due to earth motion (10^-4)
-      80-86   Log_10 of fit rms residual in periods
-2      1-20   Reference Phase (RPHASE)
-      21-38   Reference rotation frequency (F0)
-      39-43   Observatory number
-      44-49   Data span (minutes)
-      50-54   Number of coefficients
-      55-75   Observing frequency (MHz)
-      76-80   Binary phase
-3-     1-25   Coefficient 1 (COEFF(1))
-      26-50   Coefficient 2 (COEFF(2))
-      51-75   Coefficient 3 (COEFF(3))
 
-The pulse phase and frequency at time T are then calculated as:
-DT = (T-TMID)*1440
-PHASE = RPHASE + DT*60*F0 + COEFF(1) + DT*COEFF(2) + DT^2*COEFF(3) + ....
-FREQ(Hz) = F0 + (1/60)*(COEFF(2) + 2*DT*COEFF(3) + 3*DT^2*COEFF(4) + ....)
+.. code-block:: text
+
+    Line  Columns Item
+    ----  ------- -----------------------------------
+    1      1-10   Pulsar Name
+          11-19   Date (dd-mmm-yy)
+          20-31   UTC (hhmmss.ss)
+          32-51   TMID (MJD)
+          52-72   DM
+          74-79   Doppler shift due to earth motion (10^-4)
+          80-86   Log_10 of fit rms residual in periods
+    2      1-20   Reference Phase (RPHASE)
+          21-38   Reference rotation frequency (F0)
+          39-43   Observatory number
+          44-49   Data span (minutes)
+          50-54   Number of coefficients
+          55-75   Observing frequency (MHz)
+          76-80   Binary phase
+    3-     1-25   Coefficient 1 (COEFF(1))
+          26-50   Coefficient 2 (COEFF(2))
+          51-75   Coefficient 3 (COEFF(3))
+
+The pulse phase and frequency at time T are then calculated as::
+
+    DT = (T-TMID)*1440
+    PHASE = RPHASE + DT*60*F0 + COEFF(1) + DT*COEFF(2) + DT^2*COEFF(3) + ....
+    FREQ(Hz) = F0 + (1/60)*(COEFF(2) + 2*DT*COEFF(3) + 3*DT^2*COEFF(4) + ....)
 
 Example tempo2 call to produce one:
 
-tempo2 -tempo1 \
-    -f ~/packages/scintellometry/scintellometry/ephemerides/psrb1957+20.par \
-    -polyco "56499 56500 300 12 12 aro 150.0"
+.. code-block:: text
 
-#            MJDstart
-#                  MJDend
-#                        #min for which polynomial is fit
-#                            #deg of polynomial
-#                               #max HA (12 is continuous)
-#                                  Observatory
-#                                     Frequency
+    tempo2 -tempo1 \
+        -f ~/packages/scintellometry/scintellometry/ephemerides/psrb1957+20.par \
+        -polyco "56499 56500 300 12 12 aro 150.0"
+                 |-- MJD start
+                       |-- MJD end
+                             |-- number of minutes for which polynomial is fit
+                                 |-- degree of the polynomial
+                                    |-- maxium Hour Angle (12 is continuous)
+                                       |-- Observatory
+                                           |-- Frequency in MHz
 """
 
 from __future__ import division, print_function
@@ -73,23 +78,24 @@ __all__ = ['Polyco']
 class Polyco(Table):
     def __init__(self, name):
         """Read in polyco file as Table, and set up class."""
-        super(Polyco, self).__init__(polyco2table(name))
+        table = polyco2table(name)
+        super().__init__(table)
 
     def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=None):
         """Predict phase or frequency (derivatives) for given mjd (array)
 
         Parameters
         ----------
-        mjd_in : Time or `float` (array)
+        mjd_in : `~astropy.time.Time` or float (array)
             Time instances of MJD's for which phases are to be generated.
-            If `float`, assumed to be MJD (NOTE: less precise!)
-        index : int (array), None, or float/Time
+            If float, assumed to be MJD (NOTE: less precise!)
+        index : int (array), None, float, or `~astropy.time.Time`
             indices into Table for corresponding polyco's; if None, it will be
-            deterined from `mjd_in` (giving an explicit index can help speed up
-            the evaluation).  If not an index or `None`, it will be used to
+            deterined from ``mjd_in`` (giving an explicit index can help speed
+            up the evaluation).  If not an index or `None`, it will be used to
             find the index. Hence if one has a large array if closely spaced
             times, one can pass in a single element to speed matters up.
-        rphase : None or 'fraction' or float (array)
+        rphase : None, 'fraction' or float (array)
             phase zero points for relevant polyco's; if None, use those
             stored in polyco.  (Those are typically large, so one looses
             some precision.)  Can also set 'fraction' or give the zero point.
@@ -100,8 +106,8 @@ class Polyco(Table):
 
         Returns
         -------
-        phase / time**deriv
-            In units of
+        phase / time**deriv : `~astropy.units.Quantity`
+            with appropriate units given ``deriv`` and ``time_unit``.
         """
         time_unit = time_unit or u.s
         if not hasattr(time, 'mjd'):
