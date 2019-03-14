@@ -4,8 +4,8 @@ import numpy as np
 from .base import TaskBase, Task, check_broadcast_to, simplify_shape
 
 
-__all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose',
-           'GetItem']
+__all__ = ['ChangeSampleShapeBase', 'ChangeSampleShape',
+           'Reshape', 'Transpose', 'ReshapeAndTranspose', 'GetItem']
 
 
 class ChangeSampleShapeBase(TaskBase):
@@ -227,8 +227,8 @@ class ReshapeAndTranspose(Reshape):
     Useful to ensure, e.g., frequencies and polarizations are on separate axes
     before feeding a stream to, e.g., `~scintillometry.functions.Power`.
 
-    This is just the combination of `~scintillometry.functions.Reshape` and
-    `~scintillometry.functions.Transpose` (avoiding intermediate results).
+    This is just the combination of `~scintillometry.shaping.Reshape` and
+    `~scintillometry.shaping.Transpose` (avoiding intermediate results).
 
     Parameters
     ----------

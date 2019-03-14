@@ -40,8 +40,9 @@ class Disperse(BaseTaskBase):
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses
-        `~scintillometry.fourier.get_fft_maker.default`.
+        FFT maker.  Default: `None`, in which case the channelizer uses the
+        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
+        available, otherwise numpy).
     """
 
     def __init__(self, ih, dm, reference_frequency=None,
@@ -188,8 +189,9 @@ class Dedisperse(Disperse):
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses
-        `~scintillometry.fourier.get_fft_maker.default`.
+        FFT maker.  Default: `None`, in which case the channelizer uses the
+        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
+        available, otherwise numpy).
     """
 
     def __init__(self, ih, dm, reference_frequency=None,

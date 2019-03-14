@@ -470,4 +470,5 @@ class Stack(BaseTaskBase):
 
     @property
     def stop_time(self):
+        """Time at the end of the output, just after the last sample."""
         return self.ih.stop_time

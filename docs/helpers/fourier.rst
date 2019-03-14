@@ -81,6 +81,8 @@ axis.
 Reference/API
 =============
 
+.. automodapi:: scintillometry.fourier
 .. automodapi:: scintillometry.fourier.base
+   :include-all-objects:
 .. automodapi:: scintillometry.fourier.numpy
 .. automodapi:: scintillometry.fourier.pyfftw
