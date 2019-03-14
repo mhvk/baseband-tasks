@@ -20,13 +20,13 @@ class TestPredictor:
         self.polyco = Polyco(self.polyco_file)
 
     def test_polyco_reading(self):
-        assert len(self.polyco) == 48
+        assert len(self.polyco) == 4
         for l in self.polyco:
             assert len(l['coeff']) == l['ncoeff']
 
     def test_polyco_interpolation(self):
         # Test astropy time object input
-        time = self.start_time + np.linspace(0, 100) * 10.0 * u.min
+        time = self.start_time + np.linspace(0, 30) * 5. * u.min
         # Test scalar input
         p = self.polyco(time[0])
         assert p.shape == ()
