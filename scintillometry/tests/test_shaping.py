@@ -36,16 +36,17 @@ class TestReshape:
 
         data = rt.read()
         assert_array_equal(data, ref_data)
+        rt.close()
 
     def test_frequency_sideband_polarization_propagation1(self):
         fh = get_fh()
-        rt = Reshape(fh, (4, 2))
-        assert rt.frequency.shape == (4, 1)
-        assert np.all(rt.frequency == fh.frequency[::2].reshape(4, 1))
-        assert rt.sideband.shape == ()
-        assert np.all(rt.sideband == 1)
-        assert rt.polarization.shape == (2,)
-        assert np.all(rt.polarization == fh.polarization[:2])
+        with Reshape(fh, (4, 2)) as rt:
+            assert rt.frequency.shape == (4, 1)
+            assert np.all(rt.frequency == fh.frequency[::2].reshape(4, 1))
+            assert rt.sideband.shape == ()
+            assert np.all(rt.sideband == 1)
+            assert rt.polarization.shape == (2,)
+            assert np.all(rt.polarization == fh.polarization[:2])
 
     def test_frequency_sideband_polarization_propagation2(self):
         fh = vdif.open(SAMPLE_VDIF)
@@ -54,20 +55,20 @@ class TestReshape:
         fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 4) * 16. * u.MHz
         fh.sideband = np.tile([-1, 1], 4)
         fh.polarization = np.tile(['L', 'L', 'R', 'R'], 2)
-        rt = Reshape(fh, (2, 2, 2))
-        assert rt.frequency.shape == (2, 1, 1)
-        assert np.all(rt.frequency == fh.frequency[::4].reshape(2, 1, 1))
-        assert rt.sideband.shape == (2,)
-        assert np.all(rt.sideband == fh.sideband[:2])
-        assert rt.polarization.shape == (2, 1)
-        assert np.all(rt.polarization == fh.polarization[:4:2].reshape(2, 1))
+        with Reshape(fh, (2, 2, 2)) as rt:
+            assert rt.frequency.shape == (2, 1, 1)
+            assert np.all(rt.frequency == fh.frequency[::4].reshape(2, 1, 1))
+            assert rt.sideband.shape == (2,)
+            assert np.all(rt.sideband == fh.sideband[:2])
+            assert rt.polarization.shape == (2, 1)
+            assert np.all(rt.polarization == fh.polarization[:4:2].reshape(2, 1))
 
     def test_wrong_shape(self):
-        fh = vdif.open(SAMPLE_VDIF)
-        with pytest.raises(ValueError):
-            Reshape(fh, (4, 4))
-        with pytest.raises(ValueError):
-            Reshape(fh, ())
+        with vdif.open(SAMPLE_VDIF) as fh:
+            with pytest.raises(ValueError):
+                Reshape(fh, (4, 4))
+            with pytest.raises(ValueError):
+                Reshape(fh, ())
 
 
 class TestTranspose:
@@ -84,19 +85,19 @@ class TestTranspose:
         tt = self.get_reshape_and_transpose(fh, (4, 2), (2, 1))
         assert tt.start_time == fh.start_time
         assert tt.sample_rate == fh.sample_rate
-
         data = tt.read()
         assert_array_equal(data, ref_data)
+        tt.close()
 
     def test_frequency_sideband_polarization_propagation1(self):
         fh = get_fh()
-        tt = self.get_reshape_and_transpose(fh, (4, 2), (2, 1))
-        assert tt.frequency.shape == (4,)
-        assert np.all(tt.frequency == fh.frequency[::2])
-        assert tt.sideband.shape == ()
-        assert np.all(tt.sideband == 1)
-        assert tt.polarization.shape == (2, 1)
-        assert np.all(tt.polarization == fh.polarization[:2].reshape(2, 1))
+        with self.get_reshape_and_transpose(fh, (4, 2), (2, 1)) as tt:
+            assert tt.frequency.shape == (4,)
+            assert np.all(tt.frequency == fh.frequency[::2])
+            assert tt.sideband.shape == ()
+            assert np.all(tt.sideband == 1)
+            assert tt.polarization.shape == (2, 1)
+            assert np.all(tt.polarization == fh.polarization[:2].reshape(2, 1))
 
     def test_frequency_sideband_polarization_propagation2(self):
         fh = vdif.open(SAMPLE_VDIF)
@@ -105,22 +106,22 @@ class TestTranspose:
         fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 4) * 16. * u.MHz
         fh.sideband = np.tile([-1, 1], 4)
         fh.polarization = np.tile(['L', 'L', 'R', 'R'], 2)
-        tt = self.get_reshape_and_transpose(fh, (2, 2, 2), (-1, -3, -2))
-        assert tt.frequency.shape == (2, 1)
-        assert np.all(tt.frequency == fh.frequency[::4].reshape(2, 1))
-        assert tt.sideband.shape == (2, 1, 1)
-        assert np.all(tt.sideband == fh.sideband[:2].reshape(2, 1, 1))
-        assert tt.polarization.shape == (2,)
-        assert np.all(tt.polarization == fh.polarization[:4:2])
+        with self.get_reshape_and_transpose(fh, (2, 2, 2), (-1, -3, -2)) as tt:
+            assert tt.frequency.shape == (2, 1)
+            assert np.all(tt.frequency == fh.frequency[::4].reshape(2, 1))
+            assert tt.sideband.shape == (2, 1, 1)
+            assert np.all(tt.sideband == fh.sideband[:2].reshape(2, 1, 1))
+            assert tt.polarization.shape == (2,)
+            assert np.all(tt.polarization == fh.polarization[:4:2])
 
     def test_wrong_axes(self):
-        fh = vdif.open(SAMPLE_VDIF)
-        with pytest.raises(ValueError):
-            self.get_reshape_and_transpose(fh, (4, 2), (1, 0))
-        with pytest.raises(ValueError):
-            self.get_reshape_and_transpose(fh, (4, 2), (2, 3))
-        with pytest.raises(ValueError):
-            self.get_reshape_and_transpose(fh, (4, 2), (1, 1))
+        with vdif.open(SAMPLE_VDIF) as fh:
+            with pytest.raises(ValueError):
+                self.get_reshape_and_transpose(fh, (4, 2), (1, 0))
+            with pytest.raises(ValueError):
+                self.get_reshape_and_transpose(fh, (4, 2), (2, 3))
+            with pytest.raises(ValueError):
+                self.get_reshape_and_transpose(fh, (4, 2), (1, 1))
 
 
 class TestReshapeAndTranspose(TestTranspose):
@@ -157,16 +158,17 @@ class TestChangeSampleShape(TestTranspose):
         assert np.all(st.sideband == 1)
         assert st.polarization.shape == (2, 1)
         assert np.all(st.polarization == fh.polarization[:2].reshape(2, 1))
+        st.close()
 
     def test_get_item(self):
         """Selecting from both axes of two-dimensional samples."""
         fh = get_fh()
-        st = ChangeSampleShape(
-            fh, lambda data: data.reshape(-1, 4, 2)[:, :2, 0])
-        assert st.frequency.shape == (2,)
-        assert_array_equal(st.frequency, fh.frequency[:4:2])
-        assert st.polarization.shape == ()
-        assert_array_equal(st.polarization, fh.polarization[0])
+        with ChangeSampleShape(
+                fh, lambda data: data.reshape(-1, 4, 2)[:, :2, 0]) as st:
+            assert st.frequency.shape == (2,)
+            assert_array_equal(st.frequency, fh.frequency[:4:2])
+            assert st.polarization.shape == ()
+            assert_array_equal(st.polarization, fh.polarization[0])
 
     def test_no_extra_arguments(self):
         with pytest.raises(TypeError):
@@ -194,37 +196,38 @@ class TestGetItem:
         assert_array_equal(gih.frequency, ref_freq)
         assert_array_equal(gih.sideband, ref_sideband)
         assert_array_equal(gih.polarization, ref_pol)
+        gih.close()
 
     def test_specific1(self):
         """Selecting one item in first axis of two-dimensional samples."""
         rh = Reshape(get_fh(), (4, 2))  # freq, pol
-        gih = GetItem(rh, 0)
-        assert gih.frequency.shape == ()
-        assert_array_equal(gih.frequency, rh.frequency[0, 0])
-        assert gih.polarization.shape == (2,)
-        assert_array_equal(gih.polarization, rh.polarization)
+        with GetItem(rh, 0) as gih:
+            assert gih.frequency.shape == ()
+            assert_array_equal(gih.frequency, rh.frequency[0, 0])
+            assert gih.polarization.shape == (2,)
+            assert_array_equal(gih.polarization, rh.polarization)
 
     def test_specific2(self):
         """Selecting one item in second axis of two-dimensional samples."""
         rh = Reshape(get_fh(), (4, 2))  # freq, pol
-        gih = GetItem(rh, (slice(None), 1))
-        assert gih.frequency.shape == (4,)
-        assert_array_equal(gih.frequency, rh.frequency.squeeze())
-        assert gih.polarization.shape == ()
-        assert_array_equal(gih.polarization, rh.polarization[1])
+        with GetItem(rh, (slice(None), 1)) as gih:
+            assert gih.frequency.shape == (4,)
+            assert_array_equal(gih.frequency, rh.frequency.squeeze())
+            assert gih.polarization.shape == ()
+            assert_array_equal(gih.polarization, rh.polarization[1])
 
     def test_specific3(self):
         """Selecting from both axes of two-dimensional samples."""
         rh = Reshape(get_fh(), (4, 2))  # freq, pol
-        gih = GetItem(rh, (slice(None, 2), 0))
-        assert gih.frequency.shape == (2,)
-        assert_array_equal(gih.frequency, rh.frequency[:2].squeeze())
-        assert gih.polarization.shape == ()
-        assert_array_equal(gih.polarization, rh.polarization[0])
+        with GetItem(rh, (slice(None, 2), 0)) as gih:
+            assert gih.frequency.shape == (2,)
+            assert_array_equal(gih.frequency, rh.frequency[:2].squeeze())
+            assert gih.polarization.shape == ()
+            assert_array_equal(gih.polarization, rh.polarization[0])
 
     def test_wrong_item(self):
-        fh = vdif.open(SAMPLE_VDIF)
-        with pytest.raises(IndexError):
-            GetItem(fh, 10)
-        with pytest.raises(IndexError):
-            GetItem(fh, (1, 1))
+        with vdif.open(SAMPLE_VDIF) as fh:
+            with pytest.raises(IndexError):
+                GetItem(fh, 10)
+            with pytest.raises(IndexError):
+                GetItem(fh, (1, 1))

@@ -10,7 +10,7 @@ from .. import get_fft_maker
 from ... import fourier
 
 
-class TestFFTClasses(object):
+class TestFFTClasses:
     """Test FFTs against NumPy's implementation."""
 
     def setup(self):

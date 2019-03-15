@@ -76,9 +76,9 @@ class TestChannelize:
         fh.sideband = np.tile([-1, +1], 4)
 
         ct = Channelize(fh, self.n)
-
         assert np.all(ct.sideband == self.ref_sideband)
         assert np.all(ct.frequency == self.ref_frequency)
+        ct.close()
 
     def test_channelize_frequency_complex(self):
         """Test frequency calculation."""
@@ -101,6 +101,7 @@ class TestChannelize:
                          np.fft.fftfreq(self.n, 1. / fh.sample_rate))
         assert np.all(ct.sideband == fh.sideband)
         assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
+        ct.close()
 
     def test_dechannelizetask_real(self):
         """Test dechannelization round-tripping."""
@@ -120,6 +121,7 @@ class TestChannelize:
         dt2 = ct.inverse(ct)
         data2 = dt2.read()
         assert np.all(data2 == data)
+        dt2.close()
 
     def test_dechannelizetask_complex(self):
         """Test dechannelization round-tripping."""
@@ -147,11 +149,12 @@ class TestChannelize:
         ft = ct.read()
         ft2 = ct2.read()
         assert np.all(ft == ft2)
+        dt2.close()
 
     def test_missing_frequency_sideband(self):
         fh = vdif.open(SAMPLE_VDIF)
-        ct = Channelize(fh, self.n)
-        with pytest.raises(AttributeError):
-            ct.frequency
-        with pytest.raises(AttributeError):
-            ct.sideband
+        with Channelize(fh, self.n) as ct:
+            with pytest.raises(AttributeError):
+                ct.frequency
+            with pytest.raises(AttributeError):
+                ct.sideband
