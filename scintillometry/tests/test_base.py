@@ -108,6 +108,7 @@ class TestTaskBase:
         rt = ReshapeTime(fh, 256)
         assert np.all(rt.sideband == fh.sideband)
         assert np.all(rt.frequency == fh.frequency)
+        rt.close()
 
     def test_frequency_sideband_setting(self):
         fh = vdif.open(SAMPLE_VDIF)
@@ -118,6 +119,7 @@ class TestTaskBase:
         rt = ReshapeTime(fh, 256, frequency=frequency_in, sideband=sideband_in)
         assert np.all(rt.sideband == sideband_in)
         assert np.all(rt.frequency == frequency_in)
+        rt.close()
 
     def test_taskbase_exceptions(self):
         """Test exceptions in TaskBase."""
@@ -230,9 +232,8 @@ class TestTasks:
             count = (count // samples_per_frame) * samples_per_frame
         ref_data = zero_every_8th_sample(fh.read(count))
 
-        ft = Task(fh, zero_every_8th_complex,
-                  samples_per_frame=samples_per_frame)
-
-        data1 = ft.read()
+        with Task(fh, zero_every_8th_complex,
+                  samples_per_frame=samples_per_frame) as ft:
+            data1 = ft.read()
 
         assert np.all(data1 == ref_data)

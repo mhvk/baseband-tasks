@@ -34,7 +34,7 @@ class Channelize(TaskBase):
         Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
         FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.get_fft_maker` (pyfftw if
+        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
         available, otherwise numpy).
 
     Notes
@@ -114,7 +114,7 @@ class Dechannelize(TaskBase):
         Default: taken from ``ih`` (if available).
     FFT : FFT maker or None, optional
         FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.get_fft_maker` (pyfftw if
+        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
         available, otherwise numpy).
 
     Notes

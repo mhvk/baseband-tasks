@@ -24,7 +24,7 @@ class PyfftwFFTMaker(FFTMakerBase):
     ----------
     n_simd : int or None, optional
       Single Instruction Multiple Data (SIMD) alignment in bytes.  If `None`,
-      uses `pyfftw.simd_alignment`, which is found by inspecting the CPU.
+      uses ``pyfftw.simd_alignment``, which is found by inspecting the CPU.
     **kwargs
       Optional keywords to `pyfftw.FFTW` class, including planning flags, the
       number of threads to be used, and the planning time limit.

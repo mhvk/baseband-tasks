@@ -4,8 +4,8 @@ import numpy as np
 from .base import TaskBase, Task, check_broadcast_to, simplify_shape
 
 
-__all__ = ['ChangeSampleShape', 'Reshape', 'Transpose', 'ReshapeAndTranspose',
-           'GetItem']
+__all__ = ['ChangeSampleShapeBase', 'ChangeSampleShape',
+           'Reshape', 'Transpose', 'ReshapeAndTranspose', 'GetItem']
 
 
 class ChangeSampleShapeBase(TaskBase):
@@ -100,6 +100,7 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
                    [343.25]] MHz>
         >>> sh.sideband
         array(1, dtype=int8)
+        >>> sh.close()
     """
     # Override __init__ only to get rid of kwargs of Task, since these cannot
     # be passed on to ChangeSampleShapeBase anyway.
@@ -151,6 +152,7 @@ class Reshape(ChangeSampleShapeBase):
                    [359.25]] MHz>
         >>> rh.sideband
         array(1, dtype=int8)
+        >>> rh.close()
     """
 
     def __init__(self, ih, sample_shape):
@@ -207,6 +209,7 @@ class Transpose(ChangeSampleShapeBase):
         <Quantity [311.25, 327.25, 343.25, 359.25] MHz>
         >>> th.sideband
         array(1, dtype=int8)
+        >>> th.close()
 
     Note that the example above could also be done in one go using
     `~scintillometry.shaping.ReshapeAndTranspose`.
@@ -227,8 +230,8 @@ class ReshapeAndTranspose(Reshape):
     Useful to ensure, e.g., frequencies and polarizations are on separate axes
     before feeding a stream to, e.g., `~scintillometry.functions.Power`.
 
-    This is just the combination of `~scintillometry.functions.Reshape` and
-    `~scintillometry.functions.Transpose` (avoiding intermediate results).
+    This is just the combination of `~scintillometry.shaping.Reshape` and
+    `~scintillometry.shaping.Transpose` (avoiding intermediate results).
 
     Parameters
     ----------
@@ -270,6 +273,7 @@ class ReshapeAndTranspose(Reshape):
         <Quantity [311.25, 327.25, 343.25, 359.25] MHz>
         >>> rth.sideband
         array(1, dtype=int8)
+        >>> rth.close()
     """
 
     def __init__(self, ih, sample_shape, sample_axes):
@@ -322,6 +326,7 @@ class GetItem(ChangeSampleShapeBase):
         <Quantity [311.25, 311.25, 327.25, 327.25, 343.25, 343.25] MHz>
         >>> gih.sideband
         array(1, dtype=int8)
+        >>> gih.close()
     """
     def __init__(self, ih, item):
         if isinstance(item, tuple):
