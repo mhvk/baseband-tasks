@@ -31,6 +31,8 @@ env:
         - ASTROPY_VERSION=stable
         - MAIN_CMD='python setup.py'
         - SETUP_CMD='test'
+        - USE_PYFFTW=False
+        - USE_PINT=False
         - EVENT_TYPE='pull_request push'
 
 
@@ -73,11 +75,17 @@ matrix:
 
         # Check for sphinx doc build warnings.
         - env: SETUP_CMD='build_sphinx -w'
-               CONDA_DEPENDENCIES='pyfftw'
+               USE_PYFFTW=True
+               USE_PINT=True
+               PIP_DEPENDENCIES='jplephem'
+               CONDA_DEPENDENCIES='scipy pyfftw'
 
         # Check Python 3 with stable astropy and numpy, also verifying coverage.
         - env: SETUP_CMD='test --coverage'
-               CONDA_DEPENDENCIES='pyfftw'
+               USE_PYFFTW=True
+               USE_PINT=True
+               PIP_DEPENDENCIES='jplephem'
+               CONDA_DEPENDENCIES='scipy pyfftw'
 
         # Check oldest supported versions.
         - env: PYTHON_VERSION=3.5 NUMPY_VERSION=1.10 ASTROPY_VERSION=3.0
@@ -95,7 +103,9 @@ before_install:
     # - export DISPLAY=:99.0
     # - sh -e /etc/init.d/xvfb start
     - sudo apt-get update
-    - sudo apt-get install -y libfftw3-dev libfftw3-doc libfftw3-double3 libfftw3-single3
+    - if [[ $USE_PYFFTW == True ]]; then
+         sudo apt-get install -y libfftw3-dev libfftw3-doc libfftw3-double3 libfftw3-single3;
+      fi
 
 install:
 
@@ -121,6 +131,10 @@ install:
     # well as at the start of the install section or in the before_install
     # section if they are needed before setting up conda) to install any
     # other dependencies.
+    - if [[ $USE_PINT == True ]]; then
+         git clone https://github.com/nanograv/PINT.git;
+         (cd PINT && pip install .)
+      fi
 
 script:
     - $MAIN_CMD $SETUP_CMD

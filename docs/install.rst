@@ -12,6 +12,13 @@ Scintillometry requires:
     - `Numpy <http://www.numpy.org/>`_ v1.10.0 or later
     - `Baseband <https://pypi.org/project/baseband/>`_ v1.1 or later
 
+In addition, you may want to install:
+
+    - `PyFFTW <https://pypi.org/project/pyFFTW/>`_ to be able to use the
+      `FFTW <http://www.fftw.org/>`_ library for fast fourier transforms.
+    - `PINT <https://github.com/nanograv/PINT>`_ to calculate phases without
+      first generating polycos.
+
 .. _installation:
 
 Installing Scintillometry

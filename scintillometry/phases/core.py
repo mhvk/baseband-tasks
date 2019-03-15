@@ -1,0 +1,127 @@
+# Licensed under the GPLv3 - see LICENSE
+"""Phase_utils.py defines the phase calculation utility class. Currently, the
+pulse phase at a given time can be computed by PINT or polycos.
+"""
+import warnings
+
+import numpy as np
+import astropy.units as u
+from .predictor import Polyco
+# Note: to avoid importing pint, we import PintToas inside PintPhase.
+
+
+__all__ = ['PintPhase', 'PolycoPhase']
+
+
+class PintPhase:
+    """Helper class for computing pulsar phases using PINT.
+
+    Parameters
+    ----------
+    par_file : str
+        TEMPO/TEMPO2 style parameter file.
+    observatory : str
+        Observatory name or observatory code.
+    frequency : `~astropy.units.Quantity`.
+        Observing frequency.
+    **kwargs
+        Additional key words arguments for making TOAs.  Please see the
+        documentation of `~scintillometry.phases.pint_toas.PintToas`.
+
+    Notes
+    -----
+    This method provides high precision phase calculation(~10 Nanosecond
+    timing precision).
+    """
+    def __init__(self, par_file, observatory, frequency, **kwargs):
+        from .pint_toas import PintToas
+        from pint.models import get_model
+        self.par_file = par_file
+        self.model = get_model(self.par_file)
+        self.toa_maker = PintToas(observatory, frequency, **kwargs)
+
+    def __call__(self, t):
+        """Compute the apparent phase at one or more times.
+
+        Parameters
+        ----------
+        t : `~astropy.time.Time`
+            The input time stamps.
+
+        Returns
+        -------
+        cycle, phase : tuple of `~astropy.units.Quantity`
+            The apparent pulse phase at time ``t``, as a 2-part tuple of
+            the integer cycle and the fractional phase.  The latter is
+            between -0.5 and 0.5.
+        """
+        toas = self.toa_maker(t)
+        ph = self.model.phase(toas)
+        shape = getattr(t, 'shape', ())
+        return (u.Quantity(ph.int.reshape(shape), u.cycle, copy=False),
+                u.Quantity(ph.frac.reshape(shape), u.cycle, copy=False))
+
+    def apparent_spin_freq(self, t):
+        """Compute the apparent spin frequency at one or more times.
+
+        Parameters
+        ----------
+        t : `~astropy.time.Time`
+            The input time stamps.
+
+        Returns
+        -------
+        f0 : `~astropy.units.Quantity`
+            The apparent spin frequency at time ``t``.
+        """
+        toas = self.toa_maker(t)
+        return self.model.d_phase_d_toa(toas).reshape(getattr(t, 'shape', ()))
+
+
+class PolycoPhase:
+    """Helper class for computing pulsar phases using polycos.
+
+    Parameters
+    ----------
+    polyco_file : str
+        Tempo style polyco file.
+    """
+    def __init__(self, polyco_file):
+        self.polyco = Polyco(polyco_file)
+
+    def __call__(self, t):
+        """Compute the apparent phase at one or more times.
+
+        Parameters
+        ----------
+        t : `~astropy.time.Time`
+            The input time stamps.
+
+        Returns
+        -------
+        cycle, phase : tuple of `~astropy.units.Quantity`
+            The apparent pulse phase at time ``t``, as a 2-part tuple of
+            the integer cycle and the fractional phase.  The latter is
+            between -0.5 and 0.5.
+        """
+        ph = self.polyco(t)
+        with u.set_enabled_equivalencies([(u.cycle, None)]):
+            ph_int, ph_frac = divmod(ph, 1)
+            return (u.Quantity(ph_int, u.cycle, copy=False),
+                    u.Quantity(ph_frac, u.cycle, copy=False))
+
+    def apparent_spin_freq(self, t):
+        """Compute the apparent spin frequency at one or more times.
+
+        Parameters
+        ----------
+        t : `~astropy.time.Time`
+            The input time stamps.
+
+        Returns
+        -------
+        f0 : `~astropy.units.Quantity`
+            The apparent spin frequency at time ``t``.
+        """
+        f0 = self.polyco(t, deriv=1)
+        return f0.to(u.Hz, equivalencies=[(u.cy / u.s, u.Hz)])
