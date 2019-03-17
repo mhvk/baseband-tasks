@@ -16,6 +16,11 @@ __all__ = ['Phase', 'FractionalPhase']
 FRACTION_UFUNCS = {np.cos, np.sin, np.tan}
 
 
+COMPARISON_UFUNCS = {np.equal, np.not_equal,
+                     np.less, np.less_equal,
+                     np.greater, np.greater_equal}
+
+
 class FractionalPhase(Longitude):
     _default_wrap_angle = Angle(0.5, u.cycle)
 
@@ -35,7 +40,7 @@ class Phase(Angle):
         Make a copy of the input values
 
     """
-    _set_unit = _unit = u.cycle
+    _fixed_unit = _unit = u.cycle
     _phase_dtype = np.dtype({'names': ['int', 'frac'],
                              'formats': [np.float64]*2})
 
@@ -67,13 +72,13 @@ class Phase(Angle):
             return result.view(Angle)
 
     def __quantity_subclass__(self, unit):
-        if unit != self._set_unit:
+        if unit != self._fixed_unit:
             return type(self), True
         else:
             return super().__quantity_subclass__(unit)[0], False
 
     def _set_unit(self, unit):
-        if unit is None or not unit != self._set_unit:
+        if unit is None or unit != self._fixed_unit:
             raise u.UnitTypeError(
                 "{0} instances require units of '{1}'"
                 .format(type(self).__name__, self._equivalent_unit) +
@@ -87,7 +92,7 @@ class Phase(Angle):
                                       self['int'], self['frac'])
 
     def __str__(self):
-        return str(self.value)
+        return str(self.cycle)
 
     @property
     def int(self):
@@ -149,124 +154,23 @@ class Phase(Angle):
     ptp = Time.ptp
     sort = Time.sort
 
-    def __add__(self, other):
-        if not isinstance(other, Phase):
-            try:
-                other = Phase(other)
-            except Exception:
-                return NotImplemented
-
-        return self.from_angles(self['int'] + other['int'],
-                                self['frac'] + other['frac'])
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, other):
-        if not isinstance(other, Phase):
-            try:
-                other = Phase(other)
-            except Exception:
-                return NotImplemented
-
-        return self.from_angles(self['int'] - other['int'],
-                                self['frac'] - other['frac'])
-
-    def __rsub__(self, other):
-        out = self.__sub__(other)
-        return -out if out is not NotImplemented else out
-
     def __neg__(self):
         return self.from_angles(-self['int'], -self['frac'])
 
     def __abs__(self):
         return self._apply(np.copysign, self.value)
 
-    def __mul__(self, other):
-        # Check needed since otherwise the self.jd1 * other multiplication
-        # would enter here again (via __rmul__)
-        if (not isinstance(other, Phase) and
-            ((isinstance(other, u.UnitBase) and
-              other == u.dimensionless_unscaled) or
-             (isinstance(other, str) and other == ''))):
-            return self.copy()
-
-        # If other is something consistent with a dimensionless quantity
-        # (could just be a float or an array), then we can just multiple in.
-        try:
-            other = u.Quantity(other, u.dimensionless_unscaled, copy=False)
-        except Exception:
-            # If not consistent with a dimensionless quantity, try downgrading
-            # self to a quantity and see if things work.
-            try:
-                return self.to(u.cycle) * other
-            except Exception:
-                # The various ways we could multiply all failed;
-                # returning NotImplemented to give other a final chance.
-                return NotImplemented
-
-        return self.from_angles(self['int'], self['frac'],
-                                factor=other.value)
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        # Cannot do __mul__(1./other) as that looses precision
-        if ((isinstance(other, u.UnitBase) and
-             other == u.dimensionless_unscaled) or
-                (isinstance(other, str) and other == '')):
-            return self.copy()
-
-        # If other is something consistent with a dimensionless quantity
-        # (could just be a float or an array), then we can just divide in.
-        try:
-            other = u.Quantity(other, u.dimensionless_unscaled, copy=False)
-        except Exception:
-            # If not consistent with a dimensionless quantity, try downgrading
-            # self to a quantity and see if things work.
-            try:
-                return self.to(u.cycle) / other
-            except Exception:
-                # The various ways we could divide all failed;
-                # returning NotImplemented to give other a final chance.
-                return NotImplemented
-
-        return self.from_angles(self['int'], self['frac'],
-                                divisor=other.value)
-
-    def __rtruediv__(self, other):
-        # Here, we do not have to worry about returning NotImplemented,
-        # since other has already had a chance to look at us.
-        return other / self.to(u.cycle)
-
-    def _phase_comparison(self, other, op):
-        if not isinstance(other, self.__class__):
-            try:
-                other = self.__class__(other)
-            except Exception:
-                return NotImplemented
-
-        return op((self['int'] - other['int']) +
-                  (self['frac'] - other['frac']), 0.)
-
-    def __lt__(self, other):
-        return self._phase_comparison(other, operator.lt)
-
-    def __le__(self, other):
-        return self._phase_comparison(other, operator.le)
-
     def __eq__(self, other):
-        return self._phase_comparison(other, operator.eq)
+        try:
+            return np.equal(self, other)
+        except Exception:
+            return NotImplemented
 
     def __ne__(self, other):
-        return self._phase_comparison(other, operator.ne)
-
-    def __gt__(self, other):
-        return self._phase_comparison(other, operator.gt)
-
-    def __ge__(self, other):
-        return self._phase_comparison(other, operator.ge)
+        try:
+            return np.not_equal(self, other)
+        except Exception:
+            return NotImplemented
 
     def __array_ufunc__(self, function, method, *inputs, **kwargs):
         """Wrap numpy ufuncs, taking care of units.
@@ -289,12 +193,66 @@ class Phase(Angle):
         """
         if function in FRACTION_UFUNCS:
             # Only trig functions supported, so just one input.
-            quantity = self.frac
-            inputs = (quantity,)
-        else:
-            quantity = self.cycle
-            inputs = tuple((input_ if input_ is not self else quantity)
-                           for input_ in inputs)
+            assert self is inputs[0]
+            return self.frac.__array_ufunc__(function, method,
+                                             self.frac, **kwargs)
+
+        elif function in {np.add, np.subtract} | COMPARISON_UFUNCS:
+            inputs = list(inputs)
+            i_other = 1 if inputs[0] is self else 0
+            if not isinstance(inputs[i_other], Phase):
+                try:
+                    inputs[i_other] = Phase(inputs[i_other])
+                except Exception:
+                    return NotImplemented
+
+            if function is np.add or function is np.subtract:
+                return self.from_angles(
+                    function(inputs[0]['int'], inputs[1]['int']),
+                    function(inputs[0]['frac'], inputs[1]['frac']))
+            else:
+                return self.int.__array_ufunc__(
+                    function, method,
+                    (inputs[0]['int'] - inputs[1]['int']) +
+                    (inputs[0]['frac'] - inputs[1]['frac']), 0, **kwargs)
+
+        elif (function is np.multiply or
+              function is np.divide and inputs[0] is self):
+            inputs = list(inputs)
+            i_other = 1 if inputs[0] is self else 0
+            other = inputs[i_other]
+            if not isinstance(other, Phase):
+                try:
+                    other = u.Quantity(other, u.dimensionless_unscaled,
+                                       copy=False)
+                except Exception:
+                    # If not consistent with a dimensionless quantity,
+                    # we follow the standard route of downgrading ourself
+                    # to a quantity and see if things work.
+                    pass
+                else:
+                    if function is np.multiply:
+                        return self.from_angles(self['int'], self['frac'],
+                                                factor=other.value)
+                    else:
+                        return self.from_angles(self['int'], self['frac'],
+                                                divisor=other.value)
+
+        quantity = self.cycle
+        inputs = tuple((input_ if input_ is not self else quantity)
+                       for input_ in inputs)
 
         return quantity.__array_ufunc__(function, method, *inputs,
                                         **kwargs)
+
+    def _new_view(self, obj=None, unit=None):
+        obj_dtype = getattr(obj, 'dtype', None)
+        if unit is None or unit == self._fixed_unit:
+            if obj is not None and obj_dtype != self.dtype:
+                return self.__class__(obj)
+
+            return super()._new_view(obj, unit)
+        else:
+            if obj_dtype == self.dtype:
+                obj = obj.cycle
+            return self.cycle._new_view(obj, unit)
