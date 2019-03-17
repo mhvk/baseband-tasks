@@ -13,6 +13,9 @@ from astropy.time.utils import day_frac
 __all__ = ['Phase', 'FractionalPhase']
 
 
+FRACTION_UFUNCS = {np.cos, np.sin, np.tan}
+
+
 class FractionalPhase(Longitude):
     _default_wrap_angle = Angle(0.5, u.cycle)
 
@@ -264,3 +267,34 @@ class Phase(Angle):
 
     def __ge__(self, other):
         return self._phase_comparison(other, operator.ge)
+
+    def __array_ufunc__(self, function, method, *inputs, **kwargs):
+        """Wrap numpy ufuncs, taking care of units.
+
+        Parameters
+        ----------
+        function : callable
+            ufunc to wrap.
+        method : str
+            Ufunc method: ``__call__``, ``at``, ``reduce``, etc.
+        inputs : tuple
+            Input arrays.
+        kwargs : keyword arguments
+            As passed on, with ``out`` containing possible quantity output.
+
+        Returns
+        -------
+        result : `~astropy.units.Quantity`
+            Results of the ufunc, with the unit set properly.
+        """
+        if function in FRACTION_UFUNCS:
+            # Only trig functions supported, so just one input.
+            quantity = self.frac
+            inputs = (quantity,)
+        else:
+            quantity = self.cycle
+            inputs = tuple((input_ if input_ is not self else quantity)
+                           for input_ in inputs)
+
+        return quantity.__array_ufunc__(function, method, *inputs,
+                                        **kwargs)

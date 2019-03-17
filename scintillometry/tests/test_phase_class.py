@@ -170,3 +170,14 @@ class TestPhase:
         comparison = self.phase.cycle.copy()
         comparison.sort(axis=axis)
         assert_equal(sort, Phase(comparison))
+
+    @pytest.mark.parametrize('ufunc', (np.sin, np.cos, np.tan))
+    def test_trig(self, ufunc):
+        d = np.arange(-177, 180, 10) * u.degree
+        cycle = 1e10 * u.cycle
+        expected = ufunc(d)
+        assert not np.isclose(ufunc(cycle + d), expected,
+                              atol=1e-14, rtol=1.e-14).any()
+        phase = Phase(cycle, d)
+        assert np.isclose(ufunc(phase), expected, rtol=1e-14,
+                          atol=1e-14).all()
