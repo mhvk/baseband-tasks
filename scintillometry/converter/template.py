@@ -1,5 +1,6 @@
 """ template.py defines a set of light templeta class for preparing the methods
-of converting the header information and data.
+of converting the header information and data. In the future, this should go
+into the PSRFITS package.
 """
 
 
@@ -43,6 +44,7 @@ class TemplateBase:
     def get_data(self):
         raise NotImplementedError
 
+
 class PsrfitsHDU(TemplateBase):
     """ PsrfitHDU is the base template for PSRFIT Header Data Unit.
 
@@ -71,6 +73,7 @@ class PsrfitsHDU(TemplateBase):
     def read(self, rows=None, columns=None):
         return self.handler.read(rows=rows, columns=columns)
 
+
 class PsrfitsMainHeader(PsrfitsHDU):
     """PsrfitsSubint template is designed to interprate the PSTFITS main header
      HDU.
@@ -94,9 +97,11 @@ class PsrfitsSubint(PsrfitsHDU):
 
     Parameter
     ---------
-        handler : `~pdat.psrfits` SUBINT HDU handler.
+        subint_handler : `~pdat.psrfits` SUBINT HDU handler.
+            The handler for SUBINT HDU template
+        header_handler : `~pdat.psrfits` main header HDU handler.
     """
-    def __init__(self, handler):
+    def __init__(self, subint_handler, header_handler):
         super().__init__(handler)
         self.header = None
         self.setup()

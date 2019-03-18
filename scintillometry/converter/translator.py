@@ -11,18 +11,36 @@ class TranslatorBase:
         ---------
         name : str
             The name of translator instance.
-        format1 :
-        format2 :
+        format1 : str
+            The name for the first format.
+        format2 : str
+            The name for the second format
     """
     def __init__(self, name, format1, format2, mapper12={}, mapper21={}):
         self.name = name
-        self.format1 = format1
-        self.format2 = format2
-        self.mapper = (mapper12, mapper21)
+        # TODO should this be the class type of the format?
+        self.mapper = {format1: mapper12, format2: mapper21}
 
     def __call__(self, source, target_key):
-        pass
+        """The highlevel wrapper for translating qurey one key value from the
+        source object.
+
+            Parameter
+            ---------
+            source : object
+                The source object for qureying the key value
+            target_key : str
+                The qurey key name.
+        """
+        # NOTE, not sure how this going to work.
+        format_type = type(source)
+        mapper_funcs = self.mapper[format_type]
+        if target_key not in mapper_funcs.keys():
+            raise ValueError("Target key '{}' is not in the mapper"
+                             " functions".format(target_key))
+        return mapper_funcs[target_key](source)
+
 
     def add_mapper_func(self, source, target_key, method):
         mapper_entry = {target_key: method}
-        self.mapper[source - 1].update(mapper_entry)
+        self.mapper[source].update(mapper_entry)
