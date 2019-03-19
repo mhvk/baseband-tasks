@@ -7,6 +7,9 @@ from ..generators import StreamGenerator
 import numpy as np
 
 
+__all__ = ['FormatReader', 'FormatWritter']
+
+
 class FormatReader(StreamGenerator):
     """ FormatReader class is the base class for reading data to a `baseband`
     style file handler from other format object.
@@ -18,8 +21,10 @@ class FormatReader(StreamGenerator):
         translator : dict or dictionary-like
             Translator functions for getting the information from the input
             file object.
+        kwargs : dict
+            Input argument for the StreamGenerator.
     """
-    def __init__(self, format_object, translator=None, **kwargs):
+    def __init__(self, format_object, translator={}, **kwargs):
         self.format_object = format_object
         self.translator = translator
         self.args = {'function': self.read_format_data}
