@@ -78,6 +78,14 @@ class SubintTranslator(Translator):
             else:
                 return
 
+    def setup(self):
+        # This is just an example here. 
+        self.update({'shape': self.get_shape,
+                     'sample_rate': self.get_sample_rate,
+                     'polarization': self.get_pok,
+                     'start_time': self.get_start_times})
+
+
     def get_sample_rate(self):
         return 1.0 / (self.data_header['TBIN'] * u.s)
 
@@ -87,7 +95,7 @@ class SubintTranslator(Translator):
         nchan = self.data_header['NCHAN']
         npol = self.data_header['NPOL']
         nbin = self.data_header['NBIN']
-        return (nrows * samples_per_row, nbin, npol, nchan),
+        return (nrows * samples_per_row, nbin, npol, nchan)
 
     def get_dim_label(self):
         return ('time', 'phase', 'pol', 'freq')
@@ -108,7 +116,21 @@ class SubintTranslator(Translator):
         return start_time
 
     def get_freqs(self):
-        # Those are the frequency for all the rows. 
+        # Those are the frequency for all the rows.
         freqs = u.Quantity(self.header_hdu.read_column(col='DAT_FREQ'),
                            u.MHz, copy=False)
         return freqs
+
+    def get_sideband(self):
+        # It is not clear for now.
+        return 1
+
+    def get_data(self, time_samples):
+        # The seek is not working
+        samples_per_row = self.data_header['NSBLK']
+        num_rows = int(time_samples / samples_per_row)
+        rest_samples = time_samples - num_rows * samples_per_row
+        data = self.data_hdu.read(row=np.arange(num_rows))
+        result = data['DATA'].reshape((num_rows * samples_per_row,
+                                       self.get_shape[1::]))
+        return result[0: time_samples]
