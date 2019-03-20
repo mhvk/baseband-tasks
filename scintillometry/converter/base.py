@@ -16,16 +16,13 @@ class FormatReader(StreamGenerator):
 
         Parameter
         ---------
-        format_object : object.
-            The file object of the input format.
         translator : dict or dictionary-like
             Translator functions for getting the information from the input
             file object.
         kwargs : dict
             Input argument for the StreamGenerator.
     """
-    def __init__(self, format_object, translator={}, **kwargs):
-        self.format_object = format_object
+    def __init__(self, translator={}, **kwargs):
         self.translator = translator
         self.args = {'function': self.read_format_data}
         self.args.update(kwargs)
@@ -47,11 +44,11 @@ class FormatReader(StreamGenerator):
                 raise ValueError("'{}' is required. You can input it while "
                                  "initialization or give a function in the "
                                  "translator.")
-            self.args[rg] = self.translator[rg](self.format_object)
+            self.args[rg] = self.translator[rg]()
 
         for og in self.required_args:
             if og in translatort_keys and og not in input_args_keys:
-                self.args[og] = self.translator[og](self.format_object)
+                self.args[og] = self.translator[og]()
 
     def read_format_header(self):
         """This function defines the function to read header from the input

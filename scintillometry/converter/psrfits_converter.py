@@ -11,18 +11,26 @@ class HDUReader(FormatReader):
 
     Parameter
     ---------
-    hdu: psrfits HDU objects.
-        The psrfits file HDU objects.
     translator: dict or dict-like
         PSRFIT HDU translator.
     kwargs : dict
         Additional input arguments.
+
+    Example
+    -------
+    >>> import pdat
+    >>> from .psrfits_translator import SubintTranslator
+    >>> ft = pdat.psrfits("psrfits.fits")
+    >>> translator = SubintTranslator("subint", ft[0], ft[1])
+    >>> reader = HDUReader(translator)
+    >>> reader.seek(1000)
+    >>> data = reader.read(2000)
     """
-    def __init__(self, hdu, translator, **kwargs):
+    def __init__(self, translator, **kwargs):
         super(PsrfitsReader, self).__init__(hdu, translator, **kwargs)
-        
-    def read_format_data(self):
+
+    def read_format_data(self, time_samples):
         """This function defines the function to read data from the psrfits
         format object.
         """
-        return self.translator['data'](self.format_object)
+        return self.translator['data'](time_samples)

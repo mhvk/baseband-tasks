@@ -79,11 +79,12 @@ class SubintTranslator(Translator):
                 return
 
     def setup(self):
-        # This is just an example here. 
+        # This is just an example here.
         self.update({'shape': self.get_shape,
                      'sample_rate': self.get_sample_rate,
                      'polarization': self.get_pok,
-                     'start_time': self.get_start_times})
+                     'start_time': self.get_start_times,
+                     'data': self.get_data})
 
 
     def get_sample_rate(self):
