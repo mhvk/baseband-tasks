@@ -7,18 +7,64 @@ from astropy import units as u
 from astropy.coordinates import Angle, Longitude
 from astropy.time import Time
 from astropy.utils import ShapedLikeNDArray
-from astropy.time.utils import day_frac
+from astropy.time.utils import two_sum, two_product
 
 
 __all__ = ['Phase', 'FractionalPhase']
 
 
-FRACTION_UFUNCS = {np.cos, np.sin, np.tan}
+FRACTION_UFUNCS = {np.cos, np.sin, np.tan, np.spacing}
 
 
 COMPARISON_UFUNCS = {np.equal, np.not_equal,
                      np.less, np.less_equal,
                      np.greater, np.greater_equal}
+
+
+def day_frac(val1, val2, factor=None, divisor=None):
+    """
+    Return the sum of ``val1`` and ``val2`` as two float64s, an integer part
+    and the fractional remainder.  If ``factor`` is given, then multiply the
+    sum by it.  If ``divisor`` is given, then divide the sum by it.
+
+    The arithmetic is all done with exact floating point operations so no
+    precision is lost to rounding error.  This routine assumes the sum is less
+    than about 1e16, otherwise the ``frac`` part will be greater than 1.0.
+
+    Returns
+    -------
+    day, frac : float64
+        Integer and fractional part of val1 + val2.
+    """
+    # Add val1 and val2 exactly, returning the result as two float64s.
+    # The first is the approximate sum (with some floating point error)
+    # and the second is the error of the float64 sum.
+    sum12, err12 = two_sum(val1, val2)
+
+    if factor is not None:
+        sum12, carry = two_product(sum12, factor)
+        carry += err12 * factor
+        sum12, err12 = two_sum(sum12, carry)
+
+    if divisor is not None:
+        q1 = sum12 / divisor
+        p1, p2 = two_product(q1, divisor)
+        d1, d2 = two_sum(sum12, -p1)
+        d2 += err12
+        d2 -= p2
+        q2 = (d1 + d2) / divisor  # 3-part float fine here; nothing can be lost
+        sum12, err12 = two_sum(q1, q2)
+
+    # get integer fraction
+    day = np.round(sum12)
+    extra, frac = two_sum(sum12, -day)
+    frac += extra + err12
+    # This part was missed in astropy...
+    excess = np.round(frac)
+    day += excess
+    extra, frac = two_sum(sum12, -day)
+    frac += extra + err12
+    return day, frac
 
 
 class FractionalPhase(Longitude):
@@ -154,12 +200,6 @@ class Phase(Angle):
     ptp = Time.ptp
     sort = Time.sort
 
-    def __neg__(self):
-        return self.from_angles(-self['int'], -self['frac'])
-
-    def __abs__(self):
-        return self._apply(np.copysign, self.value)
-
     def __eq__(self, other):
         try:
             return np.equal(self, other)
@@ -191,8 +231,11 @@ class Phase(Angle):
         result : `~astropy.units.Quantity`
             Results of the ufunc, with the unit set properly.
         """
+        # Should deal with output at some point...
+        assert 'out' not in kwargs
+
         if function in FRACTION_UFUNCS:
-            # Only trig functions supported, so just one input.
+            # These all have just one input, which should be self.
             assert self is inputs[0]
             return self.frac.__array_ufunc__(function, method,
                                              self.frac, **kwargs)
@@ -237,6 +280,34 @@ class Phase(Angle):
                     else:
                         return self.from_angles(self['int'], self['frac'],
                                                 divisor=other.value)
+        elif (function in {np.floor_divide, np.remainder, np.divmod} and
+              inputs[0] is self):
+            fd = np.floor_divide(self.cycle, inputs[1])
+            corr = Phase.from_angles(inputs[1], 0. * u.cycle, factor=fd)
+            remainder = self - corr
+            fdx = np.floor_divide(remainder.cycle, inputs[1])
+            # This can likely be optimized...
+            if fdx.nonzero()[0].size:
+                fd += fdx
+                corr = Phase.from_angles(inputs[1], 0. * u.cycle, factor=fd)
+                remainder = self - corr
+
+            if function is np.floor_divide:
+                return fd
+            elif function is np.remainder:
+                return remainder
+            else:
+                return fd, remainder
+
+        elif function is np.positive:
+            return self.copy()
+
+        elif function is np.negative:
+            return self.from_angles(-self['int'], -self['frac'])
+
+        elif function is np.absolute or function is np.fabs:
+            return self.from_angles(self['int'], self['frac'],
+                                    factor=np.sign(self.value))
 
         quantity = self.cycle
         inputs = tuple((input_ if input_ is not self else quantity)

@@ -24,7 +24,8 @@ class TestPhase:
     def setup(self):
         self.phase1 = Angle(np.array([1000., 1001., 999., 1005, 1006.]),
                             u.cycle)[:, np.newaxis]
-        self.phase2 = Angle(np.arange(0.125, 0.99, 0.25), u.cycle)
+        self.phase2 = Angle(2.**(-53) * np.array([1, -1., 1., -1.]) +
+                            np.array([-0.5, 0., 0., 0.5]), u.cycle)
         self.phase = Phase(self.phase1, self.phase2)
         self.delta = Phase(0., self.phase2)
 
@@ -33,8 +34,7 @@ class TestPhase:
         assert np.all(self.phase.int % (1. * u.cycle) == 0)
         cycle = self.phase1 + self.phase2
         assert_equal(self.phase.cycle, cycle)
-        count = cycle.round()
-        assert_equal(self.phase.int, count)
+        assert_equal(self.phase.int, Angle(self.phase1))
         assert_equal(self.phase.frac, FractionalPhase(self.phase2))
 
     @pytest.mark.parametrize('in1,in2', ((1.1111111, 0),
@@ -58,12 +58,48 @@ class TestPhase:
         assert phase2.shape == self.phase.shape[1:]
         assert_equal(phase2.cycle, self.phase.cycle[0])
 
+    def test_equality(self):
+        phase2 = self.phase[:, 1:2]
+        eq = self.phase == phase2
+        expected = [False, True, False, False]
+        assert np.all(eq == expected)
+
+    def test_addition(self):
+        add = self.phase + self.phase
+        assert_equal(add, Phase(2. * self.phase1, 2. * self.phase2))
+        t = self.phase1 + self.phase
+        add2 = self.phase2 + t
+        assert_equal(add2, add)
+        t = self.phase + self.phase1.to(u.degree)
+        add3 = t + self.phase2.to(u.degree)
+        assert_equal(add3, add)
+        add4 = self.phase + 1. * u.cycle
+        assert_equal(add4, Phase(self.phase1 + 1 * u.cycle, self.phase2))
+        add5 = 360. * u.deg + self.phase
+        assert_equal(add5, add4)
+
+    def test_subtraction(self):
+        double = Phase(self.phase1 * 2., self.phase2 * 2.)
+        sub = double - self.phase
+        assert_equal(sub, self.phase)
+        t = self.phase2 * 2. - self.phase
+        sub2 = self.phase1 * 2. + t
+        assert_equal(sub2, sub)
+        t = double - self.phase1.to(u.degree)
+        sub3 = t - self.phase2
+        assert_equal(sub3, sub)
+        sub4 = self.phase - 1. * u.cycle
+        assert_equal(sub4, Phase(self.phase1 - 1 * u.cycle, self.phase2))
+
     @pytest.mark.parametrize('op', (operator.eq, operator.ne,
                                     operator.le, operator.lt,
                                     operator.ge, operator.ge))
     def test_comparison(self, op):
         result = op(self.phase, self.phase[0])
-        assert_equal(result, op(self.phase.cycle, self.phase[0].cycle))
+        assert_equal(result, op((self.phase - self.phase[0]).cycle, 0.))
+        # Also for small differences.
+        result = op(self.phase, self.phase[:, 1:2])
+        assert_equal(result, op((self.phase - self.phase[:, 1:2]).cycle, 0.))
 
     @pytest.mark.parametrize('op', (operator.eq, operator.ne,
                                     operator.le, operator.lt,
@@ -71,7 +107,7 @@ class TestPhase:
     def test_comparison_quantity(self, op):
         ref = 1005. * u.cy
         result = op(self.phase, ref.to(u.deg))
-        assert_equal(result, op(self.phase.cycle, ref))
+        assert_equal(result, op((self.phase - ref).cycle, 0.))
 
     def test_comparison_invalid_quantity(self):
         with pytest.raises(TypeError):
@@ -83,32 +119,13 @@ class TestPhase:
         assert (self.phase == 1. * u.m) is False
         assert (self.phase != 1. * u.m) is True
 
-    def test_addition(self):
-        add = self.phase + self.phase
-        assert_equal(add, Phase(2. * self.phase1, 2. * self.phase2))
-        add2 = self.phase.to(u.cycle) + self.phase
-        assert_equal(add2, add)
-        add3 = self.phase + self.phase.to(u.degree)
-        assert_equal(add3, add)
-        add4 = self.phase + 1. * u.cycle
-        assert_equal(add4, Phase(self.phase1 + 1 * u.cycle, self.phase2))
-        add5 = 360. * u.deg + self.phase
-        assert_equal(add5, add4)
-
-    def test_subtraction(self):
-        half = Phase(self.phase1 / 2., self.phase2 / 2.)
-        sub = half - self.phase
-        assert_equal(sub, Phase(-self.phase1 / 2., -self.phase2 / 2.))
-        sub2 = self.phase.to(u.cycle) * 0.5 - self.phase
-        assert_equal(sub2, sub)
-        sub3 = half - self.phase.to(u.degree)
-        assert_equal(sub3, sub)
-        sub4 = self.phase - 1. * u.cycle
-        assert_equal(sub4, Phase(self.phase1 - 1 * u.cycle, self.phase2))
-
     def test_negation(self):
         neg = -self.phase
         assert_equal(neg, Phase(-self.phase1, -self.phase2))
+
+    def test_absolute(self):
+        check = abs(-self.phase)
+        assert_equal(check, self.phase)
 
     def test_unitless_multiplication(self):
         mul = self.phase * 2
@@ -141,35 +158,77 @@ class TestPhase:
         assert_equal(mul3, mul)
 
     def test_unitfull_division(self):
-        phase = self.phase[self.phase != Phase(0, 0)]
-        div = phase / (0.5 * u.s)
-        assert_equal(div, u.Quantity(phase.cycle * 2 / u.s))
-        div2 = phase / 0.5 / u.s
+        div = self.phase / (0.5 * u.s)
+        assert_equal(div, u.Quantity(self.phase.cycle * 2 / u.s))
+        div2 = self.phase / 0.5 / u.s
         assert_equal(div2, div)
-        div3 = 0.5 * u.s / phase
+        div3 = 0.5 * u.s / self.phase
         assert_equal(div3, 1. / div)
+
+    def test_floor_division_mod(self):
+        fd = self.phase // (1. * u.cycle)
+        fd_exp = self.phase.int.copy()
+        fd_exp[self.phase.frac < 0] -= 1 * u.cycle
+        fd_exp = fd_exp / u.cycle
+        assert_equal(fd, fd_exp)
+        mod = self.phase % (1. * u.cycle)
+        mod_exp = Phase(np.where(self.phase.frac >= 0., 0., 1.),
+                        self.phase.frac)
+        assert_equal(mod, mod_exp)
+        exp_cycle = Angle(self.phase.frac, copy=True)
+        exp_cycle[exp_cycle < 0.] += 1. * u.cycle
+        assert_equal(mod.cycle, exp_cycle)
+        dm = divmod(self.phase, 1. * u.cycle)
+        assert_equal(dm[0], fd_exp)
+        assert_equal(dm[1], mod_exp)
+        #
+        fd2 = self.phase // (360. * u.degree)
+        assert_equal(fd2, fd_exp)
+        mod2 = self.phase % (360 * u.degree)
+        assert_equal(mod2, mod_exp)
+        dm2 = divmod(self.phase, 360 * u.degree)
+        assert_equal(dm2[0], fd_exp)
+        assert_equal(dm2[1], mod_exp)
+        #
+        fd3 = self.phase // (240. * u.hourangle)
+        fd3_exp = fd_exp // 10
+        assert_equal(fd3, fd3_exp)
+        mod3 = self.phase % (240. * u.hourangle)
+        mod_int_exp = self.phase.int % (10 * u.cy)
+        mod_int_exp[0][self.phase.frac[0] < 0] += 10. * u.cy
+        mod3_exp = Phase(mod_int_exp, self.phase.frac)
+        assert_equal(mod3, mod3_exp)
+        dm3 = divmod(self.phase, 240. * u.hourangle)
+        assert_equal(dm3[0], fd3_exp)
+        assert_equal(dm3[1], mod3_exp)
 
     @pytest.mark.parametrize('axis', (None, 0, 1))
     def test_min(self, axis):
         m = self.phase.min(axis=axis)
-        assert_equal(m, Phase(self.phase.cycle.min(axis=axis)))
+        index = (slice(None) if axis == 1 else self.phase1.argmin(),
+                 slice(None) if axis == 0 else self.phase2.argmin())
+        assert_equal(m, self.phase[index])
 
     @pytest.mark.parametrize('axis', (None, 0, 1))
     def test_max(self, axis):
         m = self.phase.max(axis=axis)
-        assert_equal(m, Phase(self.phase.cycle.max(axis=axis)))
+        index = (slice(None) if axis == 1 else self.phase1.argmax(),
+                 slice(None) if axis == 0 else self.phase2.argmax())
+        assert_equal(m, self.phase[index])
 
     @pytest.mark.parametrize('axis', (None, 0, 1))
     def test_ptp(self, axis):
         ptp = self.phase.ptp(axis)
-        assert_equal(ptp, Phase(self.phase.cycle.ptp(axis=axis)))
+        assert_equal(ptp, self.phase.max(axis) - self.phase.min(axis))
 
     @pytest.mark.parametrize('axis', (0, 1))
     def test_sort(self, axis):
         sort = self.phase.sort(axis=axis)
-        comparison = self.phase.cycle.copy()
-        comparison.sort(axis=axis)
-        assert_equal(sort, Phase(comparison))
+        if axis == 1:
+            index = ()
+        else:
+            index = self.phase1.ravel().argsort()
+        assert_equal(sort, self.phase[index])
 
     @pytest.mark.parametrize('ufunc', (np.sin, np.cos, np.tan))
     def test_trig(self, ufunc):
