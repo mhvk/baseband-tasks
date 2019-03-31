@@ -115,3 +115,32 @@ class Power(TaskBase):
         out[2] = c.real
         out[3] = c.imag
         return result
+
+
+class Digitize(TaskBase):
+    """Digitize a stream to a given number of bits.
+
+    Output values are between -(2**(bps-1)) and 2**(bps-1) -1.
+    For instance, between -8 and 7 for bps=4.
+
+    Parameters
+    ----------
+    ih : stream handle
+        Handle of a stream reader or another task.
+    nbits : int
+        Number of bits to digitize too.  For complex data, the real
+        and imaginary components are digitized separately.
+    """
+    def __init__(self, ih, bps, scale=1.):
+        super().__init__(ih)
+        self._low = - (1 << (bps-1))
+        self._high = (1 << (bps-1)) - 1
+        if self.complex_data:
+            real_dtype = np.zeros(1, self.dtype).real.dtype
+            self.task = lambda data: self._digitize(
+                data.view(real_dtype)).view(self.dtype)
+        else:
+            self.task = self._digitize
+
+    def _digitize(self, data):
+        return np.clip(data.round(), self._low, self._high)

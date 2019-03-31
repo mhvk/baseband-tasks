@@ -7,8 +7,8 @@ import astropy.units as u
 from astropy.time import Time
 
 from ..base import SetAttribute
-from ..functions import Square, Power
-from ..generators import EmptyStreamGenerator
+from ..functions import Square, Power, Digitize
+from ..generators import EmptyStreamGenerator, StreamGenerator
 
 from .common import UseDADASample, UseVDIFSample
 
@@ -176,3 +176,39 @@ class TestPowerVDIFFailures(UseVDIFSample):
                           polarization=np.array(['L', 'R'] * 4))
         with pytest.raises(ValueError):  # Too many.
             Power(fh)
+
+
+class TestDigitize:
+    def setup(self):
+        self.stream = StreamGenerator(
+            lambda stream: np.arange(-128, 128, 0.5), (256,),
+            sample_rate=1.*u.Hz, start_time=Time('2018-01-01'),
+            samples_per_frame=256)
+
+    def test_basics(self):
+        fh = dada.open(SAMPLE_DADA)
+        ref_data = fh.read()
+        dig = Digitize(fh, bps=8)
+        data1 = dig.read()
+        assert np.all(data1 == ref_data)
+
+        dig2 = Digitize(fh, bps=4)
+        data2 = dig2.read()
+        assert np.all(data2.real >= -16.) and np.all(data2.real <= 15.)
+        assert np.all(data2.imag >= -16.) and np.all(data2.imag <= 15.)
+        assert np.all(data2.real % 1. == 0.)
+        assert np.all(data2.imag % 1. == 0.)
+        expected = np.clip(ref_data.view(np.float32),
+                           -8., 7.).view(np.complex64)
+        assert np.all(data2 == expected)
+        dig2.close()
+
+    def test_stram(self):
+        ref_data = self.stream.read()
+        for bps in (1, 3, 5, 8):
+            r = 1 << (bps - 1)
+            expected = np.clip(ref_data, -r, r-1).round()
+            dig = Digitize(self.stream, bps=bps)
+            data = dig.read()
+            assert np.all(data == expected)
+        dig.close()
