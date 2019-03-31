@@ -10,6 +10,7 @@ from ..base import Task
 from ..generators import EmptyStreamGenerator
 from ..integration import Integrate, Fold, Stack
 from ..functions import Square
+from ..phases import Phase
 
 
 class TestFakePulsarBase:
@@ -38,6 +39,11 @@ class TestFakePulsarBase:
         result.shape = (-1,) + (1,) * (data.ndim - 1)
         data[:] = result
         return data
+
+
+class UsePhaseClass(TestFakePulsarBase):
+    def phase(self, t):
+        return Phase(super().phase(t))
 
 
 class TestIntegrate(TestFakePulsarBase):
@@ -371,6 +377,10 @@ class TestFold(TestFakePulsarBase):
             Fold(self.sh, 8, self.phase, samples_per_frame=2)
 
 
+class TestFoldwithPhase(TestFold, UsePhaseClass):
+    pass
+
+
 class TestIntegratePhase(TestFakePulsarBase):
     # More detailed tests done in TestStack.
     @pytest.mark.parametrize('samples_per_frame', (1, 160))
@@ -392,6 +402,10 @@ class TestIntegratePhase(TestFakePulsarBase):
         if samples_per_frame > 1:  # very slow otherwise.
             data = fh.read()
             assert np.all(data == ref_data[325:])
+
+
+class TestIntegratePhasewithPhase(TestIntegratePhase, UsePhaseClass):
+    pass
 
 
 class TestStack(TestFakePulsarBase):

@@ -240,3 +240,13 @@ class TestPhase:
         phase = Phase(cycle, d)
         assert np.isclose(ufunc(phase), expected, rtol=1e-14,
                           atol=1e-14).all()
+
+    def test_isnan(self):
+        expected = np.zeros(self.phase.shape)
+        assert_equal(np.isnan(self.phase), expected)
+        copy = self.phase.copy()
+        copy[1, 1] = np.nan
+        expected[1, 1] = True
+        assert_equal(np.isnan(copy), expected)
+        trial = Phase(np.nan)
+        assert np.isnan(trial)

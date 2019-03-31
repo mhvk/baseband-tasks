@@ -199,16 +199,18 @@ class Integrate(BaseTaskBase):
             return (np.round(samples / self._mean_offset_size +
                              self._ih_start).astype(int))
 
-        # Requested phases.
-        phase = self._start + np.ravel(samples) / self.sample_rate
+        # Requested phases relative to start (we work relative to the start
+        # to avoid rounding errors for large cycle counts).
+        phase = np.ravel(samples) / self.sample_rate
         # Initial guesses for the associated offsets.
         ih_mean_phase_size = self._mean_offset_size / self.sample_rate
-        offsets = ((phase - self._start) / ih_mean_phase_size).to_value(u.one)
+        offsets = (phase / ih_mean_phase_size).to_value(u.one)
         # In order to update guesses, below we interpolate phase in offset.
         # Add known boundaries to ensure we do not go out of bounds there.
         all_offsets = np.hstack((0, offsets, self.ih.shape[0] - self._ih_start))
-        # Associated phases; all but start, stop will be overwritten.
-        all_ih_phase = self._start + all_offsets * ih_mean_phase_size
+        # Associated phases relative to start phase;
+        # all but start (=0) and stop will be overwritten.
+        all_ih_phase = all_offsets * ih_mean_phase_size
         # Add in base offset in underlying file.
         all_offsets += self._ih_start
         # Select the parts we are going to modify (in-place).
@@ -221,7 +223,9 @@ class Integrate(BaseTaskBase):
             # First calculate phase associate with the current offset guesses.
             old_offsets = offsets[mask]
             ih_time = self.ih.start_time + old_offsets / self.ih.sample_rate
-            ih_phase[mask] = self._phase(ih_time)
+            # TODO: the conversion is only necessary because of a bug in
+            # Quantity._to_own_unit; see https://github.com/astropy/astropy/pull/8535
+            ih_phase[mask] = (self._phase(ih_time) - self._start).to(ih_phase.unit)
             # Next, interpolate in known phases to get improved offsets.
             offsets[mask] = np.interp(phase[mask], all_ih_phase, all_offsets)
             # Finally, update mask.
@@ -389,9 +393,8 @@ class Fold(Integrate):
 
         # TODO: allow having a phase reference.
         phases = self.phase(self._raw_time + raw_items / self.ih.sample_rate)
-        if type(phases) is not np.ndarray:
-            phases = u.Quantity(phases, u.cycle, copy=False).value
-        phase_index = ((phases * self.n_phase) % self.n_phase).astype(int)
+        phase_index = ((phases % (1. * u.cycle)).to_value(u.cycle) *
+                       self.n_phase).astype(int)
         # Do the actual folding, adding the data to the sums and counts.
         # TODO: np.add.at is not very efficient; replace?
         np.add.at(self._frame['data'], (sample_index, phase_index), raw)
