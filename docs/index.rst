@@ -29,8 +29,9 @@ classes that can be linked together into a data reduction pipeline.
 .. toctree::
    :maxdepth: 1
 
-   tasks/dispersion
    tasks/channelize
+   tasks/convolution
+   tasks/dispersion
    tasks/functions
    tasks/integration
    tasks/shaping

@@ -6,11 +6,11 @@ from .base import PaddedTaskBase
 from .fourier import get_fft_maker
 
 
-__all__ = ['Convolve', 'FFTConvolve']
+__all__ = ['ConvolveSamples', 'Convolve']
 
 
-class Convolve(PaddedTaskBase):
-    """Convolve a time stream with a given filter.
+class ConvolveSamples(PaddedTaskBase):
+    """Convolve a time stream with a response, in the time domain.
 
     Parameters
     ----------
@@ -31,7 +31,7 @@ class Convolve(PaddedTaskBase):
 
     See Also
     --------
-    FFTConvolve : convolution via a Fourier transform
+    Convolve : convolution in the Fourier domain (usually faster)
     """
 
     def __init__(self, ih, response, offset=0, samples_per_frame=None):
@@ -55,11 +55,11 @@ class Convolve(PaddedTaskBase):
         return result
 
 
-class FFTConvolve(PaddedTaskBase):
-    """Convolve a time stream with a given filter.
+class Convolve(PaddedTaskBase):
+    """Convolve a time stream with a response, in the Fourier domain.
 
-    The convolution is done via multiplication in the Fourier domain.
-    For all but very simple responses, this faster than direct convolution.
+    The convolution is done via multiplication in the Fourier domain, which
+    is faster than direct convolution for all but very simple responses.
 
     Parameters
     ----------
@@ -84,7 +84,7 @@ class FFTConvolve(PaddedTaskBase):
 
     See Also
     --------
-    Convolve : direct convolution.
+    ConvolveSamples : convolution in the time domain (for simple responses)
     """
     def __init__(self, ih, response, offset=0, samples_per_frame=None,
                  FFT=None):

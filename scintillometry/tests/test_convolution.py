@@ -6,7 +6,7 @@ from numpy.testing import assert_array_equal
 import astropy.units as u
 from astropy.time import Time
 
-from ..convolution import Convolve, FFTConvolve
+from ..convolution import Convolve, ConvolveSamples
 from ..generators import EmptyStreamGenerator
 
 from baseband import vdif, dada
@@ -19,7 +19,7 @@ class TestConvolve:
     def setup(self):
         self.response = np.ones(3)
 
-    @pytest.mark.parametrize('convolve_task', (Convolve, FFTConvolve))
+    @pytest.mark.parametrize('convolve_task', (ConvolveSamples, Convolve))
     def test_convolve(self, convolve_task):
         # Load baseband file and get reference intensities.
         fh = dada.open(SAMPLE_DADA)
