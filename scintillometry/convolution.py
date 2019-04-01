@@ -1,17 +1,15 @@
 # Licensed under the GPLv3 - see LICENSE
 """Convolution tasks."""
-import warnings
-
 import numpy as np
 
-from .base import BaseTaskBase
+from .base import PaddedTaskBase
 from .fourier import get_fft_maker
 
 
 __all__ = ['Convolve', 'FFTConvolve']
 
 
-class Convolve(BaseTaskBase):
+class Convolve(PaddedTaskBase):
     """Convolve a time stream with a given filter.
 
     Parameters
@@ -42,26 +40,8 @@ class Convolve(BaseTaskBase):
                                         (1,) * (ih.ndim - 1))
 
         pad = response.shape[0] - 1
-        if samples_per_frame is None:
-            # Calculate the number of samples that ensures >75% efficiency:
-            # use 4 times power of two just above pad.
-            samples_per_frame = 2 ** (int((np.ceil(np.log2(pad)))) + 2)
-        elif pad >= samples_per_frame:
-            raise ValueError("need more than {} samples per frame to be "
-                             "able to convolve without wrapping."
-                             .format(pad))
-        elif pad > samples_per_frame / 2.:
-            warnings.warn("convolution will be inefficient since of the "
-                          "{} samples per frame given, {} will be lost due "
-                          "to padding.".format(samples_per_frame, pad))
-
-        # Subtract padding since that is what we actually produce per frame,
-        samples_per_frame -= pad
-        shape = (ih.shape[0] - pad,) + ih.sample_shape
-        super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame)
-        self._pad_start = pad - offset
-        self._pad_end = offset
-        self._start_time += self._pad_start / ih.sample_rate
+        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
+                         samples_per_frame=samples_per_frame)
         self._response = np.broadcast_to(response, (response.shape[0],) +
                                          self.sample_shape)
 
@@ -74,15 +54,8 @@ class Convolve(BaseTaskBase):
                                         mode='valid')
         return result
 
-    def _read_frame(self, frame_index):
-        # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self.samples_per_frame)
-        data = self.ih.read(self.samples_per_frame +
-                            self._pad_start + self._pad_end)
-        return self.task(data)
 
-
-class FFTConvolve(Convolve):
+class FFTConvolve(PaddedTaskBase):
     """Convolve a time stream with a given filter.
 
     The convolution is done via multiplication in the Fourier domain.
@@ -115,21 +88,30 @@ class FFTConvolve(Convolve):
     """
     def __init__(self, ih, response, offset=0, samples_per_frame=None,
                  FFT=None):
-        super().__init__(ih, response=response, offset=offset,
+        if response.ndim == 1 and ih.ndim > 1:
+            response = response.reshape(response.shape[:1] +
+                                        (1,) * (ih.ndim - 1))
+
+        pad = response.shape[0] - 1
+        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.
         if FFT is None:
             FFT = get_fft_maker()
 
-        raw_frame_shape = (samples_per_frame,) + ih.sample_shape
-        self._fft = FFT(shape=raw_frame_shape, sample_rate=ih.sample_rate,
-                        dtype=ih.dtype)
+        self._fft = FFT(shape=(self._padded_samples_per_frame,) +
+                        ih.sample_shape,
+                        sample_rate=ih.sample_rate, dtype=ih.dtype)
         self._ifft = self._fft.inverse()
-        long_response = np.zeros(raw_frame_shape, ih.dtype)
-        long_response[:self._response.shape[0]] = self._response
-        self._ft_response = self._fft(long_response)
+        # FFT response, ensuring we keep the possibly simpler shape.
+        long_response = np.zeros((samples_per_frame,) +
+                                 response.shape[1:], ih.dtype)
+        long_response[:response.shape[0]] = response
+        self._ft_response = FFT(shape=long_response.shape,
+                                dtype=ih.dtype)(long_response)
 
     def task(self, data):
         ft = self._fft(data)
         ft *= self._ft_response
-        return self._ifft(ft)[self._pad_start:data.shape[0]-self._pad_end]
+        result = self._ifft(ft)
+        return result[self._pad_slice]

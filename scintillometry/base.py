@@ -3,6 +3,7 @@
 import inspect
 import operator
 import types
+import warnings
 
 import numpy as np
 import astropy.units as u
@@ -531,6 +532,18 @@ class Task(TaskBase):
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the underlying file,
         possibly adjusted for a difference in sample rate.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  Default: taken from the underlying stream, if available.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.
+        Default: taken from the underlying stream, if available.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: taken from the
+        underlying stream, if available.
     dtype : `~numpy.dtype`, optional
         Output dtype.  If not given, the dtype of the underlying file.
 
@@ -563,3 +576,68 @@ class Task(TaskBase):
             self.task = task
 
         super().__init__(ih, **kwargs)
+
+
+class PaddedTaskBase(BaseTaskBase):
+    """Base for tasks which need more points than they produce.
+
+    Like `~scintillometry.base.TaskBase`, subclasses should define:
+
+      ``task(self, data)`` : return processed data from one frame.
+
+    Where ``data`` will contain extra padding.  The ``task`` method has to
+    ensure the right selection is returned; generally, this will be
+    ``slice(self._pad_start, len(data)-self._pad_end)``, which is precomputed
+    as the ``_pad_slice`` attribute.
+
+    Parameters
+    ----------
+    ih : stream handle
+        Handle of a stream reader or another task.
+    pad_start, pad_end : int
+        Padding to apply at the start and end.  Default: 0.
+    samples_per_frame : int, optional
+        Number of samples which should be dealt with in one go. The number of
+        output samples per frame will be smaller by the amount of padding.
+        If not given, the minimum power of 2 needed to get at least 75%
+        efficiency.
+    **kwargs
+        Possible further arguments; see `~scintillometry.base.BaseTaskBase`.
+
+    """
+    def __init__(self, ih, pad_start=0, pad_end=0, samples_per_frame=None,
+                 **kwargs):
+        self._pad_start = operator.index(pad_start)
+        self._pad_end = operator.index(pad_end)
+        if self._pad_start < 0 or self._pad_end < 0:
+            raise ValueError("padding values must be 0 or positive.")
+
+        pad = self._pad_start + self._pad_end
+        if pad > 0:
+            if samples_per_frame is None:
+                # Calculate the number of samples that ensures >75% efficiency:
+                # use 4 times power of two just above pad.
+                samples_per_frame = 2 ** (int((np.ceil(np.log2(pad)))) + 2)
+            elif pad >= samples_per_frame:
+                raise ValueError("need more than {} samples per frame to have "
+                                 "enough padding.".format(pad))
+            elif pad > samples_per_frame / 2.:
+                warnings.warn("task will be inefficient since of {} samples "
+                              "per frame, {} will be lost due to padding."
+                              .format(samples_per_frame, pad))
+
+        # Subtract padding since that is what we actually produce per frame,
+        samples_per_frame -= pad
+        shape = (ih.shape[0] - pad,) + ih.sample_shape
+        super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame,
+                         **kwargs)
+        self._padded_samples_per_frame = self.samples_per_frame + pad
+        self._pad_slice = slice(self._pad_start,
+                                self._padded_samples_per_frame - self._pad_end)
+        self._start_time += self._pad_start / ih.sample_rate
+
+    def _read_frame(self, frame_index):
+        # Read data from underlying filehandle.
+        self.ih.seek(frame_index * self.samples_per_frame)
+        data = self.ih.read(self._padded_samples_per_frame)
+        return self.task(data)
