@@ -179,6 +179,16 @@ class TestDispersion:
         assert np.all(p[9:11].sum() > 0.99)
         assert np.all(p[9:11] > 0.047)
 
+    def test_disperse_closing(self):
+        # This tests implementation, so can be removed if the implementation
+        # changes. It is meant to ensure memory is released upon closing.
+        disperse = Disperse(self.gp, -self.dm)
+        assert 'phase_factor' not in disperse.__dict__
+        disperse.read(1)
+        assert 'phase_factor' in disperse.__dict__
+        disperse.close()
+        assert 'phase_factor' not in disperse.__dict__
+
 
 class TestDispersionReal(TestDispersion):
     def setup(self):

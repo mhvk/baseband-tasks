@@ -1,13 +1,10 @@
 # Licensed under the GPLv3 - see LICENSE
 
-import operator
-import warnings
-
 import numpy as np
 import astropy.units as u
 from astropy.utils import lazyproperty
 
-from .base import BaseTaskBase
+from .base import PaddedTaskBase
 from .fourier import get_fft_maker
 from .dm import DispersionMeasure
 
@@ -15,7 +12,7 @@ from .dm import DispersionMeasure
 __all__ = ['Disperse', 'Dedisperse']
 
 
-class Disperse(BaseTaskBase):
+class Disperse(PaddedTaskBase):
     """Coherently disperse a time stream.
 
     Parameters
@@ -95,39 +92,32 @@ class Disperse(BaseTaskBase):
             # Default case: passing on both sides; not useful to offset.
             sample_offset = 0
 
-        pad = pad_start + pad_end  # total padding.
-        if samples_per_frame is None:
-            # Calculate the number of samples that ensures >75% efficiency:
-            # use 4 times power of two just above pad.
-            samples_per_frame = 2 ** (int((np.ceil(np.log2(pad)))) + 2)
-        elif pad >= samples_per_frame:
-            raise ValueError("need more than {} samples per frame to be "
-                             "able to dedisperse without wrapping."
-                             .format(pad))
-        elif pad > samples_per_frame / 2.:
-            warnings.warn("dedispersion will be inefficient since of the "
-                          "{} samples per frame given, {} will be lost due "
-                          "to padding.".format(samples_per_frame, pad))
+        super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband)
 
         # Initialize FFTs for fine channelization and the inverse.
+        # TODO: remove duplication with Convolve.
         if FFT is None:
             FFT = get_fft_maker()
-        self._fft = FFT(shape=(samples_per_frame,) + ih.sample_shape,
-                        dtype=ih.dtype, sample_rate=ih.sample_rate)
-        self._ifft = self._fft.inverse()
 
-        # Subtract padding since that is what we actually produce per frame,
-        # TODO: move the padding calculation to some kind of convulution base class?
-        samples_per_frame -= pad
-        shape = (ih.shape[0] - pad,) + ih.sample_shape
-        super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband)
+        self._FFT = FFT
         self.dm = dm
         self.reference_frequency = reference_frequency
-        self._pad_start = pad_start
-        self._pad_end = pad_end
         self._sample_offset = sample_offset
-        self._start_time += (sample_offset + pad_start) / ih.sample_rate
+        self._start_time += sample_offset / ih.sample_rate
+        self._pad_slice = slice(self._pad_start,
+                                self._padded_samples_per_frame - self._pad_end)
+
+    @lazyproperty
+    def _fft(self):
+        return self._FFT(shape=(self._padded_samples_per_frame,) +
+                         self.ih.sample_shape,
+                         sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
+
+    @lazyproperty
+    def _ifft(self):
+        return self._fft.inverse()
 
     @lazyproperty
     def phase_factor(self):
@@ -148,19 +138,15 @@ class Disperse(BaseTaskBase):
     def task(self, data):
         ft = self._fft(data)
         ft *= self.phase_factor
-        return self._ifft(ft)
-
-    def _read_frame(self, frame_index):
-        # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self.samples_per_frame)
-        data = self.ih.read(self.samples_per_frame +
-                            self._pad_start + self._pad_end)
-        return self.task(data)[self._pad_start:data.shape[0]-self._pad_end]
+        result = self._ifft(ft)
+        return result[self._pad_slice]
 
     def close(self):
         super().close()
-        # Clear the cache of the lazyproperty to release memory.
+        # Clear the caches of the lazyproperties to release memory.
         del self.phase_factor
+        del self._fft
+        del self._ifft
 
 
 class Dedisperse(Disperse):
