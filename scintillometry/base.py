@@ -586,9 +586,8 @@ class PaddedTaskBase(BaseTaskBase):
       ``task(self, data)`` : return processed data from one frame.
 
     Where ``data`` will contain extra padding.  The ``task`` method has to
-    ensure the right selection is returned; generally, this will be
-    ``slice(self._pad_start, len(data)-self._pad_end)``, which is precomputed
-    as the ``_pad_slice`` attribute.
+    ensure the right selection is returned, and can use the ``_pad_start``
+    and ``_pad_end`` attributes for this purpose.
 
     Parameters
     ----------
@@ -632,8 +631,6 @@ class PaddedTaskBase(BaseTaskBase):
         super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame,
                          **kwargs)
         self._padded_samples_per_frame = self.samples_per_frame + pad
-        self._pad_slice = slice(self._pad_start,
-                                self._padded_samples_per_frame - self._pad_end)
         self._start_time += self._pad_start / ih.sample_rate
 
     def _read_frame(self, frame_index):

@@ -122,7 +122,7 @@ class Convolve(ConvolveSamples):
         ft = self._fft(data)
         ft *= self._ft_response
         result = self._ifft(ft)
-        return result[self._pad_slice]
+        return result[self._pad_start + self._pad_end:]
 
     def close(self):
         super().close()
