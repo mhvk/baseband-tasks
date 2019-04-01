@@ -8,6 +8,7 @@ from astropy.time import Time
 
 from ..functions import Square, Power
 from ..generators import EmptyStreamGenerator
+from ..shaping import Reshape
 
 from baseband import vdif, dada
 from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
@@ -134,20 +135,26 @@ class TestPower:
 
     def test_wrong_polarization_data(self):
         with dada.open(SAMPLE_DADA) as fh:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError):  # Only one.
                 Power(fh, polarization=['L'])
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError):  # Duplication (same error as above)
+                Power(fh, polarization=['L', 'L'])
+            with pytest.raises(ValueError):  # Wrong axis.
                 Power(fh, polarization=[['L'], ['R']])
-            with pytest.raises(ValueError):
-                Power(fh, polarization=[['L'], ['L']])
 
     def test_wrong_polarization_vdif(self):
         with vdif.open(SAMPLE_VDIF) as fh:
             with pytest.raises(AttributeError):
                 Power(fh)
             fh.polarization = np.array(['L', 'R'] * 4)
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError):  # Too many.
                 Power(fh)
+
+    def test_power_needs_complex(self):
+        eh = EmptyStreamGenerator((10000, 2, 4), sample_rate=1.*u.Hz,
+                                  start_time=Time('2018-01-01'), dtype='f4')
+        with pytest.raises(ValueError):  # Real timestream
+            Power(eh, polarization=[['L'], ['R']])
 
     def test_frequency_sideband_mismatch(self):
         frequency = np.array([[320.25], [320.25], [336.25], [336.25]]) * u.MHz

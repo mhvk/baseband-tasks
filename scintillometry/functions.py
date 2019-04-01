@@ -84,11 +84,9 @@ class Power(TaskBase):
         if polarization.size != 2:
             raise ValueError("need exactly 2 polarizations.  Reshape stream "
                              "appropriately.")
-
+        # polarization is guaranteed to have 2 distinct items.
         pol_axis = polarization.shape.index(2)
         pol_swap = polarization.swapaxes(0, pol_axis)
-        if pol_swap[0] == pol_swap[1]:
-            raise ValueError("need 2 unique polarizations.")
         pol_swap = np.core.defchararray.add(pol_swap[[0, 1, 0, 1]],
                                             pol_swap[[0, 1, 1, 0]])
         polarization = pol_swap.swapaxes(0, pol_axis)

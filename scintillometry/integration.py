@@ -228,7 +228,7 @@ class Integrate(BaseTaskBase):
             mask[mask] = abs(offsets[mask] - old_offsets) > precision
             it += 1
 
-        if it >= max_iter:
+        if it >= max_iter:  # pragma: no cover
             warnings.warn('offset calculation did not converge. '
                           'This should not happen!')
 

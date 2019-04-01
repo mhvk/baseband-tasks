@@ -429,3 +429,14 @@ class TestStack(TestFakePulsarBase):
         fh.seek(10)
         data = fh.read()
         assert np.all(data == ref_data[10:])
+
+    def test_integrate_stack(self):
+        fh = Stack(self.sh, 25, self.phase)
+        data = fh.read(3)
+        ih = Integrate(fh, 3)
+        data2 = ih.read(1)
+        assert np.all(data2 == data.mean(0))
+
+        # But not everything works, like asking for the time...
+        with pytest.raises(Exception):
+            ih.time

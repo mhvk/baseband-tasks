@@ -1,11 +1,12 @@
 # Licensed under the GPLv3 - see LICENSE
+import copy
 
 import numpy as np
 import astropy.units as u
 from astropy.tests.helper import assert_quantity_allclose
 import pytest
 
-from ..base import FFT_MAKER_CLASSES
+from ..base import FFT_MAKER_CLASSES, FFTMakerBase
 from .. import get_fft_maker
 from ... import fourier
 
@@ -87,7 +88,13 @@ class TestFFTClasses:
                         sample_rate=self.sample_rate)
         assert fftc == fft
         # Check that we can copy an FFT.
-        assert fft.copy() == fft
+        fft_copy = fft.copy()
+        assert fft_copy is not fft
+        assert fft_copy == fft
+        fft_copy2 = copy.copy(fft)
+        assert fft_copy2 is not fft
+        assert fft_copy2 is not fft_copy
+        assert fft_copy2 == fft
 
         # Check Parseval's Theorem (factor of 2 from using a real transform).
         assert np.isclose(np.sum(self.y_rnsine**2),
@@ -134,3 +141,17 @@ def test_default_maker():
 
     with pytest.raises(TypeError):
         get_fft_maker.default = 'nonsense'
+
+
+def test_against_duplication():
+    with pytest.raises(ValueError):
+        class NumpyFFTMaker(FFTMakerBase):
+            pass
+
+
+@pytest.mark.skipif('pyfftw' not in FFT_MAKER_CLASSES,
+                    reason="Test if PyFFTW specific")
+def test_wrong_arguments():
+    maker = FFT_MAKER_CLASSES['pyfftw']
+    with pytest.raises(ValueError):
+        maker(flags=['FFTW_DESTROY_INPUT'])
