@@ -1,8 +1,9 @@
 # Licensed under the GPLv3 - see LICENSE
 """Convolution tasks."""
 import numpy as np
+from astropy.utils import lazyproperty
 
-from .base import PaddedTaskBase
+from .base import PaddedTaskBase, check_broadcast_to
 from .fourier import get_fft_maker
 
 
@@ -38,24 +39,27 @@ class ConvolveSamples(PaddedTaskBase):
         if response.ndim == 1 and ih.ndim > 1:
             response = response.reshape(response.shape[:1] +
                                         (1,) * (ih.ndim - 1))
+        else:
+            check_broadcast_to(response, response.shape[:1] + ih.sample_shape)
 
         pad = response.shape[0] - 1
         super().__init__(ih, pad_start=pad-offset, pad_end=offset,
                          samples_per_frame=samples_per_frame)
-        self._response = np.broadcast_to(response, (response.shape[0],) +
-                                         self.sample_shape)
+        self._response = response
 
     def task(self, data):
         result = np.empty((self.samples_per_frame,) + self.sample_shape,
                           dtype=self.dtype)
+        response = np.broadcast_to(self._response,
+                                   self._response.shape[:1]+self.sample_shape)
         for index in np.ndindex(self.sample_shape):
             index = (slice(None),) + index
-            result[index] = np.convolve(data[index], self._response[index],
+            result[index] = np.convolve(data[index], response[index],
                                         mode='valid')
         return result
 
 
-class Convolve(PaddedTaskBase):
+class Convolve(ConvolveSamples):
     """Convolve a time stream with a response, in the Fourier domain.
 
     The convolution is done via multiplication in the Fourier domain, which
@@ -88,30 +92,41 @@ class Convolve(PaddedTaskBase):
     """
     def __init__(self, ih, response, offset=0, samples_per_frame=None,
                  FFT=None):
-        if response.ndim == 1 and ih.ndim > 1:
-            response = response.reshape(response.shape[:1] +
-                                        (1,) * (ih.ndim - 1))
-
-        pad = response.shape[0] - 1
-        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
+        super().__init__(ih, response=response, offset=offset,
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.
         if FFT is None:
             FFT = get_fft_maker()
 
-        self._fft = FFT(shape=(self._padded_samples_per_frame,) +
-                        ih.sample_shape,
-                        sample_rate=ih.sample_rate, dtype=ih.dtype)
-        self._ifft = self._fft.inverse()
-        # FFT response, ensuring we keep the possibly simpler shape.
-        long_response = np.zeros((samples_per_frame,) +
-                                 response.shape[1:], ih.dtype)
-        long_response[:response.shape[0]] = response
-        self._ft_response = FFT(shape=long_response.shape,
-                                dtype=ih.dtype)(long_response)
+        self._FFT = FFT
+
+    @lazyproperty
+    def _fft(self):
+        return self._FFT(shape=(self._padded_samples_per_frame,) +
+                         self.ih.sample_shape,
+                         sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
+
+    @lazyproperty
+    def _ifft(self):
+        return self._fft.inverse()
+
+    @lazyproperty
+    def _ft_response(self):
+        long_response = np.zeros((self._padded_samples_per_frame,) +
+                                 self._response.shape[1:], self.dtype)
+        long_response[:self._response.shape[0]] = self._response
+        fft = self._FFT(shape=long_response.shape, dtype=self.dtype)
+        return fft(long_response)
 
     def task(self, data):
         ft = self._fft(data)
         ft *= self._ft_response
         result = self._ifft(ft)
         return result[self._pad_slice]
+
+    def close(self):
+        super().close()
+        # Clear the caches of the lazyproperties to release memory.
+        del self._ft_response
+        del self._fft
+        del self._ifft
