@@ -1,12 +1,14 @@
 # Licensed under the GPLv3 - see LICENSE
+import inspect
+import itertools
+import operator
+import warnings
 
 import numpy as np
 import astropy.units as u
-import operator
 import pytest
-import itertools
 
-from ..base import TaskBase, Task
+from ..base import TaskBase, Task, BaseTaskBase, PaddedTaskBase
 
 from baseband import vdif
 from baseband.data import SAMPLE_VDIF
@@ -15,7 +17,7 @@ from baseband.data import SAMPLE_VDIF
 class ReshapeTime(TaskBase):
     """Dummy class to test accessing task properties and methods.
 
-    `Reshape` simply reshapes blocks of baseband data into frames.
+    `ReshapeTime` simply reshapes blocks of baseband data into frames.
     """
 
     def __init__(self, ih, n, samples_per_frame=1, **kwargs):
@@ -33,7 +35,59 @@ class ReshapeTime(TaskBase):
         return data.reshape((-1,) + self.sample_shape)
 
 
+class Multiply(BaseTaskBase):
+    """Dummy class to test accessing task properties and methods.
+
+    `Multiply` simply multiplies data with a given factor.
+    It is based on BaseTaskBase just to check that defining one's
+    own ``_read_frame`` method works.
+    """
+
+    def __init__(self, ih, factor):
+        self._factor = factor
+        super().__init__(ih)
+
+    def _read_frame(self, frame_index):
+        self.ih.seek(frame_index * self.samples_per_frame)
+        return self.ih.read(self.samples_per_frame) * self._factor
+
+
+class SquareHat(PaddedTaskBase):
+    """Dummy class to test accessing task properties and methods.
+
+    `SquareHat` simply convolves with a set of 1s of given length.
+    """
+    def __init__(self, ih, n, offset=0, samples_per_frame=None):
+        self._n = n
+        super().__init__(ih, pad_start=n-1-offset, pad_end=offset,
+                         samples_per_frame=samples_per_frame)
+
+    def task(self, data):
+        size = data.shape[0]
+        result = data[:size-self._n + 1].copy()
+        for i in range(1, self._n):
+            result += data[i:size-self._n+i+1]
+        return result
+
+
 class TestTaskBase:
+
+    def test_basetaskbase(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        mh = Multiply(fh, 2.)
+        # Check sample pointer.
+        assert mh.sample_rate == fh.sample_rate
+        assert mh.shape == fh.shape
+        assert mh.size == np.prod(mh.shape)
+        assert mh.ndim == fh.ndim
+        assert mh.tell() == 0
+        assert mh.tell(unit='time') == mh.time == mh.start_time
+        assert mh.stop_time == fh.stop_time
+
+        expected = fh.read() * 2.
+        data = mh.read()
+        assert np.all(data == expected)
+        assert mh.time == fh.stop_time
 
     @staticmethod
     def convert_time_offset(offset, sample_rate):
@@ -98,6 +152,8 @@ class TestTaskBase:
         # Check closing.
         rt.close()
         assert fh.closed
+        with pytest.raises(ValueError):
+            rt.read(1)
 
     def test_frequency_sideband_propagation(self):
         fh = vdif.open(SAMPLE_VDIF)
@@ -237,3 +293,53 @@ class TestTasks:
             data1 = ft.read()
 
         assert np.all(data1 == ref_data)
+
+    def test_invalid(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        with pytest.raises(Exception):  # Cannot determine function/method.
+            Task(fh, np.add)
+
+        def trial(data, bla=1):
+            return data
+
+        th = Task(fh, trial)
+        assert not inspect.ismethod(th.task)
+
+        def trial2(data, bla, bla2=1):
+            return data
+
+        th2 = Task(fh, trial2)
+        assert inspect.ismethod(th2.task)
+
+        def trial3(data, bla, bla2, bla3=1):
+            return data
+
+        with pytest.raises(Exception):
+            Task(fh, trial3)
+
+
+class TestPaddedTaskBase:
+    def test_basics(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        sh = SquareHat(fh, 3)
+        expected_size = ((fh.shape[0] - 2) // 4) * 4
+        assert sh.sample_rate == fh.sample_rate
+        assert sh.shape == (expected_size,) + fh.shape[1:]
+        assert abs(sh.start_time - fh.start_time -
+                   2. / fh.sample_rate) < 1. * u.ns
+        raw = fh.read(12)
+        expected = raw[:-2] + raw[1:-1] + raw[2:]
+        data = sh.read(10)
+        assert np.all(data == expected)
+
+    def test_invalid(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        with pytest.raises(ValueError):
+            SquareHat(fh, -1)
+        with pytest.raises(ValueError):
+            SquareHat(fh, 10, offset=-1)
+        with pytest.raises(ValueError):
+            SquareHat(fh, 10, samples_per_frame=9)
+        with warnings.catch_warnings(record=True) as w:
+            SquareHat(fh, 10, samples_per_frame=11)
+        assert any('inefficient' in str(_w) for _w in w)

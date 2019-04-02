@@ -121,6 +121,11 @@ class TestChannelize:
         dt2 = ct.inverse(ct)
         data2 = dt2.read()
         assert np.all(data2 == data)
+
+        # For real data, need to pass in `n`
+        with pytest.raises(ValueError):
+            Dechannelize(ct, dtype=fh.dtype)
+
         dt2.close()
 
     def test_dechannelizetask_complex(self):
