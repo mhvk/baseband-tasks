@@ -110,10 +110,11 @@ class TestPhase:
         assert_equal(result, op((self.phase - ref).cycle, 0.))
 
     def test_comparison_invalid_quantity(self):
-        with pytest.raises(TypeError):
+        # Older astropy uses UnitConversionError
+        with pytest.raises((TypeError, u.UnitConversionError)):
             self.phase > 1. * u.m
 
-        with pytest.raises(TypeError):
+        with pytest.raises((TypeError, u.UnitConversionError)):
             self.phase <= 1. * u.m
 
         assert (self.phase == 1. * u.m) is False
@@ -244,9 +245,13 @@ class TestPhase:
     def test_isnan(self):
         expected = np.zeros(self.phase.shape)
         assert_equal(np.isnan(self.phase), expected)
-        copy = self.phase.copy()
-        copy[1, 1] = np.nan
-        expected[1, 1] = True
-        assert_equal(np.isnan(copy), expected)
+        # For older astropy, we set input to nan rather than Phase directly,
+        # since setting of nan exposes a Quantity bug.
+        phase2 = self.phase2.copy()
+        phase2[1] = np.nan
+        phase = Phase(self.phase1, phase2)
+
+        expected[:, 1] = True
+        assert_equal(np.isnan(phase), expected)
         trial = Phase(np.nan)
         assert np.isnan(trial)

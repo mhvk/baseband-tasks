@@ -195,10 +195,53 @@ class Phase(Angle):
         else:
             return np.lexsort(keys=(phase_remainder, phase_approx), axis=axis)
 
-    min = Time.min
-    max = Time.max
-    ptp = Time.ptp
-    sort = Time.sort
+    # Below are basically straight copies from Time
+    def min(self, axis=None, out=None, keepdims=False):
+        """Minimum along a given axis.
+
+        This is similar to :meth:`~numpy.ndarray.min`, but adapted to ensure
+        that the full precision is used.
+        """
+        if out is not None:
+            raise ValueError("An `out` argument is not yet supported.")
+        return self[self._advanced_index(self.argmin(axis), axis, keepdims)]
+
+    def max(self, axis=None, out=None, keepdims=False):
+        """Maximum along a given axis.
+
+        This is similar to :meth:`~numpy.ndarray.max`, but adapted to ensure
+        that the full precision is used.
+        """
+        if out is not None:
+            raise ValueError("An `out` argument is not yet supported.")
+        return self[self._advanced_index(self.argmax(axis), axis, keepdims)]
+
+    def ptp(self, axis=None, out=None, keepdims=False):
+        """Peak to peak (maximum - minimum) along a given axis.
+
+        This is similar to :meth:`~numpy.ndarray.ptp`, but adapted to ensure
+        that the full precision is used.
+        """
+        if out is not None:
+            raise ValueError("An `out` argument is not yet supported.")
+        return (self.max(axis, keepdims=keepdims) -
+                self.min(axis, keepdims=keepdims))
+
+    def sort(self, axis=-1):
+        """Return a copy sorted along the specified axis.
+
+        This is similar to :meth:`~numpy.ndarray.sort`, but internally uses
+        indexing with :func:`~numpy.lexsort` to ensure that the full precision
+        given by the two doubles is kept.
+
+        Parameters
+        ----------
+        axis : int or None
+            Axis to be sorted.  If ``None``, the flattened array is sorted.
+            By default, sort over the last axis.
+        """
+        return self[self._advanced_index(self.argsort(axis), axis,
+                                         keepdims=True)]
 
     def __eq__(self, other):
         try:
