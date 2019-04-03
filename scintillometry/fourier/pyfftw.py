@@ -96,7 +96,8 @@ class PyfftwFFTMaker(FFTMakerBase):
                 super().__init__(direction=direction)
                 # Create dummy byte-aligned arrays.  These will be stored in
                 # the FFTW instance as input_array and output_array, but we'll
-                # be replacing those each time we transform.
+                # be replacing the input array each time we transform.
+                # TODO: ensure that the transformaion axis is last?
                 a = pyfftw.empty_aligned(self._time_shape, self._time_dtype,
                                          n=self._n_simd)
                 A = pyfftw.empty_aligned(self._frequency_shape,
@@ -115,11 +116,7 @@ class PyfftwFFTMaker(FFTMakerBase):
                     self._fft = self._inverse_fft
 
             def _forward_fft(self, a):
-                # Make an empty array to store transform output.
-                A = pyfftw.empty_aligned(self._frequency_shape,
-                                         self._frequency_dtype,
-                                         n=self._n_simd)
-                return self._FFTW(input_array=a, output_array=A,
+                return self._FFTW(input_array=a,
                                   normalise_idft=self._normalise_idft,
                                   ortho=self.ortho)
 
@@ -127,10 +124,7 @@ class PyfftwFFTMaker(FFTMakerBase):
             # their input arrays.  See
             # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
             def _inverse_fft(self, A):
-                # Make an empty array to store transform output.
-                a = pyfftw.empty_aligned(self._time_shape, self._time_dtype,
-                                         n=self._n_simd)
-                return self._FFTW(input_array=A, output_array=a,
+                return self._FFTW(input_array=A,
                                   normalise_idft=self._normalise_idft,
                                   ortho=self.ortho)
 
