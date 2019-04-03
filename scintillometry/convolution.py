@@ -95,10 +95,7 @@ class Convolve(ConvolveSamples):
         super().__init__(ih, response=response, offset=offset,
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.
-        if FFT is None:
-            FFT = get_fft_maker()
-
-        self._FFT = FFT
+        self._FFT = get_fft_maker(FFT)
 
     @lazyproperty
     def _fft(self):

@@ -98,10 +98,7 @@ class Disperse(PaddedTaskBase):
 
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
-        if FFT is None:
-            FFT = get_fft_maker()
-
-        self._FFT = FFT
+        self._FFT = get_fft_maker(FFT)
         self.dm = dm
         self.reference_frequency = reference_frequency
         self._sample_offset = sample_offset
