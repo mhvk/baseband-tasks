@@ -111,12 +111,7 @@ class PyfftwFFTMaker(FFTMakerBase):
 
     def __init__(self, n_simd=None, **kwargs):
         self._n_simd = pyfftw.simd_alignment if n_simd is None else n_simd
-
-        if 'flags' in kwargs and 'FFTW_DESTROY_INPUT' in kwargs['flags']:
-            raise ValueError('Fourier module does not support destroying '
-                             'input arrays.')
         self._fftw_kwargs = kwargs
-
         super().__init__()
 
     def __call__(self, shape, dtype, direction='forward', axis=0, ortho=False,

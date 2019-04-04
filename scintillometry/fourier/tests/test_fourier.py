@@ -210,7 +210,3 @@ class TestPyfftwFFT:
         assert y_back is y
         assert fft._fftw.input_array is ifft._fftw.output_array
         assert ifft._fftw.input_array is fft._fftw.output_array
-
-    def test_wrong_arguments(self):
-        with pytest.raises(ValueError):
-            self.maker(flags=['FFTW_DESTROY_INPUT'])

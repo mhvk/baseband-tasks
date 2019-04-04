@@ -8,7 +8,7 @@ try:
     from .pyfftw import PyfftwFFTMaker
     from os import environ
     get_fft_maker.system_default = PyfftwFFTMaker(
-        flags=['FFTW_ESTIMATE'],
+        flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'],
         threads=int(environ.get('OMP_NUM_THREADS', 2)))
     del environ
 except ImportError:
