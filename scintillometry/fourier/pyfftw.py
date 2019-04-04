@@ -76,6 +76,7 @@ class PyfftwFFTMaker(FFTMakerBase):
       Optional keywords to `pyfftw.FFTW` class, including planning flags, the
       number of threads to be used, and the planning time limit.
     """
+    _FFTBase = PyfftwFFTBase
 
     def __init__(self, n_simd=None, **kwargs):
         self._n_simd = pyfftw.simd_alignment if n_simd is None else n_simd
@@ -115,29 +116,10 @@ class PyfftwFFTMaker(FFTMakerBase):
             Single pre-defined FFT object.
         """
         # Ensure arguments have proper types and values.
-        shape = tuple(shape)
-        dtype = np.dtype(dtype)
-        axis = operator.index(axis)
-        ortho = bool(ortho)
-
-        # Store time and frequency-domain array shapes.
-        frequency_shape, frequency_dtype = self.get_frequency_data_info(
-            shape, dtype, axis=axis)
-
-        # Declare PyfftwFFT class, and populate values.
-        class PyfftwFFT(PyfftwFFTBase):
-            """Single pre-defined FFT based on `pyfftw.FFTW`."""
-
-            _time_shape = shape
-            _time_dtype = dtype
-            _frequency_shape = frequency_shape
-            _frequency_dtype = frequency_dtype
-            _axis = axis
-            _ortho = ortho
-            _normalise_idft = False if ortho else True
-            _sample_rate = sample_rate
-            _n_simd = self._n_simd
-            _fftw_kwargs = self._fftw_kwargs
+        cls = super().__call__(
+            shape=shape, dtype=dtype, axis=axis, ortho=ortho,
+            sample_rate=sample_rate, normalise_idft=(False if ortho else True),
+            n_simd=self._n_simd, fftw_kwargs=self._fftw_kwargs)
 
         # Return PyfftwFFT instance.
-        return PyfftwFFT(direction=direction)
+        return cls(direction=direction)

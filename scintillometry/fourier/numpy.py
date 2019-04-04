@@ -59,6 +59,8 @@ class NumpyFFTMaker(FFTMakerBase):
     # Since `numpy.fft` has no package-level options, no ``__init__`` is
     # explicitly defined.
 
+    _FFTBase = NumpyFFTBase
+
     def __call__(self, shape, dtype, direction='forward', axis=0, ortho=False,
                  sample_rate=None):
         """Creates an FFT.
@@ -86,37 +88,9 @@ class NumpyFFTMaker(FFTMakerBase):
         fft : ``NumpyFFT`` instance
             Single pre-defined FFT object.
         """
-        # Ensure arguments have proper types and values.
-        shape = tuple(shape)
-        dtype = np.dtype(dtype)
-        axis = operator.index(axis)
-        ortho = bool(ortho)
-
-        # Store time and frequency-domain array shapes.
-        frequency_shape, frequency_dtype = self.get_frequency_data_info(
-            shape, dtype, axis=axis)
-
-        # Declare NumpyFFT class, and populate values.
-        class NumpyFFT(NumpyFFTBase):
-            """Single pre-defined FFT based on `numpy.fft`.
-
-            To use, initialize an instance, then call the instance to perform
-            the transform.
-
-            Parameters
-            ----------
-            direction : 'forward' or 'inverse', optional
-                Direction of the FFT.
-            """
-
-            _time_shape = shape
-            _time_dtype = dtype
-            _frequency_shape = frequency_shape
-            _frequency_dtype = frequency_dtype
-            _axis = axis
-            _ortho = ortho
-            _norm = 'ortho' if ortho else None
-            _sample_rate = sample_rate
+        norm = 'ortho' if ortho else None
+        cls = super().__call__(shape=shape, dtype=dtype, axis=axis,
+                               ortho=ortho, sample_rate=sample_rate, norm=norm)
 
         # Return NumpyFFT instance.
-        return NumpyFFT(direction=direction)
+        return cls(direction=direction)
