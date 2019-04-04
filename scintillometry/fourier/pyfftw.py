@@ -97,9 +97,10 @@ class PyfftwFFTMaker(FFTMakerBase):
                 if self._FFTW is None:
                     self._setup_FFTW(a)
 
-                return self._FFTW(input_array=a,
-                                  normalise_idft=self._normalise_idft,
-                                  ortho=self.ortho)
+                # Save a bit of useless checking in FFTW if possible.
+                if a is self._FFTW.input_array:
+                    a = None
+                return self._FFTW(a)
 
             def _setup_FFTW(self, a):
                 # Setup FFTW, creating its byte-aligned input_array and output_array.
@@ -129,6 +130,8 @@ class PyfftwFFTMaker(FFTMakerBase):
 
                 self._FFTW = pyfftw.FFTW(a, out, axes=(self.axis,),
                                          direction=direction,
+                                         normalise_idft=self._normalise_idft,
+                                         ortho=self._ortho,
                                          **self._fftw_kwargs)
 
         # Return PyfftwFFT instance.
