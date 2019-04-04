@@ -91,42 +91,45 @@ class PyfftwFFTMaker(FFTMakerBase):
             _sample_rate = sample_rate
             _n_simd = self._n_simd
             _fftw_kwargs = self._fftw_kwargs
+            _FFTW = None
 
-            def __init__(self, direction='forward'):
-                super().__init__(direction=direction)
-                # Create dummy byte-aligned arrays.  These will be stored in
-                # the FFTW instance as input_array and output_array, but we'll
-                # be replacing the input array each time we transform.
-                # TODO: ensure that the transformaion axis is last?
-                a = pyfftw.empty_aligned(self._time_shape, self._time_dtype,
-                                         n=self._n_simd)
-                A = pyfftw.empty_aligned(self._frequency_shape,
-                                         self._frequency_dtype,
-                                         n=self._n_simd)
+            def _fft(self, a):
+                if self._FFTW is None:
+                    self._setup_FFTW(a)
 
-                if self.direction == 'forward':
-                    self._FFTW = pyfftw.FFTW(a, A, axes=(self.axis,),
-                                             direction='FFTW_FORWARD',
-                                             **self._fftw_kwargs)
-                    self._fft = self._forward_fft
-                else:
-                    self._FFTW = pyfftw.FFTW(A, a, axes=(self.axis,),
-                                             direction='FFTW_BACKWARD',
-                                             **self._fftw_kwargs)
-                    self._fft = self._inverse_fft
-
-            def _forward_fft(self, a):
                 return self._FFTW(input_array=a,
                                   normalise_idft=self._normalise_idft,
                                   ortho=self.ortho)
 
-            # Note that only multi-dimensional real transforms destroy
-            # their input arrays.  See
-            # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
-            def _inverse_fft(self, A):
-                return self._FFTW(input_array=A,
-                                  normalise_idft=self._normalise_idft,
-                                  ortho=self.ortho)
+            def _setup_FFTW(self, a):
+                # Setup FFTW, creating its byte-aligned input_array and output_array.
+                # We do this on the first call so that we can use the strides of an
+                # actual input array.  For any further calls, the inputs will then
+                # simply replace input_array instead of being copied (at least, if
+                # the byte alignment is correct).
+                # Note that since we do single-dimensional real transforms,
+                # the input array will never be destroyed.  See
+                # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
+                a = pyfftw.byte_align(a, n=self._n_simd)
+                if self.direction == 'forward':
+                    assert a.shape == self._time_shape
+                    assert a.dtype == self._time_dtype
+                    out = pyfftw.empty_aligned(self._frequency_shape,
+                                               self._frequency_dtype,
+                                               n=self._n_simd)
+                    direction = 'FFTW_FORWARD'
+
+                else:
+                    assert a.shape == self._frequency_shape
+                    assert a.dtype == self._frequency_dtype
+                    out = pyfftw.empty_aligned(self._time_shape,
+                                               self._time_dtype,
+                                               n=self._n_simd)
+                    direction = 'FFTW_BACKWARD'
+
+                self._FFTW = pyfftw.FFTW(a, out, axes=(self.axis,),
+                                         direction=direction,
+                                         **self._fftw_kwargs)
 
         # Return PyfftwFFT instance.
         return PyfftwFFT(direction=direction)
