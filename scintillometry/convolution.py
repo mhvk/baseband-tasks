@@ -96,16 +96,10 @@ class Convolve(ConvolveSamples):
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.
         self._FFT = get_fft_maker(FFT)
-
-    @lazyproperty
-    def _fft(self):
-        return self._FFT(shape=(self._padded_samples_per_frame,) +
-                         self.ih.sample_shape,
-                         sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
-
-    @lazyproperty
-    def _ifft(self):
-        return self._fft.inverse()
+        self._fft = self._FFT(shape=(self._padded_samples_per_frame,) +
+                              self.ih.sample_shape,
+                              sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
+        self._ifft = self._fft.inverse()
 
     @lazyproperty
     def _ft_response(self):
