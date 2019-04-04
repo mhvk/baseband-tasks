@@ -9,6 +9,53 @@ from .base import FFTMakerBase, FFTBase
 __all__ = ['PyfftwFFTMaker']
 
 
+class PyfftwFFTBase(FFTBase):
+    """Single pre-defined FFT based on `pyfftw.FFTW`."""
+
+    _FFTW = None
+
+    def _fft(self, a):
+        if self._FFTW is None:
+            self._setup_FFTW(a)
+
+        # Save a bit of useless checking in FFTW if possible.
+        if a is self._FFTW.input_array:
+            a = None
+        return self._FFTW(a)
+
+    def _setup_FFTW(self, a):
+        # Setup FFTW, creating its byte-aligned input_array and output_array.
+        # We do this on the first call so that we can use the strides of an
+        # actual input array.  For any further calls, the inputs will then
+        # simply replace input_array instead of being copied (at least, if
+        # the byte alignment is correct).
+        # Note that since we do single-dimensional real transforms,
+        # the input array will never be destroyed.  See
+        # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
+        a = pyfftw.byte_align(a, n=self._n_simd)
+        if self.direction == 'forward':
+            assert a.shape == self._time_shape
+            assert a.dtype == self._time_dtype
+            out = pyfftw.empty_aligned(self._frequency_shape,
+                                       self._frequency_dtype,
+                                       n=self._n_simd)
+            direction = 'FFTW_FORWARD'
+
+        else:
+            assert a.shape == self._frequency_shape
+            assert a.dtype == self._frequency_dtype
+            out = pyfftw.empty_aligned(self._time_shape,
+                                       self._time_dtype,
+                                       n=self._n_simd)
+            direction = 'FFTW_BACKWARD'
+
+        self._FFTW = pyfftw.FFTW(a, out, axes=(self.axis,),
+                                 direction=direction,
+                                 normalise_idft=self._normalise_idft,
+                                 ortho=self._ortho,
+                                 **self._fftw_kwargs)
+
+
 class PyfftwFFTMaker(FFTMakerBase):
     """FFT factory class utilizing the `pyfftw` package.
 
@@ -78,7 +125,7 @@ class PyfftwFFTMaker(FFTMakerBase):
             shape, dtype, axis=axis)
 
         # Declare PyfftwFFT class, and populate values.
-        class PyfftwFFT(FFTBase):
+        class PyfftwFFT(PyfftwFFTBase):
             """Single pre-defined FFT based on `pyfftw.FFTW`."""
 
             _time_shape = shape
@@ -91,48 +138,6 @@ class PyfftwFFTMaker(FFTMakerBase):
             _sample_rate = sample_rate
             _n_simd = self._n_simd
             _fftw_kwargs = self._fftw_kwargs
-            _FFTW = None
-
-            def _fft(self, a):
-                if self._FFTW is None:
-                    self._setup_FFTW(a)
-
-                # Save a bit of useless checking in FFTW if possible.
-                if a is self._FFTW.input_array:
-                    a = None
-                return self._FFTW(a)
-
-            def _setup_FFTW(self, a):
-                # Setup FFTW, creating its byte-aligned input_array and output_array.
-                # We do this on the first call so that we can use the strides of an
-                # actual input array.  For any further calls, the inputs will then
-                # simply replace input_array instead of being copied (at least, if
-                # the byte alignment is correct).
-                # Note that since we do single-dimensional real transforms,
-                # the input array will never be destroyed.  See
-                # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
-                a = pyfftw.byte_align(a, n=self._n_simd)
-                if self.direction == 'forward':
-                    assert a.shape == self._time_shape
-                    assert a.dtype == self._time_dtype
-                    out = pyfftw.empty_aligned(self._frequency_shape,
-                                               self._frequency_dtype,
-                                               n=self._n_simd)
-                    direction = 'FFTW_FORWARD'
-
-                else:
-                    assert a.shape == self._frequency_shape
-                    assert a.dtype == self._frequency_dtype
-                    out = pyfftw.empty_aligned(self._time_shape,
-                                               self._time_dtype,
-                                               n=self._n_simd)
-                    direction = 'FFTW_BACKWARD'
-
-                self._FFTW = pyfftw.FFTW(a, out, axes=(self.axis,),
-                                         direction=direction,
-                                         normalise_idft=self._normalise_idft,
-                                         ortho=self._ortho,
-                                         **self._fftw_kwargs)
 
         # Return PyfftwFFT instance.
         return PyfftwFFT(direction=direction)
