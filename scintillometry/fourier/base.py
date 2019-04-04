@@ -274,7 +274,9 @@ class GetFFTMaker:
         ----------
         fft_engine : {'numpy', 'pyfftw'}, optional
             Keyword identifying the FFT maker class.  If not given, the
-            engine stored in the ``default`` attribute is returned.
+            engine stored in the ``default`` attribute is returned.  If
+            already a FFT maker instance and no other arguments are passed,
+            it is returned directly.
         **kwargs
             Additional keyword arguments for initializing the maker class
             (eg. ``n_simd`` for 'pyfftw').
@@ -299,6 +301,8 @@ class GetFFTMaker:
         """
         if fft_engine is None:
             return self.default
+        elif isinstance(fft_engine, FFTMakerBase) and not kwargs:
+            return fft_engine
         else:
             return FFT_MAKER_CLASSES[fft_engine](**kwargs)
 

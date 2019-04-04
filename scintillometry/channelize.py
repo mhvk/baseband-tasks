@@ -55,11 +55,9 @@ class Channelize(TaskBase):
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
         # Initialize channelizer.
-        if FFT is None:
-            FFT = get_fft_maker()
-
-        self._fft = FFT((samples_per_frame, n) + ih.sample_shape,
-                        ih.dtype, axis=1, sample_rate=ih.sample_rate)
+        self._FFT = get_fft_maker(FFT)
+        self._fft = self._FFT((samples_per_frame, n) + ih.sample_shape,
+                              ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
         sample_rate = ih.sample_rate / n
         shape = (ih.shape[0] // n,) + self._fft.frequency_shape[1:]
@@ -86,7 +84,7 @@ class Channelize(TaskBase):
         """
         # TODO: would be nicer to somehow use _fft.inverse().
         return Dechannelize(ih, n=self._fft.time_shape[1],
-                            dtype=self._fft.time_dtype)
+                            dtype=self._fft.time_dtype, FFT=self._FFT)
 
 
 class Dechannelize(TaskBase):
@@ -141,11 +139,9 @@ class Dechannelize(TaskBase):
             n = operator.index(n)
 
         # Initialize dechannelizer.
-        if FFT is None:
-            FFT = get_fft_maker()
-
-        self._ifft = FFT((ih.samples_per_frame, n) + ih.sample_shape[1:],
-                         dtype=dtype, axis=1, direction='inverse')
+        self._FFT = get_fft_maker(FFT)
+        self._ifft = self._FFT((ih.samples_per_frame, n) + ih.sample_shape[1:],
+                               dtype=dtype, axis=1, direction='inverse')
 
         sample_rate = ih.sample_rate * n
         if frequency is None and hasattr(ih, 'frequency'):
@@ -169,4 +165,4 @@ class Dechannelize(TaskBase):
             Input data stream to be channelized.
         """
         # TODO: would be nicer to somehow use _fft.inverse().
-        return Channelize(ih, n=self._ifft.time_shape[1])
+        return Channelize(ih, n=self._ifft.time_shape[1], FFT=self._FFT)
