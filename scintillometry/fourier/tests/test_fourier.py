@@ -56,11 +56,13 @@ class TestFFTClasses:
         # 1D complex sinusoid.
         fft = FFTMaker(self.y_exp.shape, self.y_exp.dtype,
                        sample_rate=self.sample_rate)
-        Y = fft(self.y_exp)
+        y = self.y_exp.copy()  # ensure we don't write back to it!
+        Y = fft(y)
         assert Y.dtype is self.y_exp.dtype
         assert np.allclose(Y, self.Y_exp, **self.tolerances)
         ifft = fft.inverse()
-        assert np.allclose(ifft(Y), self.y_exp, **self.tolerances)
+        y_back = ifft(Y)
+        assert np.allclose(y_back, self.y_exp, **self.tolerances)
 
         # Check frequency.
         assert_quantity_allclose(fft.frequency, self.frequency_Y_exp)
@@ -102,18 +104,22 @@ class TestFFTClasses:
 
         # 2D real.
         fft = FFTMaker(self.y_r2D.shape, self.y_r2D.dtype)
-        Y = fft(self.y_r2D)
+        y = self.y_r2D.copy()
+        Y = fft(y)
         ifft = fft.inverse()
+        y_back = ifft(Y)
         assert np.allclose(Y, self.Y_r2D, **self.tolerances)
-        assert np.allclose(ifft(Y), self.y_r2D, **self.tolerances)
+        assert np.allclose(y_back, self.y_r2D, **self.tolerances)
 
         # 3D complex, orthogonal normalization, start with inverse transform.
         ifft = FFTMaker(self.Y_3D.shape, self.Y_3D.dtype, direction='backward',
                         axis=1, sample_rate=None, ortho=True)
-        y = ifft(self.Y_3D)
+        Y = self.Y_3D.copy()
+        y = ifft(Y)
         fft = ifft.inverse()
+        Y_back = fft(y)
         assert np.allclose(y, self.y_3D, **self.tolerances)
-        assert np.allclose(fft(y), self.Y_3D, **self.tolerances)
+        assert np.allclose(Y_back, self.Y_3D, **self.tolerances)
 
         # Check frequency.
         assert_quantity_allclose(fft.frequency,
@@ -150,8 +156,61 @@ def test_against_duplication():
 
 
 @pytest.mark.skipif('pyfftw' not in FFT_MAKER_CLASSES,
-                    reason="Test if PyFFTW specific")
-def test_wrong_arguments():
-    maker = FFT_MAKER_CLASSES['pyfftw']
-    with pytest.raises(ValueError):
-        maker(flags=['FFTW_DESTROY_INPUT'])
+                    reason="Test is PyFFTW specific")
+class TestPyfftwFFT:
+    def setup(self):
+        self.maker = FFT_MAKER_CLASSES['pyfftw']
+
+    def test_inverse_overrides_input(self):
+        import pyfftw
+
+        x = np.linspace(0., 10., 8192)
+        y = pyfftw.empty_aligned(x.shape, dtype=complex)
+        y[:] = np.exp(1.j * 2. * np.pi * x)
+        fft = self.maker()(y.shape, y.dtype)
+        Y = fft(y)
+        ifft = fft.inverse()
+        y_back = ifft(Y)
+        assert y_back is y
+        Y_back = fft(y_back)
+        assert Y_back is Y
+        assert fft._fftw.input_array is ifft._fftw.output_array
+        assert ifft._fftw.input_array is fft._fftw.output_array
+
+    def test_inverse_overrides_input2(self):
+        # As above, but defining inverse before calling fft
+        import pyfftw
+
+        x = np.linspace(0., 10., 8192)
+        y = pyfftw.empty_aligned(x.shape, dtype=complex)
+        y[:] = np.exp(1.j * 2. * np.pi * x)
+        fft = self.maker()(y.shape, y.dtype)
+        ifft = fft.inverse()
+        Y = fft(y)
+        y_back = ifft(Y)
+        assert y_back is y
+        Y_back = fft(y_back)
+        assert Y_back is Y
+        assert fft._fftw.input_array is ifft._fftw.output_array
+        assert ifft._fftw.input_array is fft._fftw.output_array
+
+    def test_inverse_overrides_input_reverse(self):
+        # As above but calling inverse first.
+        import pyfftw
+
+        x = np.linspace(0., 10., 8192)
+        Y = pyfftw.empty_aligned(x.shape, dtype=complex)
+        Y[:] = np.exp(1.j * 2. * np.pi * x)
+        fft = self.maker()(Y.shape, Y.dtype)
+        ifft = fft.inverse()
+        y = ifft(Y)
+        Y_back = fft(y)
+        assert Y_back is Y
+        y_back = ifft(Y_back)
+        assert y_back is y
+        assert fft._fftw.input_array is ifft._fftw.output_array
+        assert ifft._fftw.input_array is fft._fftw.output_array
+
+    def test_wrong_arguments(self):
+        with pytest.raises(ValueError):
+            self.maker(flags=['FFTW_DESTROY_INPUT'])
