@@ -141,7 +141,7 @@ class Dechannelize(TaskBase):
         # Initialize dechannelizer.
         self._FFT = get_fft_maker(FFT)
         self._ifft = self._FFT((ih.samples_per_frame, n) + ih.sample_shape[1:],
-                               dtype=dtype, axis=1, direction='inverse')
+                               dtype=dtype, axis=1, direction='backward')
 
         sample_rate = ih.sample_rate * n
         if frequency is None and hasattr(ih, 'frequency'):

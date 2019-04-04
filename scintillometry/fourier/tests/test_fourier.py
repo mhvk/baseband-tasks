@@ -73,7 +73,7 @@ class TestFFTClasses:
 
         # 1D real sinusoid, orthogonal normalization, start with inverse
         # transform.
-        ifft = FFTMaker((7919,), 'float64', direction='inverse', ortho=True,
+        ifft = FFTMaker((7919,), 'float64', direction='backward', ortho=True,
                         sample_rate=self.sample_rate)
         y = ifft(self.Y_rnsine)
         # Check frequency.
@@ -108,7 +108,7 @@ class TestFFTClasses:
         assert np.allclose(ifft(Y), self.y_r2D, **self.tolerances)
 
         # 3D complex, orthogonal normalization, start with inverse transform.
-        ifft = FFTMaker(self.Y_3D.shape, self.Y_3D.dtype, direction='inverse',
+        ifft = FFTMaker(self.Y_3D.shape, self.Y_3D.dtype, direction='backward',
                         axis=1, sample_rate=None, ortho=True)
         y = ifft(self.Y_3D)
         fft = ifft.inverse()

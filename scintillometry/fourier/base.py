@@ -18,11 +18,11 @@ class FFTBase:
     """Framework for single pre-defined FFT and its associated metadata."""
 
     def __init__(self, direction):
-        self._direction = direction if direction == 'inverse' else 'forward'
+        self._direction = direction if direction == 'backward' else 'forward'
 
     @property
     def direction(self):
-        """Direction of the FFT ('forward' or 'inverse')."""
+        """Direction of the FFT ('forward' or 'backward')."""
         return self._direction
 
     @property
@@ -135,6 +135,13 @@ class FFTBase:
     def inverse(self):
         """Return inverse transform.
 
+        If the type of fourier transform allows it (e.g., PyFFTW), the inverse
+        transform will have its input array matched to the output array and
+        vice versa, i.e., a sequence transforming some input data, do in-place
+        calculations on the output fourier spectrum, and then transform back,
+        will overwrite the input data.  If this is not wanted, instantiate a
+        new class directly (e.g., ``forward.__class__(direction='backward')``.
+
         Returns
         -------
         inverse_transform : `~scintillometry.fourier.base.FFTBase` subclass
@@ -142,8 +149,8 @@ class FFTBase:
             direction.
         """
         return self.__class__(
-            direction=('forward' if self.direction == 'inverse'
-                       else 'inverse'))
+            direction=('forward' if self.direction == 'backward'
+                       else 'backward'))
 
     def copy(self):
         return self.__class__(direction=self.direction)

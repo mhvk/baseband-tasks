@@ -10,7 +10,16 @@ __all__ = ['PyfftwFFTMaker']
 
 
 class PyfftwFFTBase(FFTBase):
-    """Single pre-defined FFT based on `pyfftw.FFTW`."""
+    """Single pre-defined FFT based on `pyfftw.FFTW`.
+
+    To use, initialize an instance, then call the instance to perform
+    the transform.
+
+    Parameters
+    ----------
+    direction : 'forward' or 'backward', optional
+        Direction of the FFT.
+    """
 
     _FFTW = None
 
@@ -100,7 +109,7 @@ class PyfftwFFTMaker(FFTMakerBase):
         dtype : str or `~numpy.dtype`
             Data type of the time-domain data array.  May pass either the
             name of the dtype or the `~numpy.dtype` object.
-        direction : 'forward' or 'inverse', optional
+        direction : 'forward' or 'backward', optional
             Direction of the FFT.
         axis : int, optional
             Axis to transform.  Default: 0.

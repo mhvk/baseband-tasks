@@ -16,7 +16,7 @@ class NumpyFFTBase(FFTBase):
 
     Parameters
     ----------
-    direction : 'forward' or 'inverse', optional
+    direction : 'forward' or 'backward', optional
         Direction of the FFT.
     """
     def __init__(self, direction='forward'):
@@ -73,7 +73,7 @@ class NumpyFFTMaker(FFTMakerBase):
         dtype : str or `~numpy.dtype`
             Data type of the time-domain data array.  May pass either the
             name of the dtype or the `~numpy.dtype` object.
-        direction : 'forward' or 'inverse', optional
+        direction : 'forward' or 'backward', optional
             Direction of the FFT.
         axis : int, optional
             Axis to transform.  Default: 0.
