@@ -212,8 +212,8 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
     _FFTBase = FFTBase
 
-    def __call__(self, shape, dtype, axis=0, ortho=False, sample_rate=None,
-                 **kwargs):
+    def __call__(self, shape, dtype, direction='forward', axis=0, ortho=False,
+                 sample_rate=None, **kwargs):
         """Placeholder for FFT setup."""
         # Ensure arguments have proper types and values.
         time_shape = tuple(shape)
@@ -233,8 +233,9 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
         for key, value in kwargs.items():
             attributes['_' + key] = value
 
-        return type(self._FFTBase.__name__.replace('Base', ''),
-                    (self._FFTBase,), attributes)
+        cls = type(self._FFTBase.__name__.replace('Base', ''),
+                   (self._FFTBase,), attributes)
+        return cls(direction)
 
     def get_frequency_data_info(self, shape, dtype, axis=0):
         """Determine frequency-domain array shape and dtype.

@@ -116,10 +116,8 @@ class PyfftwFFTMaker(FFTMakerBase):
             Single pre-defined FFT object.
         """
         # Ensure arguments have proper types and values.
-        cls = super().__call__(
-            shape=shape, dtype=dtype, axis=axis, ortho=ortho,
-            sample_rate=sample_rate, normalise_idft=(False if ortho else True),
+        return super().__call__(
+            shape=shape, dtype=dtype, direction=direction,
+            axis=axis, ortho=ortho, sample_rate=sample_rate,
+            normalise_idft=(False if ortho else True),
             n_simd=self._n_simd, fftw_kwargs=self._fftw_kwargs)
-
-        # Return PyfftwFFT instance.
-        return cls(direction=direction)

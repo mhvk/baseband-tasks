@@ -88,9 +88,7 @@ class NumpyFFTMaker(FFTMakerBase):
         fft : ``NumpyFFT`` instance
             Single pre-defined FFT object.
         """
-        norm = 'ortho' if ortho else None
-        cls = super().__call__(shape=shape, dtype=dtype, axis=axis,
-                               ortho=ortho, sample_rate=sample_rate, norm=norm)
-
-        # Return NumpyFFT instance.
-        return cls(direction=direction)
+        return super().__call__(
+            shape=shape, dtype=dtype, direction=direction,
+            axis=axis, ortho=ortho, sample_rate=sample_rate,
+            norm=('ortho' if ortho else None))
