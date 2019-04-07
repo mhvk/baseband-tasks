@@ -1,5 +1,7 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Full-package tests of phaseutils sources."""
+"""Tests of the polyphase filterbank module."""
+import os
+
 import numpy as np
 from numpy.testing import assert_allclose
 
@@ -7,7 +9,22 @@ import astropy.units as u
 from astropy.time import Time
 
 from baseband_tasks.generators import NoiseGenerator
-from baseband_tasks.pfb import PolyphaseFilterBankSamples, PolyphaseFilterBank
+from baseband_tasks.pfb import (
+    sinc_hamming, PolyphaseFilterBankSamples, PolyphaseFilterBank)
+
+
+test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
+
+
+class TestSincHamming:
+    def setup(self):
+        a = np.loadtxt(os.path.join(
+            test_data, 'bGDSP_U1_0032_T12_W095_get_pfb_coeffs.txt'))
+        self.guppi_ppf = a.reshape(8, -1).T.reshape(12, 64)
+
+    def test_guppi(self):
+        model = sinc_hamming(12, 64, sinc_scale=0.95)
+        assert_allclose(model, self.guppi_ppf)
 
 
 class TestBasics:
@@ -23,8 +40,8 @@ class TestBasics:
         self.n_tap = 4
         self.n_chan = 2048
         n = self.n_tap * self.n_chan
-        r = 2.
-        x = r * (np.arange(n) / n * 2. - 1.)
+        r = self.n_tap
+        x = r * np.linspace(-0.5, 0.5, n, endpoint=False)
         self.pfb = (np.sinc(x) * np.hamming(4 * 2048)).reshape(4, 2048)
 
     def test_understanding(self):
