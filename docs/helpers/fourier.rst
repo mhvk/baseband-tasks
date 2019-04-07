@@ -34,7 +34,7 @@ FFT maker classes - e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
 such as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.
 
 To create a transform, we pass the time-dimension data array shape and dtype,
-transform direction ('forward' or 'inverse'), transform axis (if the data is
+transform direction ('forward' or 'backward'), transform axis (if the data is
 multi-dimensional), normalization convention and sample rate to ``FFTMaker``::
 
     >>> import numpy as np
@@ -54,9 +54,15 @@ calling ``fft``::
 ``inverse`` method in ``fft``::
 
     >>> ifft = fft.inverse()
+    >>> y_copy = y.copy()
     >>> yn = ifft(Y)
-    >>> np.allclose(y, yn)
+    >>> np.allclose(y, y_copy)
     True
+
+Note that we compare to a copy of the input; if possible for a given
+Fourier implementation (e.g., in ``pyfftw` but not in `numpy`), the ``inverse``
+implementation reuses input and output arrays of the forward transform to
+save memory, so at the end on would have ``yn is y``.
 
 To show information about the transform, we can simply print the instance::
 

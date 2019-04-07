@@ -51,9 +51,6 @@ class PyfftwFFTBase(FFTBase):
         # actual input array.  For any further calls, the inputs will then
         # simply replace input_array instead of being copied (at least, if
         # the byte alignment is correct).
-        # Note that since we do single-dimensional real transforms,
-        # the input array will never be destroyed.  See
-        # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/pyfftw.html#scheme-table
         if self._inverse is not None and self._inverse._fftw is not None:
             a = self._inverse._fftw.output_array
             b = self._inverse._fftw.input_array
