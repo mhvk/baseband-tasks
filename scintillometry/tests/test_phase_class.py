@@ -20,6 +20,72 @@ def assert_equal(phase, other):
         assert np.all(phase.int % (1. * u.cycle) == 0)
 
 
+class TestPhaseInit:
+    def test_init_basics(self):
+        phase = Phase(1., 0.25)
+        assert isinstance(phase, Phase)
+        assert_equal(phase['int'], Angle(1. * u.cycle))
+        assert_equal(phase['frac'], FractionalPhase(0.25 * u.cycle))
+        assert_equal(phase.cycle, Angle(1.25 * u.cycle))
+
+    @pytest.mark.parametrize('phase1, phase2',
+                             ((1., 0.1),
+                              (1. * u.cycle, 0.125 * u.cycle),
+                              (0., np.arange(-90., 170., 45.) * u.deg),
+                              (Angle(720., 'deg'), FractionalPhase(0.25)),
+                              ('720d', '90d'),
+                              ('0h', '3h00m00s')))
+    def test_init(self, phase1, phase2):
+        phase = Phase(phase1, phase2)
+        assert isinstance(phase, Phase)
+        assert_equal(phase['int'], Angle(phase1, u.cycle))
+        assert_equal(phase['frac'], FractionalPhase(phase2))
+        expected_cycle = Angle(phase1, u.cycle) + Angle(phase2, u.cycle)
+        assert_equal(phase.cycle, expected_cycle)
+
+    def test_init_with_phase(self):
+        phase = Phase(1., 0.125)
+        phase2 = Phase(phase)
+        assert_equal(phase2, phase)
+        assert phase2 is not phase
+        assert not np.may_share_memory(phase2, phase)
+        phase3 = Phase(phase, copy=False)
+        assert phase3 is phase
+        phase4 = Phase(phase, 0., copy=False)
+        assert phase4 is not phase
+        assert_equal(phase4, phase)
+        phase5 = Phase(0., phase)
+        assert phase5 is not phase
+        assert_equal(phase5, phase)
+        phase6 = Phase(phase, phase)
+        assert_equal(phase6, Phase(2., 0.25))
+
+    def test_init_with_subclass(self):
+        class MyPhase(Phase):
+            pass
+
+        my_phase = MyPhase(1., 0.25)
+        assert type(my_phase) is MyPhase
+        phase2 = Phase(my_phase)
+        assert type(phase2) is Phase
+        phase3 = Phase(my_phase, subok=True)
+        assert type(phase3) is MyPhase
+        assert phase3 is not my_phase
+        assert not np.may_share_memory(phase3, my_phase)
+        phase4 = Phase(my_phase, copy=False)
+        assert type(phase4) is Phase
+        assert np.may_share_memory(phase4, my_phase)
+        phase5 = Phase(my_phase, copy=False, subok=True)
+        assert phase5 is my_phase
+        phase6 = Phase(my_phase, 0., copy=False, subok=True)
+        assert type(phase6) is MyPhase
+        assert not np.may_share_memory(phase6, my_phase)
+        phase7 = Phase(my_phase, phase2, copy=False, subok=True)
+        assert type(phase7) is MyPhase
+        phase8 = Phase(phase2, my_phase, copy=False, subok=True)
+        assert type(phase8) is MyPhase
+
+
 class TestPhase:
     def setup(self):
         self.phase1 = Angle(np.array([1000., 1001., 999., 1005, 1006.]),
@@ -53,10 +119,12 @@ class TestPhase:
         degrees = self.phase.to(u.degree)
         assert_equal(degrees, Angle(self.phase1 + self.phase2))
 
-    def test_selection(self):
-        phase2 = self.phase[0]
-        assert phase2.shape == self.phase.shape[1:]
-        assert_equal(phase2.cycle, self.phase.cycle[0])
+    @pytest.mark.parametrize('item', (0, (0, 1), (slice(2), 1)))
+    def test_selection(self, item):
+        phase2 = self.phase[item]
+        expected_cycle = self.phase.cycle[item]
+        assert phase2.shape == expected_cycle.shape
+        assert_equal(phase2.cycle, expected_cycle)
 
     def test_equality(self):
         phase2 = self.phase[:, 1:2]

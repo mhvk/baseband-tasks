@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Licensed under the GPLv3 - see LICENSE
 """Provide a Phase class with integer and fractional part."""
 import operator
 
@@ -6,7 +7,6 @@ import numpy as np
 from astropy import units as u
 from astropy.coordinates import Angle, Longitude
 from astropy.time import Time
-from astropy.utils import ShapedLikeNDArray
 from astropy.time.utils import two_sum, two_product
 
 
@@ -16,9 +16,9 @@ __all__ = ['Phase', 'FractionalPhase']
 FRACTION_UFUNCS = {np.cos, np.sin, np.tan, np.spacing}
 
 
-COMPARISON_UFUNCS = {np.equal, np.not_equal,
-                     np.less, np.less_equal,
-                     np.greater, np.greater_equal}
+TWO_PHASE_UFUNCS = {
+    np.add, np.subtract, np.equal, np.not_equal,
+    np.less, np.less_equal, np.greater, np.greater_equal}
 
 
 def day_frac(val1, val2, factor=None, divisor=None):
@@ -36,6 +36,9 @@ def day_frac(val1, val2, factor=None, divisor=None):
     day, frac : float64
         Integer and fractional part of val1 + val2.
     """
+    # Note that this is basically as astropy has it, but with an extra round.
+    # TODO: push up to astropy!
+    #
     # Add val1 and val2 exactly, returning the result as two float64s.
     # The first is the approximate sum (with some floating point error)
     # and the second is the error of the float64 sum.
@@ -68,40 +71,89 @@ def day_frac(val1, val2, factor=None, divisor=None):
 
 
 class FractionalPhase(Longitude):
+    """Phase without the cycle count, i.e., with a range of 1 cycle.
+
+    The input parser is flexible and supports all of the input formats
+    supported by :class:`~astropy.coordinates.Angle`: array, list,
+    scalar, tuple, string, :class:`~astropy.units.Quantity`
+    or another :class:`~astropy.coordinates.Angle`.
+
+    Parameters
+    ----------
+    angle : array, list, scalar, `~astropy.units.Quantity`,
+        :class:`~astropy.coordinates.Angle` The angle value(s). If a tuple,
+        will be interpreted as ``(h, m s)`` or ``(d, m, s)`` depending
+        on ``unit``. If a string, it will be interpreted following the
+        rules described for :class:`~astropy.coordinates.Angle`.
+    unit : :class:`~astropy.units.UnitBase`, str, optional
+        The unit of the value specified for the angle.  This may be any
+        string that `~astropy.units.Unit` understands.  Must be an angular
+        unit.
+    wrap_angle : :class:`~astropy.coordinates.Angle` or equivalent, optional
+        Angle at which to wrap back to ``wrap_angle - 1 cycle``.
+        If ``None`` (default), it will be taken to be 0.5 cycle unless ``angle``
+        has a ``wrap_angle`` attribute.
+
+    Raises
+    ------
+    `~astropy.units.UnitsError`
+        If a unit is not provided or it is not an angular unit.
+    `TypeError`
+        If the angle parameter is an instance of :class:`~astropy.coordinates.Latitude`.
+    """
     _default_wrap_angle = Angle(0.5, u.cycle)
+    _equivalent_unit = _default_unit = u.cycle
 
 
 class Phase(Angle):
     """Represent two-part phase.
 
-    The phase is absolute and hence has more limited operations available to it
-    than a relative phase (e.g., it cannot be multiplied).  This is analogous
-    to the difference between an absolute time and a time difference.
+    With one part the integer cycle count and the other the fractional phase.
 
     Parameters
     ----------
     phase1, phase2 : array or `~astropy.units.Quantity`
         Two-part phase.  If arrays, the assumed units are cycles.
     copy : bool, optional
-        Make a copy of the input values
-
+        Ensure a copy is made.  Only relevant if ``phase1`` is a `Phase`
+        and ``phase2`` is not given.
+    subok : bool, optional
+        If `False` (default), the returned array will be forced to be a
+        `Phase`.  Otherwise, `Phase` subclasses will be passed through.
+        Only relevant if ``phase1`` or ``phase2`` is a `Phase` subclass.
     """
-    _fixed_unit = _unit = u.cycle
+    _equivalent_unit = _unit = _default_unit = u.cycle
     _phase_dtype = np.dtype({'names': ['int', 'frac'],
                              'formats': [np.float64]*2})
 
-    # Make sure that reverse arithmetic (e.g., Phase.__rmul__)
-    # gets called over the __mul__ of Numpy arrays.
-    __array_priority__ = 20000
+    def __new__(cls, phase1, phase2=None, copy=True, subok=False):
+        if isinstance(phase1, Phase):
+            if phase2 is not None:
+                phase1 = phase1 + phase2
+                copy = False
+            if not subok and type(phase1) is not cls:
+                phase1 = phase1.view(cls)
+            return phase1.copy() if copy else phase1
 
-    def __new__(cls, phase1, phase2=0):
-        phase1 = u.Quantity(phase1, u.cycle, copy=False)
-        phase2 = u.Quantity(phase2, u.cycle, copy=False)
+        phase1 = Angle(phase1, cls._unit, copy=False)
+
+        if phase2 is not None:
+            if isinstance(phase2, Phase):
+                phase2 = phase2 + phase1
+                return phase2 if subok or type(phase2) is cls else phase2.view(cls)
+            phase2 = Angle(phase2, cls._unit, copy=False)
+
         return cls.from_angles(phase1, phase2)
 
     @classmethod
-    def from_angles(cls, phase1, phase2, factor=None, divisor=None):
-        count, fraction = day_frac(phase1.to_value(u.cycle), phase2.to_value(u.cycle),
+    def from_angles(cls, phase1, phase2=None, factor=None, divisor=None):
+        # TODO: would be nice if day_frac had an out parameter.
+        phase1_value = phase1.to_value(cls._unit)
+        if phase2 is None:
+            phase2_value = 0.
+        else:
+            phase2_value = phase2.to_value(cls._unit)
+        count, fraction = day_frac(phase1_value, phase2_value,
                                    factor=factor, divisor=divisor)
         value = np.empty(count.shape, cls._phase_dtype)
         value['int'] = count
@@ -111,23 +163,19 @@ class Phase(Angle):
     def __getitem__(self, item):
         result = super().__getitem__(item)
         if result.dtype is self.dtype:
-            return result.view(self.__class__)
-        elif item == 'frac':
+            return result
+
+        if item == 'frac':
             return result.view(FractionalPhase)
         else:
+            assert item == 'int'
             return result.view(Angle)
 
-    def __quantity_subclass__(self, unit):
-        if unit != self._fixed_unit:
-            return type(self), True
-        else:
-            return super().__quantity_subclass__(unit)[0], False
-
     def _set_unit(self, unit):
-        if unit is None or unit != self._fixed_unit:
+        if unit is None or unit != self._unit:
             raise u.UnitTypeError(
                 "{0} instances require units of '{1}'"
-                .format(type(self).__name__, self._equivalent_unit) +
+                .format(type(self).__name__, self._unit) +
                 (", but no unit was given." if unit is None else
                  ", so cannot set it to '{0}'.".format(unit)))
 
@@ -142,10 +190,12 @@ class Phase(Angle):
 
     @property
     def int(self):
+        """Rounded cycle count."""
         return self['int']
 
     @property
     def frac(self):
+        """Fractional phase, between -0.5 and 0.5 cycles."""
         return self['frac']
 
     @property
@@ -158,7 +208,7 @@ class Phase(Angle):
         return self.cycle.to_value(unit, equivalencies)
 
     value = property(to_value,
-                     doc="""The numerical value of this instance.
+                     doc="""The numerical value, using standard doubles.
 
     See also
     --------
@@ -166,6 +216,7 @@ class Phase(Angle):
     """)
 
     def to(self, *args, **kwargs):
+        """The phase in a different unit, using standard doubles."""
         return self.cycle.to(*args, **kwargs)
 
     def _advanced_index(self, indices, axis=None, keepdims=False):
@@ -271,10 +322,13 @@ class Phase(Angle):
 
         Returns
         -------
-        result : `~astropy.units.Quantity`
-            Results of the ufunc, with the unit set properly.
+        result : `~scintillometry.phases.Phase`, `~astropy.units.Quantity`, or `~numpy.ndarray`
+            Results of the ufunc, with the unit set properly,
+            `~scintillometry.phases.phase` if possible (i.e., units of cycles,
+            others `~astropyy.units.Quantity` or `~numpy.ndarray` as
+            appropriate.
         """
-        # Should deal with output at some point...
+        # TODO: deal with output at some point...
         assert 'out' not in kwargs
 
         if function in FRACTION_UFUNCS:
@@ -283,7 +337,7 @@ class Phase(Angle):
             return self.frac.__array_ufunc__(function, method,
                                              self.frac, **kwargs)
 
-        elif function in {np.add, np.subtract} | COMPARISON_UFUNCS:
+        elif function in TWO_PHASE_UFUNCS:
             inputs = list(inputs)
             i_other = 1 if inputs[0] is self else 0
             if not isinstance(inputs[i_other], Phase):
@@ -297,10 +351,10 @@ class Phase(Angle):
                     function(inputs[0]['int'], inputs[1]['int']),
                     function(inputs[0]['frac'], inputs[1]['frac']))
             else:
-                return self.int.__array_ufunc__(
-                    function, method,
-                    (inputs[0]['int'] - inputs[1]['int']) +
-                    (inputs[0]['frac'] - inputs[1]['frac']), 0, **kwargs)
+                diff = ((inputs[0]['int'] - inputs[1]['int']) +
+                        (inputs[0]['frac'] - inputs[1]['frac']))
+                return diff.__array_ufunc__(function, method, diff, 0,
+                                            **kwargs)
 
         elif (function is np.multiply or
               function is np.divide and inputs[0] is self):
@@ -326,13 +380,13 @@ class Phase(Angle):
         elif (function in {np.floor_divide, np.remainder, np.divmod} and
               inputs[0] is self):
             fd = np.floor_divide(self.cycle, inputs[1])
-            corr = Phase.from_angles(inputs[1], 0. * u.cycle, factor=fd)
+            corr = Phase.from_angles(inputs[1], factor=fd)
             remainder = self - corr
             fdx = np.floor_divide(remainder.cycle, inputs[1])
             # This can likely be optimized...
             if fdx.nonzero()[0].size:
                 fd += fdx
-                corr = Phase.from_angles(inputs[1], 0. * u.cycle, factor=fd)
+                corr = Phase.from_angles(inputs[1], factor=fd)
                 remainder = self - corr
 
             if function is np.floor_divide:
@@ -360,13 +414,12 @@ class Phase(Angle):
                                         **kwargs)
 
     def _new_view(self, obj=None, unit=None):
-        obj_dtype = getattr(obj, 'dtype', None)
-        if unit is None or unit == self._fixed_unit:
-            if obj is not None and obj_dtype != self.dtype:
-                return self.__class__(obj)
-
-            return super()._new_view(obj, unit)
-        else:
-            if obj_dtype == self.dtype:
+        # If the unit is not right, we should ensure we change our two-float
+        # dtype to a single float.
+        if unit is not None and unit != self._unit:
+            if obj is None:
+                obj = self.cycle
+            elif isinstance(obj, Phase):
                 obj = obj.cycle
-            return self.cycle._new_view(obj, unit)
+
+        return super()._new_view(obj, unit)
