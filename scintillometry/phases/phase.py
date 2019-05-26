@@ -8,6 +8,7 @@ from astropy import units as u
 from astropy.coordinates import Angle, Longitude
 from astropy.time import Time
 from astropy.time.utils import two_sum, two_product
+from astropy.utils.compat import NUMPY_LT_1_16
 
 
 __all__ = ['Phase', 'FractionalPhase']
@@ -37,7 +38,7 @@ def day_frac(val1, val2, factor=None, divisor=None):
         Integer and fractional part of val1 + val2.
     """
     # Note that this is basically as astropy has it, but with an extra round.
-    # TODO: push up to astropy!
+    # See https://github.com/astropy/astropy/pull/8763
     #
     # Add val1 and val2 exactly, returning the result as two float64s.
     # The first is the approximate sum (with some floating point error)
@@ -219,21 +220,38 @@ class Phase(Angle):
         """The phase in a different unit, using standard doubles."""
         return self.cycle.to(*args, **kwargs)
 
-    def _advanced_index(self, indices, axis=None, keepdims=False):
-        ai = Time._advanced_index(self, indices, axis=axis, keepdims=keepdims)
-        return tuple(ai)
+    def _take_along_axis(self, indices, axis=None, keepdims=False):
+        if axis is None:
+            return self[np.unravel_index(indices, self.shape)]
+
+        if indices.ndim == self.ndim - 1:
+            indices = np.expand_dims(indices, axis)
+
+        if NUMPY_LT_1_16:
+            ndim = self.ndim
+            if axis < 0:
+                axis = axis + ndim
+
+            ai = tuple([
+                (indices if i == axis else
+                 np.arange(s).reshape((1,)*i + (s,) + (1,)*(ndim-i-1)))
+                for i, s in enumerate(self.shape)])
+            result = self[ai]
+
+        else:
+            result = np.take_along_axis(self, indices, axis)
+
+        return result if keepdims else result.squeeze(axis)
 
     def argmin(self, axis=None, out=None):
         """Return indices of the minimum values along the given axis."""
-        phase = self['int'] + self['frac']
-        approx = np.min(phase, axis, keepdims=True)
+        approx = np.min(self.cycle, axis, keepdims=True)
         dt = (self['int'] - approx) + self['frac']
         return dt.argmin(axis, out)
 
     def argmax(self, axis=None, out=None):
         """Return indices of the maximum values along the given axis."""
-        phase = self['int'] + self['frac']
-        approx = np.max(phase, axis, keepdims=True)
+        approx = np.max(self.cycle, axis, keepdims=True)
         dt = (self['int'] - approx) + self['frac']
         return dt.argmax(axis, out)
 
@@ -255,7 +273,7 @@ class Phase(Angle):
         """
         if out is not None:
             raise ValueError("An `out` argument is not yet supported.")
-        return self[self._advanced_index(self.argmin(axis), axis, keepdims)]
+        return self._take_along_axis(self.argmin(axis), axis, keepdims)
 
     def max(self, axis=None, out=None, keepdims=False):
         """Maximum along a given axis.
@@ -265,7 +283,7 @@ class Phase(Angle):
         """
         if out is not None:
             raise ValueError("An `out` argument is not yet supported.")
-        return self[self._advanced_index(self.argmax(axis), axis, keepdims)]
+        return self._take_along_axis(self.argmax(axis), axis, keepdims)
 
     def ptp(self, axis=None, out=None, keepdims=False):
         """Peak to peak (maximum - minimum) along a given axis.
@@ -291,8 +309,7 @@ class Phase(Angle):
             Axis to be sorted.  If ``None``, the flattened array is sorted.
             By default, sort over the last axis.
         """
-        return self[self._advanced_index(self.argsort(axis), axis,
-                                         keepdims=True)]
+        return self._take_along_axis(self.argsort(axis), axis, keepdims=True)
 
     def __eq__(self, other):
         try:
