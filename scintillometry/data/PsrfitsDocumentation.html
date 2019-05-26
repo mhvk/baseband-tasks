@@ -1,0 +1,1028 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<title>Pulsar Group PsrfitsDocumentation/Txt</title>
+</head>
+<body>
+<h2>PSRFITS Documentation V6.1</h2>
+<p>The PSRFITS template defines the structure of the FITS file. This 
+documentation takes the PSRFITS template and expands on the brief 
+comment on each line as appropriate. 
+</p>
+<div class="vspace"></div><h3>Main Header</h3>
+<p>SIMPLE  =                    T / file does conform to FITS standard <br>BITPIX  =                    8 / number of bits per data pixel <br>NAXIS   =                    0 / number of data axes  <br>EXTEND  =                    T / FITS dataset may contain extensions <br>COMMENT   FITS (Flexible Image Transport System) format defined in
+Astronomy and <br>COMMENT   Astrophysics Supplement Series v44/p363, v44/p371, v73/p359, v73/p365. <br>COMMENT   Contact the NASA Science Office of Standards and Technology
+for the <br>COMMENT   FITS Definition document #100 and other FITS information. <br>COMMENT
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS preamble. Conformity with FITS standards can be checked using <a class="urllink" href="http://fits.gsfc.nasa.gov/fits_verify.html" rel="nofollow">fits_verify</a>.
+</div><p class="vspace">HDRVER  = '6.1             '   / Header version <br>FITSTYPE= 'PSRFITS         '   / FITS definition for pulsar data files <br>DATE    = '                '   / File creation UTC date (YYYY-MM-<span class="wikiword">DDThh</span>:mm:ss)
+</p>
+<div class="vspace"></div><div class="indent">Approximate UTC date and time of file creation (YYYY-MM-<span class="wikiword">DDThh</span>:mm:ss)
+</div><p class="vspace">OBSERVER= '                '   / Observer name(s) <br>PROJID  = '                '   / Project name <br>TELESCOP= '                '   / Telescope name
+</p>
+<div class="vspace"></div><div class="indent">Should conform with TEMPO2 usage.
+</div><p class="vspace">ANT_X   =                    * / [m] Antenna ITRF X-coordinate (D) <br>ANT_Y   =                    * / [m] Antenna ITRF Y-coordinate (D) <br>ANT_Z   =                    * / [m] Antenna ITRF Z-coordinate (D)
+</p>
+<div class="vspace"></div><div class="indent">Location in the <a class="urllink" href="http://http//itrf.ensg.ign.fr" rel="nofollow">ITRF</a> reference frame. Normally obtained from a VLBI solution. 
+</div><p class="vspace">FRONTEND= '                '   / Receiver ID
+</p>
+<div class="vspace"></div><div class="indent">Observatory standard name for receiver package.
+</div><p class="vspace">IBEAM   = '                '   / Beam ID for multibeam systems
+</p>
+<div class="vspace"></div><div class="indent">Beam ID number for multibeam systems. Normally beam 0 is the on-axis beam.
+</div><p class="vspace">NRCVR   =                    * / Number of receiver polarisation channels
+</p>
+<div class="vspace"></div><div class="indent">Normally = 2 for receiver systems with polarisation capability.
+</div><p class="vspace">FD_POLN = '                '   / LIN or CIRC
+</p>
+<div class="vspace"></div><div class="indent">Native polarisation of the feed receptors.
+</div><p class="vspace">FD_HAND =                    * / +/- 1. +1 is LIN:A=X,B=Y, CIRC:A=L,B=R (I)
+</p>
+<div class="vspace"></div><div class="indent">Code for sense of feed. 
+FD_HAND = +1 for XYZ forming RH set with Z in the direction of 
+propagation. Looking up into the feed of a prime-focus receiver (or at 
+the sky), for FD_HAND = +1, the rotation from A (or X) to B (or Y) is 
+counterclockwise or in the direction of increasing Feed Angle (FA) or 
+Position Angle (PA). For circular feeds, FD_HAND = +1 for IEEE LCP on 
+the A (or X) probe. See van Straten et al. (2010), PASA, 27, 104 for a 
+full description of the polarisation conventions adopted for PSRFITS and
+ PSRCHIVE.
+</div><p class="vspace">FD_SANG =                    * / [deg] FA of E vect for equal sig in A&amp;B (E)
+</p>
+<div class="vspace"></div><div class="indent">Feed angle of the E-vector
+ for an equal in-phase response from the A(X) and B(Y) probes, measured 
+in the direction of increasing FA or PA (clockwise when looking down on a
+ prime focus receiver) and in the range +/- 180 deg.
+</div><p class="vspace">FD_XYPH =                    * / [deg] Phase of A* B for injected cal (E)
+</p>
+<div class="vspace"></div><div class="indent">Phase of the correlator 
+cross-product A* B for the injected calibration signal. For a linearly 
+polarised calibration signal at FA = FD_SANG, FD_XY = 0. For cal 
+injection in the perpendicular direction (FD_SANG +/- 90 deg), FD_XY = 
+180 deg. 
+</div><p class="vspace">BACKEND = '                '   / Backend ID
+</p>
+<div class="vspace"></div><div class="indent">Observatory standard name for the signal-processing (colloquially 'backend') system.
+</div><p class="vspace">BECONFIG= '                '   / Backend configuration file name
+</p>
+<div class="vspace"></div><div class="indent">Name of a configuration file used to set up the backend system.
+</div><p class="vspace">BE_PHASE=                    * / 0/+1/-1 BE cross-phase:0 unknown,+/-1 std/rev
+</p>
+<div class="vspace"></div><div class="indent">BE_PHASE = +1 if the 
+cross-product phase increases with increasing E-vector FA, = -1 for the 
+opposite and = 0 if not known. Changing the sign of BE_PHASE effectively
+ conjugates the electric field and reverses the sign of Stokes V.
+</div><p class="vspace">BE_DCC  =                    * / 0/1 BE downconversion conjugation corrected
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate lower-sideband conjugation corrected in signal processing.
+</div><p class="vspace">BE_DELAY=                    * / [s] Backend propn delay from digitiser input 
+</p>
+<div class="vspace"></div><div class="indent">Difference between actual signal arrival-time at digitiser and the time-tag value, positive if the time tag is early.
+</div><p class="vspace">TCYCLE  =                    * / [s] On-line cycle time (D)
+</p>
+<div class="vspace"></div><div class="indent">Native cycle time of correlation system.
+</div><p class="vspace">OBS_MODE= '                '   / (PSR, CAL, SEARCH)
+</p>
+<div class="vspace"></div><div class="indent">'PSR' for a fold-mode 
+observation of a pulsar, 'CAL' for a fold-mode observation of an 
+injected calibration signal, 'SEARCH' for streamed multi-channel data.
+</div><p class="vspace">DATE-OBS= '                '   / UTC date of observation (YYYY-MM-<span class="wikiword">DDThh</span>:mm:ss)
+</p>
+<div class="vspace"></div><div class="indent">Approximate UTC date and time of the start of an observation.
+</div><p class="vspace">OBSFREQ =                    * / [<span class="wikiword">MHz</span>] Centre frequency for observation
+</p>
+<div class="vspace"></div><div class="indent">Radio frequency at the 
+mid-point of channel OBSNCHAN/2 of the original observed spectrum, where
+ channels are numbered from 1 to OBSNCHAN. Note: channel 0 (containing 
+the zero-frequency component) is assumed to be dropped.
+</div><p class="vspace">OBSBW   =                    * / [<span class="wikiword">MHz</span>] Bandwidth for observation
+</p>
+<div class="vspace"></div><div class="indent">Nominal total bandwidth of the original observed spectrum, i.e. OBSNCHAN x Channel bandwidth.
+</div><p class="vspace">OBSNCHAN=                    * / Number of frequency channels (original)
+</p>
+<div class="vspace"></div><div class="indent">Number of frequency channels in the original spectrum.
+</div><p class="vspace">CHAN_DM =                    * / [cm-3 pc] DM used for on-line dedispersion
+</p>
+<div class="vspace"></div><div class="indent">Dispersion measure value used for on-line (normally coherent) dedispersion.
+</div><p class="vspace">PNT_ID  = '                '   / Name or ID for pointing ctr (multibeam feeds)
+</p>
+<div class="vspace"></div><div class="indent">Label encoding the on-axis beam position for an observation with a multibeam system.
+</div><p class="vspace">SRC_NAME= '                '   / Source or scan ID 
+</p>
+<div class="vspace"></div><div class="indent">Source name or label for an observation.
+</div><p class="vspace">COORD_MD= '                '   / Coordinate mode (J2000, GALACTIC, ECLIPTIC)
+</p>
+<div class="vspace"></div><div class="indent">Reference frame for coordinates and position angle (PA)
+</div><p class="vspace">EQUINOX =                    * / Equinox of coords (e.g. 2000.0) 
+</p>
+<div class="vspace"></div><div class="indent">Julian reference date for 
+the equinox of the celestial (RA, Dec) coordinate system. (Note, this is
+ a floating point number, not a string.)
+</div><p class="vspace">RA      = '                '   / Right ascension (hh:mm:ss.ssss)
+</p>
+<div class="vspace"></div><div class="indent">Source or pointing right ascension (included for <a class="urllink" href="http://www.ivoa.net/" rel="nofollow">VO</a> compatability).
+</div><p class="vspace">DEC     = '                '   / Declination (-dd:mm:ss.sss)
+</p>
+<div class="vspace"></div><div class="indent">Source or pointing declination (included for <a class="urllink" href="http://www.ivoa.net/" rel="nofollow">VO</a> compatability).
+</div><p class="vspace">BMAJ    =                    * / [deg] Beam major axis length <br>BMIN    =                    * / [deg] Beam minor axis length <br>BPA     =                    * / [deg] Beam position angle
+</p>
+<div class="vspace"></div><div class="indent">Effective beam major and minor axes and position angle on sky.
+</div><p class="vspace">STT_CRD1= '                '   / Start coord 1 (hh:mm:ss.sss or ddd.ddd) <br>STT_CRD2= '                '   / Start coord 2 (-dd:mm:ss.sss or -dd.ddd) 
+</p>
+<div class="vspace"></div><div class="indent">Pointing or scan-start position in COORD_MD reference frame.
+</div><p class="vspace">TRK_MODE= '                '   / Track mode (TRACK, SCANGC, SCANLAT)
+</p>
+<div class="vspace"></div><div class="indent">For 'TRACK' the beam axis 
+tracks a fixed point on the sky; for 'SCANGC' the beam axis tracks at a 
+uniform rate along a great circle on the sky; for 'SCANLAT' the beam 
+axis tracks at a uniform rate along a line of constant latitude or 
+declination (depending on COORD_MD).
+</div><p class="vspace">STP_CRD1= '                '   / Stop coord 1 (hh:mm:ss.sss or ddd.ddd) <br>STP_CRD2= '                '   / Stop coord 2 (-dd:mm:ss.sss or -dd.ddd) 
+</p>
+<div class="vspace"></div><div class="indent">Pointing or scan-stop position in COORD_MD reference frame. (Normally equal to the STT position for a TRACK-mode observation)
+</div><p class="vspace">SCANLEN =                    * / [s] Requested scan length (E)
+</p>
+<div class="vspace"></div><div class="indent">Scan or observation requested duration.
+</div><p class="vspace">FD_MODE = '                '   / Feed track mode - FA, CPA, SPA, TPA
+</p>
+<div class="vspace"></div><div class="indent">During an observation: 
+'FA' means constant FA, i.e., that the feed stays fixed with respect to 
+the telescope reference frame; 'CPA' means that the feed rotates to 
+maintain a constant PA, i.e., it tracks the variation of parallactic 
+angle. Note that for COORD_MD = 'GALACTIC' PA is with respect to 
+Galactic north and similarly, for COORD_MD = "ECLIPTIC' PA is with 
+respect to Ecliptic north. For 'SPA' the FA is held fixed at an angle 
+such that the requested PA is obtained at the mid-point of the 
+observation; 'TPA' is relevant only for scan observations - the feed is 
+rotated to maintain a constant angle with respect to the scan direction.
+</div><p class="vspace">FA_REQ  =                    * / [deg] Feed/Posn angle requested (E)
+</p>
+<div class="vspace"></div><div class="indent">The requested angle of the
+ feed reference, for FD_MODE = 'FA', with respect to the telescope 
+reference frame (FA = 0), and for FD_MODE = 'CPA', with respect to 
+celestial north (PA = 0) or with respect to Galactic north for COORD_MD =
+ 'GALACTIC'. 
+</div><p class="vspace">CAL_MODE= '                '   / Cal mode (OFF, SYNC, <span class="wikiword">EXT1</span>, <span class="wikiword">EXT2</span>)
+</p>
+<div class="vspace"></div><div class="indent">Operation mode for the 
+injected calibration: for 'OFF' there is no injected calibration; for 
+'SYNC' the calibration is pulsed synchronously with the folding 
+frequency; '<span class="wikiword">EXT1</span>' and '<span class="wikiword">EXT2</span>' indicate that the calibration is driven by one of two possible user-defined external signals. 
+</div><p class="vspace">CAL_FREQ=                    * / [Hz] Cal modulation frequency (E)
+</p>
+<div class="vspace"></div><div class="indent">Modulation frequency for the injected calibration signal.
+</div><p class="vspace">CAL_DCYC=                    * / Cal duty cycle (E)
+</p>
+<div class="vspace"></div><div class="indent">Duty cycle for the injected calibration signal.
+</div><p class="vspace">CAL_PHS =                    * / Cal phase (wrt start time) (E)
+</p>
+<div class="vspace"></div><div class="indent">Phase of the leading edge of the injected calibration signal in SYNC mode.
+</div><p class="vspace">CAL_NPHS=                    * / Number of states in cal pulse (I)
+</p>
+<div class="vspace"></div><div class="indent">Number of pulses across one period of calibration phase.
+</div><p class="vspace">STT_IMJD=                    * / Start MJD (UTC days) (J - long integer)
+</p>
+<div class="vspace"></div><div class="indent">Modified Julian UTC Day 
+number for the reference start time of an observation. The start time is
+ defined to be the leading edge of the first bin for fold-mode 
+observations and the leading edge of the first sample for search-mode 
+observations. 
+</div><p class="vspace">STT_SMJD=                    * / [s] Start time (sec past UTC 00h) (J)
+</p>
+<div class="vspace"></div><div class="indent">Integer seconds from 00h UTC for the reference start time of an observation.
+</div><p class="vspace">STT_OFFS=                    * / [s] Start time offset (D)  
+</p>
+<div class="vspace"></div><div class="indent">Fractional seconds from STT_SMJD for the reference start time of an observation.
+</div><p class="vspace">STT_LST =                    * / [s] Start LST (D)
+</p>
+<div class="vspace"></div><div class="indent">Approximate local sidereal time for the start time of an observation.
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>History Binary Table Extension</h3>
+<p>Contains a history of the file processing operations with key parameters following each operation, with one line per operation.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Processing history ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                   23 / number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = HISTORY             / name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = DATE_PRO            / Processing UTC date and time (YYYY-MM-<span class="wikiword">DDThh</span>:mm:ss) <br>TFORM#  = 24A                 / 24-char string
+</p>
+<div class="vspace"></div><div class="indent">UTC date and time that the operation was performed.
+</div><p class="vspace">TTYPE#  = PROC_CMD            / Processing program and command <br>TFORM#  = 256A                 / 256_char string
+</p>
+<div class="vspace"></div><div class="indent">Free-format string describing the operation - often the command-line string.
+</div><p class="vspace">TTYPE#  = SCALE               / Units (<span class="wikiword">FluxDen/RefFlux</span>/Jansky) <br>TFORM#  = 8A                  / 8-char string
+</p>
+<div class="vspace"></div><div class="indent">Units of signal amplitude; normally '<span class="wikiword">FluxDen</span>' before calibration, '<span class="wikiword">RefFlux</span>' after flux density calibration (replicated in the SUBINT table header for the current file).
+</div><p class="vspace">TTYPE#  = POL_TYPE            / Polarisation identifier  <br>TFORM#  = 8A                  / 8-char string
+</p>
+<div class="vspace"></div><div class="indent">String to identify nature 
+of polarisation products (replicated in the SUBINT table header for the 
+current file). Normally 'AABBCRCI' for NPOL=4 coherence data, where AA 
+and BB are the direct products of the two input channels A and B, and CR
+ and CI are the real and imaginary parts of the cross product A* B. For 
+full Stokes data, 'IQUV' is normally used. For NPOL=1 data with summed 
+orthogonal products, 'AA+BB' is recommended, and for NPOL=2, 'AABB'.
+</div><p class="vspace">TTYPE#  = NSUB                / Number of Sub-Integrations <br>TFORM#  = 1J                  / Long integer
+</p>
+<div class="vspace"></div><div class="indent">Number of sub-integrations in the processed file (replicated in the SUBINT table header as <span class="wikiword">NAXIS2</span> for the current file).
+</div><p class="vspace">TTYPE#  = NPOL                / Number of polarisations <br>TFORM#  = 1I                  / Integer
+</p>
+<div class="vspace"></div><div class="indent">Number of polarisation products (1, 2 or 4) (replicated in the SUBINT table header for the current file).
+</div><p class="vspace">TTYPE#  = NBIN                / Nr of bins per product (0 for SEARCH mode) <br>TFORM#  = 1I                  / Integer
+</p>
+<div class="vspace"></div><div class="indent">Number of bins across a 
+fold-mode profile (replicated in the SUBINT table header for the current
+ file). For search-mode data NBIN = 0.
+</div><p class="vspace">TTYPE#  = NBIN_PRD            / Nr of bins per period <br>TFORM#  = 1I                  / Integer
+</p>
+<div class="vspace"></div><div class="indent">The number of bins across 
+the pulsar period (replicated in the SUBINT table header for the current
+ file). For fold-mode data where the folding period is a multiple of the
+ true period, NBIN/NBIB_PRD is the number of pulse periods across the 
+profile.
+</div><p class="vspace">TTYPE#  = TBIN                / Time per bin or sample <br>TUNIT#  = s                   / units of field <br>TFORM#  = 1D                  / Double
+</p>
+<div class="vspace"></div><div class="indent">For fold-mode data, TBIN 
+is the folding period/NBIN. For search-mode data, TBIN is the sample 
+interval. (Replicated in the SUBINT table header for the current file.)
+</div><p class="vspace">TTYPE#  = CTR_FREQ            / Band centre frequency (weighted) <br>TUNIT#  = <span class="wikiword">MHz</span>                 / units of field <br>TFORM#  = 1D                  / Double
+</p>
+<div class="vspace"></div><div class="indent">Weighted mean of channel 
+centre frequencies. Channel centre frequencies and weights are given in 
+the SUBINT table (DAT_FREQ and DAT_WTS respectively).
+</div><p class="vspace">TTYPE#  = NCHAN               / Number of frequency channels <br>TFORM#  = 1J                  / Long integer
+</p>
+<div class="vspace"></div><div class="indent">Number of frequency channels or sub-bands across the bandpass (replicated in the SUBINT table header for the current file).
+</div><p class="vspace">TTYPE#  = CHAN_BW             / Channel bandwidth <br>TFORM#  = 1D                  / Double <br>TUNIT#  = <span class="wikiword">MHz</span>                 / units of field
+</p>
+<div class="vspace"></div><div class="indent">Width of a channel or sub-band, CHAN_BW = OBSBW/NCHAN (replicated in the SUBINT table header for the current file).
+</div><p class="vspace">TTYPE#  = DM                  / DM used for dedispersion <br>TFORM#  = 1D                  / Double <br>TUNIT#  = CM-3 PC             / units of field
+</p>
+<div class="vspace"></div><div class="indent">Dispersion measure used for dedispersion when summing in frequency.
+</div><p class="vspace">TTYPE#  = RM                  / RM used for RM correction <br>TFORM#  = 1D                  / Double <br>TUNIT#  = RAD M-2             / units of field
+</p>
+<div class="vspace"></div><div class="indent">RM used to compensate for Faraday rotation when summing in frequency.
+</div><p class="vspace">TTYPE#  = PR_CORR             / Projection of receptors onto sky corrected <br>TFORM#  = 1I                  / Integer flag 
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate that FD_HAND has been reversed.
+</div><p class="vspace">TTYPE#  = FD_CORR             / Feed basis correction applied <br>TFORM#  = 1I                  / Integer flag 
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate that FD_POLN has been changed
+</div><p class="vspace">TTYPE#  = BE_CORR             / Backend correction applied <br>TFORM#  = 1I                  / Integer flag 
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate that BE_PHASE has been reversed.
+</div><p class="vspace">TTYPE#  = RM_CORR             / RM correction applied <br>TFORM#  = 1I                  / Integer flag 
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate that the data have been corrected for Faraday rotation and referred to the passband centre frequency OBSFREQ.
+</div><p class="vspace">TTYPE#  = DEDISP              / Data dedispersed <br>TFORM#  = 1I                  / Integer flag 
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate that the 
+data have been rotated in phase to correct for dispersion and referred 
+to the passband centre frequency OBSFREQ.
+</div><p class="vspace">TTYPE#  = DDS_MTHD            / Dedispersion method <br>TFORM#  = 32A                 / 32-char string
+</p>
+<div class="vspace"></div><div class="indent">A free-format string to indicate the dedisperion method employed.
+</div><p class="vspace">TTYPE#  = SC_MTHD             / Scattered power correction method <br>TFORM#  = 32A                 / 32-char string
+</p>
+<div class="vspace"></div><div class="indent">A flag to indicate that scattered power resulting from digitisation has been corrected.
+</div><p class="vspace">TTYPE#  = CAL_MTHD            / Calibration method <br>TFORM#  = 32A                 / 32-char string
+</p>
+<div class="vspace"></div><div class="indent">A free-format string to indicate the calibration method employed.
+</div><p class="vspace">TTYPE#  = CAL_FILE            / Name of gain calibration file <br>TFORM#  = 256A                 / 256-char string
+</p>
+<div class="vspace"></div><div class="indent">File name for the calibration observation used.
+</div><p class="vspace">TTYPE#  = RFI_MTHD            / RFI excision method <br>TFORM#  = 32A                 / 32-char string
+</p>
+<div class="vspace"></div><div class="indent">A free-format string to indicate the method employed to excise radio-frequency interference.
+</div><p class="vspace">TTYPE#  = RM_MODEL            / Auxiliary Faraday rotation model description <br>TFORM#  = 32A                 / 32-char string
+</p>
+<div class="vspace"></div><div class="indent">A free-format string to indicate the model used to correct for auxiliary (normally ionospheric) Faraday rotation.
+</div><p class="vspace">TTYPE#  = AUX_RM_C            / Auxiliary Faraday rotation corrected flag <br>TFORM#  = 1I                  / Integer flag 
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate that auxiliary Faraday rotation has been corrected.
+</div><p class="vspace">TTYPE#  = DM_MODEL            / Auxiliary dispersion model description <br>TFORM#  = 32A                 / 32-char string
+</p>
+<div class="vspace"></div><div class="indent">A free-format string to indicate the model used to correct for auxiliary (normally ionospheric) dispersion.
+</div><p class="vspace">TTYPE#  = AUX_DM_C            / Auxiliary dispersion corrected flag <br>TFORM#  = 1I                  / Integer flag
+</p>
+<div class="vspace"></div><div class="indent">Flag to indicate that auxiliary dispersion has been corrected.
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Observation Description Binary Table Extension</h3>
+<p>This is a free-format ascii table which can contain any desired information about the observation and/or its processing.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Observation Description ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes  <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    1 / Number of fields per row <br>
+</p><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = OBSDESCR             / Name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = DESCR                / Text file stored row by row <br>TFORM#  = 128A                 / Allow 128 char per row
+</p>
+<div class="vspace"></div><div class="indent">Free-format plain text description of the observation or processing
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Ephemeris Binary Table Extension</h3>
+<p>The pulsar ephemeris file used to form the polyco or predictor file for data folding. 
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Pulsar ephemeris ***** <br>BITPIX  =                    8 / N/A  <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    1 / Number of fields per row 
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = PSRPARAM             / Name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = PARAM                / Text file stored row by row <br>TFORM#  = 128A                 / Allow 128 char per row
+</p>
+<div class="vspace"></div><div class="indent">Line for line copy of pulsar ephemeris file 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3><span class="wikiword">TEMPO1</span> Polyco History Binary Table Extension</h3>
+<p>A table of the polyco parameters used for each stage of the processing. See the <a class="urllink" href="http://tempo.sourceforge.net/" rel="nofollow">Tempo documentation</a> for a description of the parameters and the algorithm for pulse phase prediction.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Polyco history ***** <br>BITPIX  =                    8 / N/A  <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                   13 / Number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = POLYCO               / name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = DATE_PRO             / UTC date and time (YYYY-MM-<span class="wikiword">DDThh</span>:mm:ss) <br>TFORM#  = 24A                  / 24-char string
+</p>
+<div class="vspace"></div><div class="indent">UTC date and time of polyco creation
+</div><p class="vspace">TTYPE#  = POLYVER              / Polyco version ID <br>TFORM#  = 16A                  / 16-char string
+</p>
+<div class="vspace"></div><div class="indent">Polyco version number
+</div><p class="vspace">TTYPE#  = NSPAN                / Span of polyco block in min <br>TFORM#  = 1I                   / Integer
+</p>
+<div class="vspace"></div><div class="indent">Validity range of polyco block; range is centred on REF_MJD.
+</div><p class="vspace">TTYPE#  = NCOEF                / Nr of coefficients (&lt;=15) <br>TFORM#  = 1I                   / Integer
+</p>
+<div class="vspace"></div><div class="indent">Number of polynomial coefficients, normally either 12 or 15.
+</div><p class="vspace">TTYPE#  = NPBLK                / Nr of blocks (rows) for this polyco <br>TFORM#  = 1I                   / Integer
+</p>
+<div class="vspace"></div><div class="indent">Number of predictor blocks in this polyco.
+</div><p class="vspace">TTYPE#  = NSITE                / Observatory code <br>TFORM#  = 8A                   / 8-char string
+</p>
+<div class="vspace"></div><div class="indent">Observatory code (Often a Tempo numeric site code, but string codes are preferred for Tempo2).
+</div><p class="vspace">TTYPE#  = REF_FREQ             / Reference frequency for phase <br>TFORM#  = 1D                   / Double <br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Reference radio frequency for which polyco is computed.
+</div><p class="vspace">TTYPE#  = PRED_PHS             / Predicted pulse phase at observation start <br>TFORM#  = 1D                   / Double
+</p>
+<div class="vspace"></div><div class="indent">Predicted pulse phase at observation start.
+</div><p class="vspace">TTYPE#  = REF_MJD              / Reference MJD <br>TFORM#  = 1D                   / Double
+</p>
+<div class="vspace"></div><div class="indent">Reference MJD for polyco block
+</div><p class="vspace">TTYPE#  = REF_PHS              / Reference phase <br>TFORM#  = 1D                   / Double
+</p>
+<div class="vspace"></div><div class="indent">Pulse phase at REF_MJD (counted from PEPOCH)
+</div><p class="vspace">TTYPE#  = REF_F0               / Zero-order pulsar frequency <br>TFORM#  = 1D                   / Double <br>TUNIT#  = Hz                   / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Pulse frequency (F0) at PEPOCH
+</div><p class="vspace">TTYPE#  = LGFITERR             / Log_10 of polynomial fit rms error in periods <br>TFORM#  = 1D                   / Double
+</p>
+<div class="vspace"></div><div class="indent">Log_10 of rms pulse phase 
+error for polynomial fit to block span. If this is unacceptably large 
+(e.g., for short-period binary systems) then NSPAN may be reduced or 
+NCOEFF increased.
+</div><p class="vspace">TTYPE#  = COEFF                / Polyco coefficients <br>TFORM#  = 15D                  / NCOEF doubles
+</p>
+<div class="vspace"></div><div class="indent">Table of the polynomial coefficients. 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3><span class="wikiword">TEMPO2</span> Predictor Binary Table Extension</h3>
+<p>Table used by Tempo2 for prediction of pulse phases. The table 
+consists of a two-dimensional (time and frequency) array of Chebyshev 
+basis functions along with header parameters. See the <a class="urllink" href="http://www.atnf.csiro.au/research/pulsar/tempo2" rel="nofollow">Tempo2 documentation</a> for a description of the predictor file and how to make use of it.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Tempo2 Predictor ***** <br>BITPIX  =                    8 / N/A  <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    1 / Number of fields per row 
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = <span class="wikiword">T2PREDICT</span>            / Name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = PREDICT              / Text file stored row by row <br>TFORM#  = 128A                 / Allow 128 char per row
+</p>
+<div class="vspace"></div><div class="indent">Line for line copy of Tempo2 predictor file 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Coherent Dedispersion Parameters Binary Table Extension</h3>
+<p>Table describing the details of the coherent dedispersion processing applied to (sub)band data.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Coherent Dedispersion Parameters ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes  <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table (NCHAN) <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    3 / number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = COHDDISP             / name of this binary table extension
+</p>
+<p class="vspace">DOMAIN  =                    * / Coherent dedisp domain (TIME/FREQ)
+</p>
+<div class="vspace"></div><div class="indent">Domain of the phase-coherent dispersion removal convolution.
+</div><p class="vspace">CHRPTYPE=                    * / Chirp function descriptor
+</p>
+<div class="vspace"></div><div class="indent">String identifier for the dedispersion chirp function.
+</div><p class="vspace">DM      =                    * / [cm-3 pc] DM used for coherent dedispersion
+</p>
+<div class="vspace"></div><div class="indent">Dispersion measure assumed for the coherent dedispersion.
+</div><p class="vspace">DOPPLER =                    * / [v/c] Doppler correction factor
+</p>
+<div class="vspace"></div><div class="indent">Doppler shift of the 
+observed signal compared to the propagation frequency in the 
+interstellar medium. The observed centre frequency and bandwidth are 
+scaled by 1/(1 + DOPPLER) to give the interstellar propagation 
+frequencies, i.e., if the Earth is moving toward the pulsar, DOPPLER 
+&gt; 0. 
+</div><p class="vspace">DATANBIT=                    * / Number of quantization levels for data
+</p>
+<div class="vspace"></div><div class="indent">Number of quantisation levels for the data. For IEEE single-precision floating-point data, NBIT = -32. 
+</div><p class="vspace">CHRPNBIT=                    * / Number of quantization levels for chirp
+</p>
+<div class="vspace"></div><div class="indent">Number of quantisation levels used to represent the chirp function.
+</div><p class="vspace">NCHAN   =                    * / Number of input frequency channels
+</p>
+<div class="vspace"></div><div class="indent">Number of channels (sub-bands) of input baseband data
+</div><p class="vspace">TTYPE#  = FREQ                 / Center frequency of input channel <br>TFORM#  = 1D                   / Double <br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Centre frequency of each baseband channel
+</div><p class="vspace">TTYPE#  = BW                   / Bandwidth of input channel <br>TFORM#  = 1D                   / Double <br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Bandwidth of each baseband channel
+</div><p class="vspace">TTYPE#  = OUT_NCHAN            / Number of output frequency channels <br>TFORM#  = 1J                   / Long integer
+</p>
+<div class="vspace"></div><div class="indent">Number of dedispersed data channels
+</div><p class="vspace">TTYPE#  = OUT_FREQ             / Center frequency of each output channel <br>TFORM#  = 1D                   / OUT_NCHAN doubles <br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Centre frequency of each dedispersed data channel
+</div><p class="vspace">TTYPE#  = OUT_BW               / Bandwidth of each output channel <br>TFORM#  = 1D                   / OUT_NCHAN doubles or one double for all <br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Bandwidth of each output dedispersed data channel.
+</div><p class="vspace">TTYPE#  = NCHIRP               / Number of complex samples in FFT or FIR filter <br>TFORM#  = 1J                   / OUT_NCHAN long int one long int for all
+</p>
+<div class="vspace"></div><div class="indent">Length of FFT or FIR filter. If only one entry, then the same filter length is used for all output channels. 
+</div><p class="vspace">TTYPE#  = NCYC_POS             / Number of complex samples discarded from start <br>TFORM#  = 1J                   / OUT_NCHAN long int or one long int for all
+</p>
+<div class="vspace"></div><div class="indent">The number of complex 
+samples discarded from the start of each convolution data sequence. If 
+only one entry, then it is the same for all output channels. 
+</div><p class="vspace">TTYPE#  = NCYC_NEG             / Number of complex samples discarded from end <br>TFORM#  = 1J                   / OUT_NCHAN long int or one long int for all
+</p>
+<div class="vspace"></div><div class="indent">The number of complex 
+samples discarded from the end of each convolution data sequence. If 
+only one entry, then it is the same for all output channels. 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Original Bandpass Binary Table Extension</h3>
+<p>Table recording the input power spectrum for each polarisation channel.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Original bandpasses ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    3 / number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">NCH_ORIG=                    * / Number of channels in original bandpass
+</p>
+<div class="vspace"></div><div class="indent">Number of channels in each bandpass spectrum
+</div><p class="vspace">BP_NPOL =                    * / Number of polarizations in bandpass
+</p>
+<div class="vspace"></div><div class="indent">Number of bandpass spectra
+</div><p class="vspace">EXTNAME = BANDPASS             / name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = DAT_OFFS             / Data offset for each bandpass <br>TFORM#  = E                    / BP_NPOL floats
+</p>
+<div class="vspace"></div><div class="indent">Offset for each spectrum
+</div><p class="vspace">TTYPE#  = DAT_SCL              / Data scale factor: Val=Data*DAT_SCL + DAT_OFFS <br>TFORM#  = E                    / BP_NPOL floats
+</p>
+<div class="vspace"></div><div class="indent">Scale factor for each spectrum
+</div><p class="vspace">TTYPE#  = DATA                 / Bandpass for autocorrelations <br>TDIM#   = (*,*)                / Data table dimensions = (NCH_ORIG,BP_NPOL) <br>TFORM#  = I                    / NCH_ORIG*BP_NPOL integers <br>TUNIT#  = Jy                   / Bandpass amplitude units 
+</p>
+<div class="vspace"></div><div class="indent">Table of integers 
+representing bandpass for each polarisation channel. Spectral value in 
+Janskys = DATA value * DAT_SCL + DAT_OFFS.
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Flux Calibration Data Binary Table Extension</h3>
+<p>Table giving spectra of the system noise and the injected calibration
+ signal and their uncertainties for each polarisation channel. Channel 
+centre frequencies and weights are also recorded. These data are 
+normally obtained by recording the injected calibration signal pointing 
+on and off a standard flux-calibration source (e.g. Hydra A). They are 
+only available after processing of calibration observations, for 
+example, using the PSRCHIVE program "fluxcal".
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Flux Calibration Data ***** <br>BITPIX  =                    8 / N/A  <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    6 / Number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = FLUX_CAL             / name of this binary table extension
+</p>
+<p class="vspace">CAL_MTHD=                      / Flux cal method
+</p>
+<div class="vspace"></div><div class="indent">String identifying the method used to determine the flux-calibration spectra
+</div><p class="vspace">SCALFILE=                      / Cal file(s) used to derive flux-cal data
+</p>
+<div class="vspace"></div><div class="indent">File names for calibration observations used to determine the flux-calibration spectra.
+</div><p class="vspace">NCHAN   =                    * / Nr of frequency channels (I)
+</p>
+<div class="vspace"></div><div class="indent">The number of channels in each spectrum
+</div><p class="vspace">NRCVR   =                    * / Number of polarisation channels (I)
+</p>
+<div class="vspace"></div><div class="indent">The number of polarisation channels
+</div><p class="vspace">EPOCH   =                      / [MJD] Epoch of calibration obs
+</p>
+<div class="vspace"></div><div class="indent">The approximate MJD of flux calibration observations
+</div><p class="vspace">TTYPE#  = DAT_FREQ             / Centre frequency for each channel <br>TFORM#  = D                    / NCHAN doubles <br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Table of channel centre frequencies for the flux calibration spectra.
+</div><p class="vspace">TTYPE#  = DAT_WTS              / Weights for each channel <br>TFORM#  = E                    / NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Weights for each channel, 
+normally either 0.0 or 1.0. Zero weights may be assigned to channels 
+that are affected by interference. 
+</div><p class="vspace">TTYPE#  = S_SYS                / System equiv. flux density for each rcvr chan. <br>TDIM#   = (*,*)                / Dimensions (NCHAN,NRCVR) <br>TFORM#  = E                    / NCHAN*NRCVR floats <br>TUNIT#  = Jy 
+</p>
+<div class="vspace"></div><div class="indent">System-equivalent flux 
+densities for each frequency channel for each polarisation. Note that 
+the conventional system-equivalent flux density is the sum of the values
+ for the two polarisation channels.
+</div><p class="vspace">TTYPE#  = S_SYSERR             / Est. error of system equiv. flux density <br>TDIM#   = (*,*)                / Dimensions (NCHAN,NRCVR) <br>TFORM#  = E                    / NCHAN*NRCVR floats <br>TUNIT#  = Jy   
+</p>
+<div class="vspace"></div><div class="indent">Estimated uncertainty (1-sigma) of each S_SYS value.
+</div><p class="vspace">TTYPE#  = S_CAL                / Calibrator flux density for each rcvr channel <br>TDIM#   = (*,*)                / Dimensions (NCHAN,NRCVR) <br>TFORM#  = E                    / NCHAN*NRCVR floats <br>TUNIT#  = Jy  
+</p>
+<div class="vspace"></div><div class="indent">Equivalent flux density of
+ the injected calibration signal for each frequency channel for each 
+polarisation. Note: Stokes I is the sum of values for each polarisation.
+</div><p class="vspace">TTYPE#  = S_CALERR             / Estimated error of calibrator flux density <br>TDIM#   = (*,*)                / Dimensions (NCHAN,NRCVR) <br>TFORM#  = E                    / NCHAN*NRCVR floats <br>TUNIT#  = Jy   
+</p>
+<div class="vspace"></div><div class="indent">Estimated uncertainty (1-sigma) of each S_CAL value. 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Artificial Calibrator Stokes Parameters Binary Table Extension</h3>
+<p>Fractional polarisation of the injected calibration signal, expressed as spectra of Stokes Q/I, U/I and V/I.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Artificial Calibrator Stokes Data ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    3 / Number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = CAL_POLN             / name of this binary table extension
+</p>
+<p class="vspace">NCHAN   =                    * / Nr of channels in flux cal file
+</p>
+<div class="vspace"></div><div class="indent">Number of frequency channels in each polarisation spectrum
+</div><p class="vspace">TTYPE#  = DAT_WTS              / Weights for each channel <br>TFORM#  = E                    / NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Weights for each channel of polarisation spectra.
+</div><p class="vspace">TTYPE#  = DATA                 / Stokes (Q,U,V) of calibrator rel. to Cal I <br>TDIM#   = (*,*)                / Dimensions (3,NCHAN) <br>TFORM#  = E                    / 3*NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Fractional polarisation spectra for the injected calibration signal.
+</div><p class="vspace">TTYPE#  = DATAERR              / Estimated error of Stokes (Q,U,V) <br>TDIM#   = (*,*)                / Dimensions (3,NCHAN) <br>TFORM#  = E                    / 3*NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Estimated uncertainty (1-sigma) in the polarisation spectra
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Feed Cross-Coupling Parameters Binary Table Extension</h3>
+<p>Table of feed cross-coupling parameters used to correct for the 
+effects of coupling between nominally orthogonal feeds. They are 
+normally measured by analysing a set of observations of a strong pulsar 
+over a wide range of parallactic angles using, for example, the PSRCHIVE
+ program PCM.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Feed Cross-Coupling parameters ***** <br>BITPIX  =                    8 / N/A  <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / number of rows in table <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                    3 / Number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EXTNAME = FEEDPAR              / Name of this binary table extension
+</p>
+<p class="vspace">CAL_MTHD= '                  ' / Cross-coupling method
+</p>
+<div class="vspace"></div><div class="indent">String identifying the method used to obtain the cross-coupling coefficients.
+</div><p class="vspace">NCPAR   =                    * / Number of coupling parameters
+</p>
+<div class="vspace"></div><div class="indent">Number of cross-coupling parameters in the  DATA table.
+</div><p class="vspace">NCOVAR  =                    * / Number of parameter covariances
+</p>
+<div class="vspace"></div><div class="indent">Number of covariances parameters in the COVAR table
+</div><p class="vspace">NCHAN   =                    * / Nr of channels in Feed coupling data
+</p>
+<div class="vspace"></div><div class="indent">Number of frequency channels in the data tables
+</div><p class="vspace">EPOCH   = '                  ' / [MJD] Epoch of calibration obs
+</p>
+<div class="vspace"></div><div class="indent">Approximate MJD of the observations used to derive the cross-coupling parameters.
+</div><p class="vspace">TTYPE#  = DAT_FREQ             / [<span class="wikiword">MHz</span>] Centre frequency for each channel <br>TFORM#  = D                    / NCHAN doubles<br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Table of channel centre frequencies
+</div><p class="vspace">TTYPE#  = DAT_WTS              / Weights for each channel <br>TFORM#  = E                    / NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Weights for each frequency channel
+</div><p class="vspace">TTYPE#  = DATA                 / Cross-coupling data <br>TDIM#   = (*,*)                / Dimensions (NCPAR,NCHAN) <br>TFORM#  = E                    / NCPAR*NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">The table of cross-coupling parameters
+</div><p class="vspace">TTYPE#  = DATAERR              / Estimated error of cross-coupling data <br>TDIM#   = (*,*)                / Dimensions (NCPAR,NCHAN) <br>TFORM#  = E                    / NCPAR*NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Estimated uncertainties (1-sigma) in the cross-coupling parameters
+</div><p class="vspace">TTYPE#  = COVAR                / Formal covariances of coupling data <br>TDIM#   = (*,*)                / Dimensions (NCOVAR,NCHAN) <br>TFORM#  = E                    / NCOVAR*NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Table of covariance parameters
+</div><p class="vspace">TTYPE#  = CHISQ                / Total chi-squared (objective merit function) <br>TFORM#  = E                    / NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Table of fit chi-square value for each frequency channel
+</div><p class="vspace">TTYPE#  = NFREE                / Number of degrees of freedom <br>TFORM#  = J                    / NCHAN long (32-bit) integers
+</p>
+<div class="vspace"></div><div class="indent">Table of number of degrees of freedom for each frequency channel
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Spectral Kurtosis Binary Table Extension</h3>
+<p>This table contains statistics relating to RFI excision using the 
+spectral kurtosis method (Nita &amp; Gary 2010), as implemented (for 
+example) by the data analysis program DSPSR.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Spectral Kurtosis ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / Width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / Number of rows in table <br>PCOUNT  =                    0 / Size of special data area <br>GCOUNT  =                    1 / One data group (required keyword) <br>TFIELDS =                    * / Number of fields per row <br>
+</p><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">NPOL    =                    * / Number of polarizations in SK data <br>NCHAN   =                    * / Nr of channels in SK data 
+</p>
+<div class="vspace"></div><div class="indent">Number of polarizations and frequency channels in kurtosis table
+</div><p class="vspace">EXTNAME = SPECKURT             / Name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = SK_INT               / Samples integrated in SK statistics <br>TFORM#  = V                    / unsigned integer <br>
+</p><div class="indent">Number of samples used to compute each estimate of spectral kurtosis 
+</div><p class="vspace">TTYPE#  = SK_EXCIS             / SK Excision limits <br>TFORM#  = V                    / unsigned integer <br>
+</p><div class="indent">Kurtosis threshold used to discriminate interference
+</div><p class="vspace">TTYPE#  = FIL_SUM              / Filtered SK sum <br>TDIM#   = (*,*)                / Data table dimensions (NPOL*NCHAN) <br>TFORM#  = E                    / NPOL*NCHAN floats <br>
+</p><div class="indent">For the corresponding sub-integration, a 2-D 
+array of spectral kurtosis estimates integrated over all samples 
+remaining after interference has been excised.
+</div><p class="vspace">TTYPE#  = FIL_HIT              / Filtered SK hits <br>TDIM#   = (*,*)                / Data table dimensions (NPOL*NCHAN) <br>TFORM#  = V                    / NPOL*NCHAN unsigned integers <br>
+</p><div class="indent">For the corresponding sub-integration, a 2-D 
+array of the number of spectral kurtosis estimates remaining after 
+interference has been excised.
+</div><p class="vspace">TTYPE#  = UNFIL_SUM            / Unfiltered SK sum <br>TDIM#   = (*,*)                / Data table dimensions (NPOL*NCHAN) <br>TFORM#  = E                    / NPOL*NCHAN floats <br>
+</p><div class="indent">For the corresponding sub-integration, a 2-D array of spectral kurtosis estimates integrated over all samples.
+</div><p class="vspace">TTYPE#  = UNFIL_HIT            / Unfiltered SK hits <br>TFORM#  = K                    / 64 bit signed integer <br>
+</p><div class="indent">For the corresponding sub-integration, the number of spectral kurtosis estimates 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Subintegration data Binary Table Extension</h3>
+<p>Table containing the observed power spectra, that is spectra after 
+detection or multiplication. Two modes of observation are catered for: 
+</p>
+<div class="vspace"></div><div class="indent"><strong>fold mode:</strong>
+ where the data are synchronously folded at the apparent period of a 
+pulsar using a Tempo polyco file or a Tempo2 predictor file and samples 
+are binned in pulse phase 
+<div class="vspace"></div></div><div class="indent"><strong>search mode:</strong> where streamed multichannel data are recorded in successive samples. 
+</div><p class="vspace">In both modes, the data can have a single 
+polarisation (normally the sum of two orthogonal polarisations), two 
+orthogonal polarisations or all four polarisation spectra. 
+</p>
+<p class="vspace">In fold mode, data are summed over a sub-integration 
+time and successive sub-integrations are stored in successive rows of 
+the BINTABLE. In search mode, data are blocked in groups of NSBLK 
+samples and stored in successive rows of the BINTABLE. To avoid 
+excessive overheads, NSBLK is typically 4096. 
+</p>
+<p class="vspace">Fold-mode data are stored as 16-bit signed integers 
+with elements of the data array in bin, channel and polarisation order 
+with the pulse profile bins in contiguous locations. Before conversion 
+to integers, the mean channel power (averaged over bins and 
+polarisations) during the sub-integration is subtracted from the channel
+ data and the residual is scaled so that the values in the DATA array 
+cover the whole available range (-32768 to 32767). The original observed
+ powers are reconstructed using:
+</p>
+<div class="vspace"></div><div class="indent">Real value = DATA value * DAT_SCL + DAT_OFFS.
+</div><p class="vspace">Search-mode data may be stored as 1-bit, 2-bit, 
+4-bit or 8-bit signed or unsigned integers and are written as a byte 
+array. Data digitised with less than 8 bits are packed with earlier 
+samples in higher-order bits of the byte (i.e., "big-endian"). Elements 
+of the data array are in channel, polarisation and sample order with the
+ spectral channels in contiguous locations.
+</p>
+<p class="vspace">Prior to few-bit digitisation, search-mode sample 
+spectra are generally normalised and given zero mean by forming (S-R)/R,
+ where S is the observed spectrum and R is an estimate of the bandpass 
+or reference spectrum. This effectively does a bandpass calibration and 
+gives an approximately constant rms deviation across the spectrum in 
+order to optimise the few-bit digitisation. These data are normally 
+analysed directly without application of the scale factors and offsets. 
+If required, the reference spectrum may be reconstructed from the 
+DAT_OFFS and DAT_SCL fields of the table. However note that, if channel 
+running means are used to form the reference spectrum, the recorded 
+values are sampled at sub-integration intervals and do do not 
+necessarily represent the exact values used to form the recorded 
+spectra.
+</p>
+<p class="vspace">When unsigned integers are used to record the 
+truncated data, a zero offset (ZERO_OFFS) is added to the digitised 
+value. Normally ZERO_OFFS = 2^(NBIT - 1) - 0.5, but for total-intensity 
+multi-bit data, a smaller value may be used to give more headroom. The 
+original observed values are reconstructed using:
+</p>
+<div class="vspace"></div><div class="indent">Real value = (DATA value - ZERO_OFFS) * DAT_SCL + DAT_OFFS.
+</div><p class="vspace">The output data for long search-mode 
+observations may be split in time or frequency and recorded in separate 
+files to keep file sizes at manageable values. It is assumed that the 
+data sampling is continuous across the split files.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Subintegration data  ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / width of table in bytes  <br><span class="wikiword">NAXIS2</span>  =                    * / Number of rows in table (NSUBINT) <br>PCOUNT  =                    0 / size of special data area <br>GCOUNT  =                    1 / one data group (required keyword) <br>TFIELDS =                   18 / Number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">EPOCHS  = '                  ' / Epoch convention (VALID, MIDTIME, STT_MJD)
+</p>
+<div class="vspace"></div><div class="indent">Different instruments use 
+different conventions for folding a time series into a pulse profile and
+ for recording the epoch of a sub-integration.  This parameter describes
+ one of the following three conventions; if it is not specified in the 
+PSRFITS file, then EPOCHS=STT_MJD is assumed. 
+</div><ul><li>If EPOCHS=VALID, then 
+<ol><li>the rising edge of phase bin zero corresponds to an integer turn
+ of the pulsar as predicted by the approximation to the timing model 
+used during folding (e.g. tempo2 predictor); and
+</li><li>the epoch recorded for each sub-integration (typically near the
+ mid-time of the integration) also corresponds to an integer turn of the
+ pulsar.
+</li></ol></li><li>If EPOCHS=MIDTIME, then 
+<ol><li>the rising edge of phase bin zero corresponds to an integer turn
+ of the pulsar as predicted by the approximation to the timing model 
+used during folding (e.g. tempo2 predictor); and
+</li><li>the epoch recorded for each sub-integration has no relation to pulse phase.
+</li></ol></li><li>If EPOCHS=STT_MJD, then
+<ol><li>the rising edge of phase bin zero corresponds to the phase of 
+the pulsar as predicted by the approximation to the timing model used 
+during folding at the epoch defined by the STT_IMJD, STT_SMJD, and 
+STT_OFFS parameters; this is typically the case when the first sample in
+ the time series is folded into the first phase bin.  Furthermore,
+</li><li>the epoch recorded for each sub-integration has no relation to pulse phase.
+</li></ol></li></ul><p class="vspace">INT_TYPE= '                  ' / Time axis (TIME, BINPHSPERI, BINLNGASC, etc)
+</p>
+<div class="vspace"></div><div class="indent">Normally data are recorded
+ with a uniform time axis, i.e., sub-integrations are spaced by equal 
+time intervals. However, in post-processing it is possible to make the 
+nominal time axis non-linear, to represent for example, binary orbital 
+phase or longitude. This keyword describes the form of the nominal time 
+axis.
+</div><p class="vspace">INT_UNIT= '                  ' / Unit of time axis (SEC, PHS (0-1), DEG) 
+</p>
+<div class="vspace"></div><div class="indent">Units of the nominal time axis.
+</div><p class="vspace">SCALE   = '                  ' / Intensity units (<span class="wikiword">FluxDen/RefFlux</span>/Jansky)
+</p>
+<div class="vspace"></div><div class="indent">Units of the data.
+</div><p class="vspace">POL_TYPE= '                  ' / Polarisation identifier (e.g., AABBCRCI, AA+BB)
+</p>
+<div class="vspace"></div><div class="indent">A string describing the 
+type of polarisation data, e.g., for NPOL=1 total-intensity data (summed
+ orthogonal polarisations), "AA+BB" may be used, where AA represents the
+ auto-spectrum of the A channel and BB represents the auto-spectrum of 
+the B channel. For NPOL=2, "AABB" may be used. For full polarisation 
+data, "AABBCRCI" may be used where CR represents the real part of the A*
+ B cross-spectrum and CI represents the imaginary part. For calibrated 
+Stokes parameters, "IQUV" is normally used.
+</div><p class="vspace">NPOL    =                    * / Nr of polarisations
+</p>
+<div class="vspace"></div><div class="indent">The number of polarisation products contained in the DATA table.
+</div><p class="vspace">TBIN    =                    * / [s] Time per bin or sample 
+</p>
+<div class="vspace"></div><div class="indent">For fold-mode data, the bin width in seconds; for search-mode data, the sampling interval in seconds. 
+</div><p class="vspace">NBIN    =                    * / Nr of bins (PSR/CAL mode; else 1)
+</p>
+<div class="vspace"></div><div class="indent">The number of bins in the fold-mode profile. For search-mode data, this parameter is irrelevant and normally set to 1. 
+</div><p class="vspace">NBIN_PRD=                    * / Nr of bins/pulse period (for gated data)
+</p>
+<div class="vspace"></div><div class="indent">For observations where 
+only part of the pulse profile is recorded (gated data), NBIN_PRD  is 
+the number of bins that the full pulse period would occupy. For example,
+ if 256 bins are recorded across one quarter of the pulse period, NBIN =
+ 256 and NBIN_PRD = 1024. 
+</div><p>Alternatively, if more than one pulse period is contained 
+within the recorded pulse profile, then NBIN_PRD is a sub-multiple of 
+NBIN.
+</p>
+<p class="vspace">PHS_OFFS=                    * / Phase offset of bin 0 for gated data
+</p>
+<div class="vspace"></div><div class="indent">For gated data, the value 
+of pulse phase (in the range 0 - 1.0) corresponding to the leading edge 
+of the first (index zero) bin in the folded profile.
+</div><p class="vspace">NBITS   =                    * / Nr of bits/datum (SEARCH mode data, else 1)
+</p>
+<div class="vspace"></div><div class="indent">For search-mode data, the number of bits per sample datum. Ignored for fold-mode data. 
+</div><p class="vspace">ZERO_OFF=                    * / Zero offset for SEARCH-mode data
+</p>
+<div class="vspace"></div><div class="indent">For data recorded as 
+unsigned integers, the offset of the nominal data zero in digitiser 
+units (actual data value = unsigned integer value - ZERO_OFF).
+</div><p class="vspace">SIGNINT =                    * / 1 for signed ints in SEARCH-mode data, else 0
+</p>
+<div class="vspace"></div><div class="indent">A flag to indicate that the data values are signed integers rather than unsigned integers.
+</div><p class="vspace">NSUBOFFS=                    * / Subint offset (Contiguous SEARCH-mode files)
+</p>
+<div class="vspace"></div><div class="indent">For files split in time, 
+NSUBOFFS is the accumulated sub-integration count at the start of this 
+file (such that true index value = file index value + NSUBOFFS).
+</div><p class="vspace">NCHAN   =                    * / Number of channels/sub-bands in this file
+</p>
+<div class="vspace"></div><div class="indent">Number of frequency channels for each polarisation
+</div><p class="vspace">CHAN_BW =                    * / [<span class="wikiword">MHz</span>] Channel/sub-band width
+</p>
+<div class="vspace"></div><div class="indent">Channel bandwidth in <span class="wikiword">MHz</span>. Note that CHAN_BW &lt; 0 implies decreasing frequency with increasing channel number.
+</div><p class="vspace">DM      =                    * / [cm-3 pc] DM for post-detection dedisperion
+</p>
+<div class="vspace"></div><div class="indent">Dispersion measure used for post-detection dedispersion.
+</div><p class="vspace">RM      =                    * / [rad m-2] RM for post-detection deFaraday
+</p>
+<div class="vspace"></div><div class="indent">Rotation measure used for post-detection correction of Faraday rotation
+</div><p class="vspace">NCHNOFFS=                    * / Channel/sub-band offset for split files
+</p>
+<div class="vspace"></div><div class="indent">For files split in 
+frequency, NCHNOFFS is the true channel index of the first channel in 
+this file (true index value = file index value + NCHNOFFS).
+</div><p class="vspace">NSBLK   =                    * / Samples/row (SEARCH mode, else 1) 
+</p>
+<div class="vspace"></div><div class="indent">For search-mode data, the number of samples in one table row or sub-integration.
+</div><p class="vspace">NSTOT   =                    * / Total number of samples (SEARCH mode, else 1)
+</p>
+<div class="vspace"></div><div class="indent">Total number of valid 
+samples in a search-mode file. This is useful since the last row may not
+ be completely filled. Note, for split files, NSTOT should be the number
+ of samples in that file, i.e., not accumulated over the whole 
+observation. 
+</div><p class="vspace">EXTNAME = SUBINT               / name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = INDEXVAL             / Optionally used if INT_TYPE != TIME <br>TFORM#  = 1D                   / Double
+</p>
+<div class="vspace"></div><div class="indent">If INT_TYPE is not "TIME",
+ this column gives the value of the time-like coordinate at the 
+sub-integration centre, expressed in appropriate units (e.g., degrees 
+for longitude).
+</div><p class="vspace">TTYPE#  = TSUBINT              / Length of subintegration <br>TFORM#  = 1D                   / Double  <br>TUNIT#  = s                    / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Duration of sub-integration (or row for search-mode data)
+</div><p class="vspace">TTYPE#  = OFFS_SUB             / Offset from Start of subint centre <br>TFORM#  = 1D                   / Double  <br>TUNIT#  = s                    / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Time since the observation start at the centre of each sub-integration (or row).
+</div><p class="vspace">TTYPE#  = LST_SUB              / LST at subint centre  <br>TFORM#  = 1D                   / Double  <br>TUNIT#  = s                    / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Approximate local sidereal time at the sub-integration centre
+</div><p class="vspace">TTYPE#  = RA_SUB               / RA (J2000) at subint centre <br>TFORM#  = 1D                   / Double  <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Pointing J2000 Right Ascension at the time of the sub-integration centre. For scanning observations this may change with time. 
+</div><p class="vspace">TTYPE#  = DEC_SUB              / Dec (J2000) at subint centre <br>TFORM#  = 1D                   / Double  <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Pointing J2000 Declination at the time of the sub-integration centre. For scanning observations this may change with time. 
+</div><p class="vspace">TTYPE#  = GLON_SUB             / [deg] Gal longitude at subint centre <br>TFORM#  = 1D                   / Double  <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Pointing Galactic longitude at the time of the sub-integration centre. For scanning observations this may change with time. 
+</div><p class="vspace">TTYPE#  = GLAT_SUB             / [deg] Gal latitude at subint centre <br>TFORM#  = 1D                   / Double  <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Pointing Galactic latitude at the time of the sub-integration centre. For scanning observations this may change with time. 
+</div><p class="vspace">TTYPE#  = FD_ANG               / [deg] Feed angle at subint centre <br>TFORM#  = 1E                   / Float <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Angle of the feed reference (normally the A or X probe) with respect to the telescope zenith meridian. 
+</div><p class="vspace">TTYPE#  = POS_ANG              / [deg] Position angle of feed at subint centre <br>TFORM#  = 1E                   / Float <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Angle of the feed 
+reference (normally the A/X probe) with respect to the celestial 
+meridian. This may be held at a fixed value by adjusting the feed angle 
+according to the variation of parallactic angle during an observation 
+(FD_MODE = "CPA").
+</div><p class="vspace">TTYPE#  = PAR_ANG              / [deg] Parallactic angle at subint centre <br>TFORM#  = 1E                   / Float <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Parallactic angle at the time of the sub-integration centre.
+</div><p class="vspace">TTYPE#  = TEL_AZ               / [deg] Telescope azimuth at subint centre <br>TFORM#  = 1E                   / Float  <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Telescope azimuth angle at the time of the sub-integration centre.
+</div><p class="vspace">TTYPE#  = TEL_ZEN              / [deg] Telescope zenith angle at subint centre <br>TFORM#  = 1E                   / Float <br>TUNIT#  = deg                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Telescope zenith angle at the time of the sub-integration centre.
+</div><p class="vspace">TTYPE#  = AUX_DM               / additional DM (ionosphere, corona, etc.) <br>TFORM#  = 1D                   / Double <br>TUNIT#  = CM-3 PC              / units of field
+</p>
+<div class="vspace"></div><div class="indent">An additional time-varying
+ component of dispersion measure to be added to the interstellar 
+component. This allows observed dispersion measures to separated into a 
+constant or slowly varying component and a time-varying (normally 
+solar-system) component. 
+</div><p class="vspace">TTYPE#  = AUX_RM               / additional RM (ionosphere, corona, etc.) <br>TFORM#  = 1D                   / Double <br>TUNIT#  = RAD M-2              / units of field
+</p>
+<div class="vspace"></div><div class="indent">An additional time-varying
+ component of rotation measure to be added to the interstellar 
+component. This allows observed rotation measures to separated into a 
+constant or slowly varying component and a time-varying (normally 
+solar-system) component. 
+</div><p class="vspace">TTYPE#  = DAT_FREQ             / [<span class="wikiword">MHz</span>] Centre frequency for each channel <br>TFORM#  = D                    / NCHAN doubles <br>TUNIT#  = <span class="wikiword">MHz</span>                  / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Centre frequency of each 
+channel or sub-band. For data where channels have been summed to form 
+sub-bands, the frequency of each sub-band is the weighted mean of the 
+centre frequencies of the summed channels.
+</div><p class="vspace">TTYPE#  = DAT_WTS              / Weights for each channel <br>TFORM#  = E                    / NCHAN floats
+</p>
+<div class="vspace"></div><div class="indent">Channel weights, in the 
+range 0 - 1. Channels may be given zero weight if they are affected by 
+interference or outside the effective bandpass. Normally defaults to 1.0
+ for original recorded data.
+</div><p class="vspace">TTYPE#  = DAT_OFFS             / Data offset for each channel <br>TFORM#  = E                    / NCHAN*NPOL floats
+</p>
+<div class="vspace"></div><div class="indent">Value subtracted from data to give zero mean for each channel.
+</div><p class="vspace">TTYPE#  = DAT_SCL              / Data scale factor (outval=dataval*scl + offs) <br>TFORM#  = E                    / NCHAN*NPOL floats
+</p>
+<div class="vspace"></div><div class="indent">Scale factor used so that the integer table data cover the full available range.
+</div><p class="vspace">TTYPE#  = DATA                 / Subint data table <br>TDIM#   = (*,*,*)              / (NBIN,NCHAN,NPOL) or (NCHAN,NPOL,NSBLK*NBITS/8) <br>TFORM#  = I                    / I (Fold) or B (1-8 bit) Search <br>TUNIT#  = Jy                   / Units of subint data
+</p>
+<div class="vspace"></div><div class="indent">Table containing the 
+digitised data. For fold-mode data, 16-bit integers are used to 
+represent the scaled and baseline-subtracted data. Search-mode data are 
+stored as a byte array. If NBIT &lt; 8, samples are packed into bytes 
+with earlier samples in the higher-order bits. 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Digitiser Statistics Binary Table Extension</h3>
+<p>A table of digitiser parameters sampled at regular intervals, for 
+example, each correlator cycle. For example, for each cycle, the mean 
+and rms levels of the digitised signal for each input polarisation 
+channel could be recorded.
+</p>
+<p class="vspace">XTENSION= BINTABLE             / ***** Digitiser statistics ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / Width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / Number of rows in table (NSUBINT) <br>PCOUNT  =                    0 / Size of special data area <br>GCOUNT  =                    1 / One data group (required keyword) <br>TFIELDS =                    1 / Number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">DIG_MODE= '                '   / Digitiser mode
+</p>
+<div class="vspace"></div><div class="indent">String identifier for digitiser system.
+</div><p class="vspace">NDIGR   =                    * / Number of digitised channels (I)
+</p>
+<div class="vspace"></div><div class="indent">Number of digitiser channels. Normally NDIGR = 2 for receivers with two orthogonally polarised receiver channels.
+</div><p class="vspace">NPAR    =                    * / Number of digitiser parameters
+</p>
+<div class="vspace"></div><div class="indent">Number of parameters of 
+digitised signal recorded per cycle. For example, if the mean and rms 
+digitiser levels are recorded for each digitiser (polarisation) channel,
+ NPAR = 4. 
+</div><p class="vspace">NCYCSUB =                    * / Number of correlator cycles per subint
+</p>
+<div class="vspace"></div><div class="indent">Number of sets of NPAR parameters for each sub-integration.
+</div><p class="vspace">DIGLEV  = '                '   / Digitiser level-setting mode (AUTO, FIX)
+</p>
+<div class="vspace"></div><div class="indent">String describing method 
+of setting digitiser thresholds. Normally "AUTO" means that the 
+threshold levels are automatically adjusted according to the rms 
+fluctuation of the input signal.
+</div><p class="vspace">EXTNAME = DIG_STAT             / Name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = ATTEN                / Attenuator settings <br>TFORM#  = E                    / NDIGR floats <br>TUNIT#  = db                   / Units of field
+</p>
+<div class="vspace"></div><div class="indent">Settings of the primary attenuators used to adjust the input signal level at the digitiser input for each polarisation channel.
+</div><p class="vspace">TTYPE#  = DATA                 / Digitiser statistics <br>TDIM#   = (*,*,*)              / Data table dimensions (NPAR,NDIGR,NCYCSUB) <br>TFORM#  = E                    / NPAR*NDIGR*NCYCSUB floats
+</p>
+<div class="vspace"></div><div class="indent">Table of parameters of the digitised signals sampled each correlator cycle. 
+</div><p class="vspace">END
+</p>
+<div class="vspace"></div><h3>Digitiser Counts Binary Table Extension</h3>
+<p>A table containing histograms of occurrence of digitised sample 
+values for each polarisation or digitiser channel integrated over some 
+period, e.g., a correlator cycle. Table values are offset and scaled to 
+cover the full range of a 16-bit signed integer. The original histogram 
+values are reconstructed using:
+</p>
+<div class="vspace"></div><div class="indent">Histogram value = DATA table value * DAT_SCL + DAT_OFFS.
+</div><p class="vspace">XTENSION= BINTABLE             / ***** Digitiser counts ***** <br>BITPIX  =                    8 / N/A <br>NAXIS   =                    2 / 2-dimensional binary table <br><span class="wikiword">NAXIS1</span>  =                    * / Width of table in bytes <br><span class="wikiword">NAXIS2</span>  =                    * / Number of rows in table <br>PCOUNT  =                    0 / Size of special data area <br>GCOUNT  =                    1 / One data group (required keyword) <br>TFIELDS =                    3 / Number of fields per row
+</p>
+<div class="vspace"></div><div class="indent">Standard FITS Binary Table header
+</div><p class="vspace">DIG_MODE= '                '   / Digitiser mode
+</p>
+<div class="vspace"></div><div class="indent">String identifier for digitiser system.
+</div><p class="vspace">DYN_LEVT=                    * / Timescale for dynamic leveling
+</p>
+<div class="vspace"></div><div class="indent">Timescale for automatic adjustment of input signal levels (default unit: s)
+</div><p class="vspace">NDIGR   =                    * / Number of digitised channels (I)
+</p>
+<div class="vspace"></div><div class="indent">Number of digitiser channels. Normally NDIGR = 2 for receivers with two orthogonally polarised receiver channels.
+</div><p class="vspace">NLEV    =                    * / Number of digitiser levels
+</p>
+<div class="vspace"></div><div class="indent">Number of digitiser levels, e.g., for a 9-bit digitiser, NLEV = 512.
+</div><p class="vspace">NPTHIST =                    * / Number of points in histogram (I)
+</p>
+<div class="vspace"></div><div class="indent">Number of bins in each histogram (normally = NLEV).
+</div><p class="vspace">DIGLEV  = '                '   / Digitiser level-setting mode (AUTO, FIX)
+</p>
+<div class="vspace"></div><div class="indent">String describing method 
+of setting digitiser thresholds. Normally "AUTO" means that the 
+threshold levels are automatically adjusted according to the rms 
+fluctuation of the input signal.
+</div><p class="vspace">LEVSEPN  =                    * / Separation of dig. threshold levels in rms
+</p>
+<div class="vspace"></div><div class="indent">For multi-bit digitising, 
+the nominal separation of the digitiser threshold levels expressed in 
+units of the rms fluctuation of the input signal. For 2-bit 4-level 
+digitising, it is the absolute value of the digitiser threshold levels 
+with respect to the mean level, expressed in units of the rms 
+fluctuation of the input signal.
+</div><p class="vspace">EXTNAME = DIG_CNTS             / Name of this binary table extension
+</p>
+<p class="vspace">TTYPE#  = DAT_OFFS             / Data offset for each histogram <br>TFORM#  = E                    / NDIGR floats
+</p>
+<div class="vspace"></div><div class="indent">Data offsets for each digitiser histogram
+</div><p class="vspace">TTYPE#  = DAT_SCL              / Data scale factor for each histogram <br>TFORM#  = E                    / NDIGR floats
+</p>
+<div class="vspace"></div><div class="indent">Values used to scale histogram to cover the full range of signed 16-bit integers.
+</div><p class="vspace">TTYPE#  = DATA                 / Digitiser count data <br>TDIM#   = (*,*)                / Data table dimensions (NPTHIST,NDIGR) \\   
+TFORM#  = I                    / NPTHIST*NDIGR integers
+</p>
+<div class="vspace"></div><div class="indent">Table containing scaled and offset histogram values as signed 16-bit integers.
+</div><p class="vspace">END
+</p>
+
+
+			
+		
+
+<!--HTMLFooter-->
+
+
+</body></html>

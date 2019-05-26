@@ -10,6 +10,7 @@ from ._astropy_init import *
 # Enforce Python version check during package import.
 # This is the same check as the one at the top of setup.py
 import sys
+import os
 
 __minimum_python_version__ = "3.5"
 
@@ -27,3 +28,6 @@ if (sys.version_info < tuple(
 if not _ASTROPY_SETUP_:
     # For egg_info test builds to pass, put package imports here.
     pass
+
+package_path = os.path.dirname(os.path.realpath(__file__))
+data_path = os.path.join(package_path, 'data')

@@ -9,6 +9,8 @@ from astropy.coordinates import Angle, Latitude, Longitude
 from astropy.io import fits
 from astropy.utils import lazyproperty
 import numpy as np
+import operator
+from .psrfits_htm_parser import hdu_templates
 
 
 __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
@@ -16,13 +18,32 @@ __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
 
 
 class HDUWrapper:
-    def __init__(self, hdu, verify=True):
+    def __init__(self, hdu=None, verify=True, hdu_type=None):
+        if hdu is None:
+            hdu = self.init_hdu(hdu_type)
+            verify = False
         self.hdu = hdu
         if verify:
             self.verify()
 
     def verify(self):
         assert isinstance(self.header, fits.Header)
+
+    def init_hdu(self, hdu_name):
+        target_hdu, hdu_parts = hdu_templates[hdu_name]
+        hdu = target_hdu()
+        # Add header card.
+        # HDU part should always have cards.
+        for card in hdu_parts['card']:
+            hdu.header.set(card['name'], value=card['value'], comment=card['comment'])
+        # add comment cards
+        # TODO comment need a little bit tuning
+        if hdu_parts['comment'] != []:
+            for ce in hdu_parts['comment']:
+                hdu.header.set(ce['name'], value=' '.join(ce['value'].split()),
+                               after=ce['after'])
+        # TODO add column
+        return hdu
 
     @property
     def header(self):
@@ -53,6 +74,10 @@ class PSRFITSPrimaryHDU(HDUWrapper):
     _properties = ('location', 'start_time', 'observatory', 'frequency',
                    'ra', 'dec', 'shape', 'sample_rate')
 
+    def __init__(self, hdu=None, verify=True):
+        # When input hdu is None, the Primary header will be initialize as empty
+        super().__init__(hdu, hdu_type="PRIMARY", verify=verify)
+
     def verify(self):
         assert self.header['SIMPLE'], "The HDU is not a FITS primary HDU."
         assert self.header['FITSTYPE'] == "PSRFITS", \
@@ -64,8 +89,16 @@ class PSRFITSPrimaryHDU(HDUWrapper):
             return EarthLocation(self.header['ANT_X'],
                                  self.header['ANT_Y'],
                                  self.header['ANT_Z'], u.m)
-        except KeyError:
+        except (KeyError, TypeError):   # Sometimes PSRFITS uses '*' as no data.
             return None
+
+    @location.setter
+    def location(self, loc):
+        """ Location setter. input should be an Astropy EarthLocation"""
+        # TODO, for the space base observatory, Earth Location may not apply.
+        self.hdu.header['ANT_X'] = loc.x.to_value(u.m)
+        self.hdu.header['ANT_Y'] = loc.y.to_value(u.m)
+        self.hdu.header['ANT_Z'] = loc.z.to_value(u.m)
 
     @property
     def start_time(self):
@@ -74,9 +107,27 @@ class PSRFITSPrimaryHDU(HDUWrapper):
                 TimeDelta(self.header['STT_SMJD'], self.header['STT_OFFS'],
                           format='sec', scale='tai'))
 
+    @start_time.setter
+    def start_time(self, time):
+        """ Set the start_time, the input value should be an Time object"""
+        # Should we allow time set location
+        if time.location is not None:
+            self.location = time.location
+        mjd_int = int(time.mjd)
+        mjd_frac = (time - Time(mjd_int, scale=time.scale, format=time.format))
+        frac_sec, int_sec = np.modf(mjd_frac.to(u.s).value)
+        self.hdu.header['STT_IMJD'] = '{0:05d}'.format(mjd_int)
+        self.hdu.header['STT_SMJD'] = '{}'.format(int(int_sec))
+        self.hdu.header['STT_OFFS'] = '{0:17.15f}'.format(frac_sec)
+        self.hdu.header['DATE-OBS'] = time.fits
+
     @property
-    def observatory(self):
+    def telescope(self):
         return self.header['TELESCOP']
+
+    @telescope.setter
+    def telescope(self, value):
+        self.hdu.header['TELESCOP'] = value
 
     @property
     def frequency(self):
@@ -93,21 +144,51 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         # and c_freq is the frequency of channel n_nchan / 2.  We use
         # (n_chan + 1) // 2 to ensure this makes sense for n_chan = 1
         # and is consistent with the document at least for even n_chan.
+
         freq = c_freq + (np.arange(1, n_chan + 1) -
                          ((n_chan + 1) // 2)) * chan_bw
         return u.Quantity(freq, u.MHz, copy=False)
+
+    @frequency.setter
+    def frequency(self, freq):
+        """Frequency setter. The input should be the frequency array."""
+        freq = freq.to_value(u.MHz)
+        n_chan = len(freq)
+        # add the channel 0
+        # we assume the frequency resolution is the same across the band.
+        freq_pad = np.insert(freq, 0, 2 * freq[0] - freq[1])
+        c_chan = freq_pad[((n_chan + 1) // 2)]
+        bw = freq_pad.ptp()
+        self.hdu.header['OBSNCHAN'] = n_chan
+        self.hdu.header['OBSFREQ'] = c_chan
+        self.hdu.header['OBSBW'] = bw
 
     @property
     def ra(self):
         return Longitude(self.header['RA'], unit=u.hourangle)
 
+    @ra.setter
+    def ra(self, value):
+        self.hdu.header['RA'] = value.to_string(sep=':', pad=True)
+
     @property
     def dec(self):
         return Latitude(self.header['DEC'], unit=u.deg)
 
+    @dec.setter
+    def dec(self, value):
+        self.hdu.header['DEC'] = value.to_string(sep=':', alwayssign=True,
+                                                 pad=True)
+
     @property
     def obs_mode(self):
         return self.header['OBS_MODE']
+
+    @obs_mode.setter
+    def obs_mode(self, value):
+        assert value in {'PSR', 'CAL', 'SEARCH'}, \
+            "obs_mode can only be 'PSR', 'CAL', or 'SEARCH'."
+        self.hdu.header['OBS_MODE'] = value
 
 
 class SubintHDU(HDUWrapper):
@@ -135,7 +216,7 @@ class SubintHDU(HDUWrapper):
     _sample_shape_maker = namedtuple('SampleShape', 'nbin, nchan, npol')
     _shape_maker = namedtuple('Shape', 'nsample, nbin, nchan, npol')
 
-    def __new__(cls, hdu, primary_hdu, verify=True):
+    def __new__(cls, primary_hdu, hdu=None, verify=True):
         # Map Subint subclasses;
         # TODO: switch to__init_subclass__ when we only support python>=3.6.
         mode = primary_hdu.obs_mode
@@ -146,10 +227,10 @@ class SubintHDU(HDUWrapper):
 
         return super().__new__(cls)
 
-    def __init__(self, hdu, primary_hdu, verify=True):
+    def __init__(self, primary_hdu=None, hdu=None, verify=True):
         self.primary_hdu = primary_hdu
         self.offset = 0
-        super().__init__(hdu, verify=verify)
+        super().__init__(hdu, verify=verify, hdu_type='SUBINT')
 
     def verify(self):
         assert self.header['EXTNAME'].strip() == "SUBINT", \
@@ -170,17 +251,33 @@ class SubintHDU(HDUWrapper):
     def nrow(self):
         return self.header['NAXIS2']
 
+    @nrow.setter
+    def nrow(self, value):
+        self.hdu.header['NAXIS2'] = operator.index(value)
+
     @property
     def nchan(self):
         return self.header['NCHAN']
+
+    @nchan.setter
+    def nchan(self, value):
+        self.hdu.header['NCHAN'] = operator.index(value)
 
     @property
     def npol(self):
         return self.header['NPOL']
 
+    @npol.setter
+    def npol(self, value):
+        self.hdu.header['NPOL'] = operator.index(value)
+
     @property
     def nbin(self):
         return self.header['NBIN']
+
+    @nbin.setter
+    def nbin(self, value):
+        self.hdu.header['NBIN'] = operator.index(value)
 
     @property
     def sample_shape(self):
@@ -199,6 +296,20 @@ class SubintHDU(HDUWrapper):
         return np.array([map(''.join, zip(*[iter(self.header['POL_TYPE'])] *
                                           (len(pol_type) // self.npol)))])
 
+    @polarization.setter
+    def polarization(self, value):
+        """ Setter for polarization labels.
+        Parameter
+        ---------
+        value : array-like
+            The names of polarization
+        """
+        # check if the input value length matches the npol
+        assert len(value) == self.npol, \
+            ("The input polarization name does not match the number of"
+             " polarizations.")
+        self.hdu.header['POL_TYPE'] = ''.join(value)
+
     @property
     def frequency(self):
         if 'DAT_FREQ' in self.data.names:
@@ -211,6 +322,12 @@ class SubintHDU(HDUWrapper):
             freqs = freqs.reshape(-1, 1)
 
         return freqs
+
+    @frequency.setter
+    def frequency(self, freqs):
+        freqs = freqs.to_value(u.MHz)
+        self.hdu.data['DAT_FREQ'] = np.broadcast_to(freqs, (self.nrow,
+                                                            self.nchan))
 
     @lazyproperty
     def dtype(self):
@@ -296,6 +413,18 @@ class PSRSubintHDU(SubintHDU):
 
         return start_time
 
+    @start_time.setter
+    def start_time(self, time):
+        """
+        Note
+        ----
+        this sets the start time of the HDU, not the file start time.
+        """
+        dt = (time - self.header_hdu.start_time)
+
+        center_off0 = dt + 1.0 / self.sample_rate / 2
+        self.hdu.data['OFFS_SUB'][0] = center_off0.to_value(u.s)
+
     @property
     def samples_per_frame(self):
         return 1
@@ -307,6 +436,11 @@ class PSRSubintHDU(SubintHDU):
         # TODO: check whether there really isn't a better way!.
         sample_time = u.Quantity(self.data['TSUBINT'], u.s).mean()
         return 1.0 / sample_time
+
+    @sample_rate.setter
+    def sample_rate(self, value):
+        sample_time = 1.0 / value
+        self.hdu.data['TSUBINT'] = sample_time.to_value(u.s)
 
     def close(self):
         super().close()
