@@ -159,6 +159,27 @@ class TestPhase:
         sub4 = self.phase - 1. * u.cycle
         assert_equal(sub4, Phase(self.phase1 - 1 * u.cycle, self.phase2))
 
+    def test_inplace_addition(self):
+        add = self.phase.copy()
+        add += self.phase
+        assert_equal(add, Phase(2. * self.phase1, 2. * self.phase2))
+
+        result = np.subtract(add, self.phase, out=add)
+        assert result is add
+        assert_equal(result, self.phase)
+
+        # Quantity output should work.
+        out = self.phase.cycle
+        out += self.phase
+        assert_equal(out, 2 * self.phase.cycle)
+
+        result2 = np.subtract(out, self.phase, out=out)
+        assert result2 is out
+        assert_equal(out, self.phase.cycle)
+
+        with pytest.raises(TypeError):  # array output is not OK.
+            np.add(out, self.phase, out=out.value)
+
     @pytest.mark.parametrize('op', (operator.eq, operator.ne,
                                     operator.le, operator.lt,
                                     operator.ge, operator.ge))
@@ -188,9 +209,29 @@ class TestPhase:
         assert (self.phase == 1. * u.m) is False
         assert (self.phase != 1. * u.m) is True
 
+    @pytest.mark.xfail(reason="astropy bug: https://github.com/astropy/astropy/issues/8764")
+    def test_comparison_with_out(self):
+        out = np.empty(self.phase.shape, bool)
+        result = np.less(self.phase, self.phase[0], out=out)
+        assert result is out
+        assert_equal(result, np.less((self.phase - self.phase[0]).cycle, 0.))
+        with pytest.raises(TypeError):
+            np.less(self.phase, self.phase[0], out=self.phase)
+
     def test_negation(self):
         neg = -self.phase
         assert_equal(neg, Phase(-self.phase1, -self.phase2))
+
+    def test_negation_with_out(self):
+        out = 0 * self.phase
+        result = np.negative(self.phase, out=out)
+        assert result is out
+        assert_equal(result, Phase(-self.phase1, -self.phase2))
+        # Also with regular Angle input.
+        out2 = Phase(np.zeros_like(self.phase1))
+        result2 = np.negative(self.phase1, out=out2)
+        assert result2 is out2
+        assert_equal(result2, Phase(-self.phase1))
 
     def test_absolute(self):
         check = abs(-self.phase)
@@ -309,6 +350,18 @@ class TestPhase:
         phase = Phase(cycle, d)
         assert np.isclose(ufunc(phase), expected, rtol=1e-14,
                           atol=1e-14).all()
+
+    def test_trig_with_out(self):
+        out = np.zeros(self.phase.shape) * u.dimensionless_unscaled
+        result = np.sin(self.phase, out=out)
+        assert out is result
+        assert np.all(np.sin(self.phase2) == result)
+        # Need quantity to store output.
+        with pytest.raises(TypeError):
+            np.sin(self.phase, out=self.phase)
+        # Also bail if one got there because of out.
+        with pytest.raises(TypeError):
+            np.sin(self.phase2, out=self.phase)
 
     def test_isnan(self):
         expected = np.zeros(self.phase.shape)

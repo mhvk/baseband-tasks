@@ -17,8 +17,8 @@ __all__ = ['Phase', 'FractionalPhase']
 FRACTION_UFUNCS = {np.cos, np.sin, np.tan, np.spacing}
 
 
-TWO_PHASE_UFUNCS = {
-    np.add, np.subtract, np.equal, np.not_equal,
+COMPARISON_UFUNCS = {
+    np.equal, np.not_equal,
     np.less, np.less_equal, np.greater, np.greater_equal}
 
 
@@ -147,7 +147,7 @@ class Phase(Angle):
         return cls.from_angles(phase1, phase2)
 
     @classmethod
-    def from_angles(cls, phase1, phase2=None, factor=None, divisor=None):
+    def from_angles(cls, phase1, phase2=None, factor=None, divisor=None, out=None):
         # TODO: would be nice if day_frac had an out parameter.
         phase1_value = phase1.to_value(cls._unit)
         if phase2 is None:
@@ -156,10 +156,14 @@ class Phase(Angle):
             phase2_value = phase2.to_value(cls._unit)
         count, fraction = day_frac(phase1_value, phase2_value,
                                    factor=factor, divisor=divisor)
-        value = np.empty(count.shape, cls._phase_dtype)
+        if out is None:
+            value = np.empty(count.shape, cls._phase_dtype)
+            out = value.view(cls)
+        else:
+            value = out.view(np.ndarray)
         value['int'] = count
         value['frac'] = fraction
-        return value.view(cls)
+        return out
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
@@ -311,6 +315,8 @@ class Phase(Angle):
         """
         return self._take_along_axis(self.argsort(axis), axis, keepdims=True)
 
+    # Quantity lets ndarray.__eq__, __ne__ deal with structured arrays (like us).
+    # Override this so we can deal with it in __array_ufunc__.
     def __eq__(self, other):
         try:
             return np.equal(self, other)
@@ -345,66 +351,86 @@ class Phase(Angle):
             others `~astropyy.units.Quantity` or `~numpy.ndarray` as
             appropriate.
         """
-        # TODO: deal with output at some point...
-        assert 'out' not in kwargs
+        # Do *not* use inputs.index(self) since that will use __eq__
+        for i_self, input_ in enumerate(inputs):
+            if input_ is self:
+                break
+        else:
+            i_self += 1
 
-        if function in FRACTION_UFUNCS:
-            # These all have just one input, which should be self.
-            assert self is inputs[0]
+        out = kwargs.get('out', None)
+        if out is not None and len(out) == 1 and isinstance(out[0], Phase):
+            phase_out = kwargs.pop('out')[0]
+            out = None
+        else:
+            phase_out = None
+
+        if function in FRACTION_UFUNCS and i_self == 0:
+            if phase_out is not None:  # TODO: spacing is in principle OK.
+                return NotImplemented
+
             return self.frac.__array_ufunc__(function, method,
                                              self.frac, **kwargs)
 
-        elif function in TWO_PHASE_UFUNCS:
-            inputs = list(inputs)
-            i_other = 1 if inputs[0] is self else 0
-            if not isinstance(inputs[i_other], Phase):
-                try:
-                    inputs[i_other] = Phase(inputs[i_other])
-                except Exception:
-                    return NotImplemented
+        elif function in {np.add, np.subtract} and out is None:
+            try:
+                phases = [Phase(input_, copy=False, subok=True)
+                          for input_ in inputs]
+            except Exception:
+                return NotImplemented
 
-            if function is np.add or function is np.subtract:
-                return self.from_angles(
-                    function(inputs[0]['int'], inputs[1]['int']),
-                    function(inputs[0]['frac'], inputs[1]['frac']))
+            return self.from_angles(
+                function(phases[0]['int'], phases[1]['int']),
+                function(phases[0]['frac'], phases[1]['frac']),
+                out=phase_out)
+
+        elif function in COMPARISON_UFUNCS and i_self <= 1:
+            if phase_out is not None:
+                return NotImplemented
+
+            phases = list(inputs)
+            try:
+                phases[1-i_self] = Phase(inputs[1-i_self], copy=False,
+                                         subok=True)
+            except Exception:
+                return NotImplemented
+
+            diff = ((phases[0]['int'] - phases[1]['int']) +
+                    (phases[0]['frac'] - phases[1]['frac']))
+            return diff.__array_ufunc__(function, method, diff, 0, **kwargs)
+
+        elif ((function is np.multiply and i_self < 2 or
+               function is np.divide and i_self == 0) and out is None and
+              not isinstance(inputs[1-i_self], Phase)):
+            try:
+                other = u.Quantity(inputs[1-i_self], u.dimensionless_unscaled,
+                                   copy=False)
+            except Exception:
+                # If not consistent with a dimensionless quantity,
+                # we follow the standard route of downgrading ourself
+                # to a quantity and see if things work.
+                pass
             else:
-                diff = ((inputs[0]['int'] - inputs[1]['int']) +
-                        (inputs[0]['frac'] - inputs[1]['frac']))
-                return diff.__array_ufunc__(function, method, diff, 0,
-                                            **kwargs)
-
-        elif (function is np.multiply or
-              function is np.divide and inputs[0] is self):
-            inputs = list(inputs)
-            i_other = 1 if inputs[0] is self else 0
-            other = inputs[i_other]
-            if not isinstance(other, Phase):
-                try:
-                    other = u.Quantity(other, u.dimensionless_unscaled,
-                                       copy=False)
-                except Exception:
-                    # If not consistent with a dimensionless quantity,
-                    # we follow the standard route of downgrading ourself
-                    # to a quantity and see if things work.
-                    pass
+                if function is np.multiply:
+                    return self.from_angles(self['int'], self['frac'],
+                                            factor=other.value, out=phase_out)
                 else:
-                    if function is np.multiply:
-                        return self.from_angles(self['int'], self['frac'],
-                                                factor=other.value)
-                    else:
-                        return self.from_angles(self['int'], self['frac'],
-                                                divisor=other.value)
+                    return self.from_angles(self['int'], self['frac'],
+                                            divisor=other.value, out=phase_out)
+
         elif (function in {np.floor_divide, np.remainder, np.divmod} and
-              inputs[0] is self):
+              i_self == 0):
             fd = np.floor_divide(self.cycle, inputs[1])
             corr = Phase.from_angles(inputs[1], factor=fd)
-            remainder = self - corr
+            remainder = np.subtract(self, corr)
             fdx = np.floor_divide(remainder.cycle, inputs[1])
             # This can likely be optimized...
-            if fdx.nonzero()[0].size:
+            # Note: one cannot just loop, because rounding of exact 0.5.
+            # TODO: check this method is really correct.
+            if np.count_nonzero(fdx):
                 fd += fdx
                 corr = Phase.from_angles(inputs[1], factor=fd)
-                remainder = self - corr
+                remainder = np.subtract(self, corr, out=remainder)
 
             if function is np.floor_divide:
                 return fd
@@ -413,22 +439,36 @@ class Phase(Angle):
             else:
                 return fd, remainder
 
-        elif function is np.positive:
-            return self.copy()
-
-        elif function is np.negative:
-            return self.from_angles(-self['int'], -self['frac'])
-
-        elif function is np.absolute or function is np.fabs:
+        elif function is np.positive and i_self == 0 and out is None:
             return self.from_angles(self['int'], self['frac'],
-                                    factor=np.sign(self.value))
+                                    out=phase_out)
 
-        quantity = self.cycle
-        inputs = tuple((input_ if input_ is not self else quantity)
-                       for input_ in inputs)
+        elif function is np.negative and i_self == 0 and out is None:
+            return self.from_angles(-self['int'], -self['frac'],
+                                    out=phase_out)
 
-        return quantity.__array_ufunc__(function, method, *inputs,
-                                        **kwargs)
+        elif function in {np.absolute, np.fabs} and out is None:
+            return self.from_angles(self['int'], self['frac'],
+                                    factor=np.sign(self.value),
+                                    out=phase_out)
+
+        # Fall-back: treat Phase as a simple Quantity.
+        if i_self < function.nin:
+            inputs = tuple((input_.cycle if isinstance(input_, Phase)
+                            else input_) for input_ in inputs)
+            quantity = inputs[i_self]
+        else:
+            quantity = self.cycle
+
+        if phase_out is None:
+            return quantity.__array_ufunc__(function, method, *inputs,
+                                            **kwargs)
+        else:
+            # We won't be able to store in a phase directly, but might
+            # as well use one of its elements to store the angle.
+            result = quantity.__array_ufunc__(function, method, *inputs,
+                                              out=(phase_out['int'],), **kwargs)
+            return phase_out.from_angles(result, out=phase_out)
 
     def _new_view(self, obj=None, unit=None):
         # If the unit is not right, we should ensure we change our two-float
