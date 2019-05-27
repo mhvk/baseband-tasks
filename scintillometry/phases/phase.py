@@ -105,6 +105,15 @@ class FractionalPhase(Longitude):
     _default_wrap_angle = Angle(0.5, u.cycle)
     _equivalent_unit = _default_unit = u.cycle
 
+    def __new__(cls, angle, unit=None, wrap_angle=None, **kwargs):
+        # TODO: ideally, the Longitude/Angle/Quantity initializer by
+        # default tries to convert to float also for structured arrays,
+        # maybe via astype.
+        if isinstance(angle, Phase):
+            angle = angle['frac']
+        return super().__new__(cls, angle, unit=unit, wrap_angle=wrap_angle,
+                               **kwargs)
+
 
 class Phase(Angle):
     """Represent two-part phase.

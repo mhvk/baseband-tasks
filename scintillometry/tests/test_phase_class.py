@@ -86,7 +86,7 @@ class TestPhaseInit:
         assert type(phase8) is MyPhase
 
 
-class TestPhase:
+class PhaseSetup:
     def setup(self):
         self.phase1 = Angle(np.array([1000., 1001., 999., 1005, 1006.]),
                             u.cycle)[:, np.newaxis]
@@ -95,6 +95,8 @@ class TestPhase:
         self.phase = Phase(self.phase1, self.phase2)
         self.delta = Phase(0., self.phase2)
 
+
+class TestPhase(PhaseSetup):
     def test_basics(self):
         assert isinstance(self.phase, Phase)
         assert np.all(self.phase.int % (1. * u.cycle) == 0)
@@ -376,3 +378,10 @@ class TestPhase:
         assert_equal(np.isnan(phase), expected)
         trial = Phase(np.nan)
         assert np.isnan(trial)
+
+
+class TestFractionalPhase(PhaseSetup):
+    """Since FractionalPhase is a subclass of Longitude, only limited tests."""
+    def test_keep_precision(self):
+        fp = FractionalPhase(self.phase)
+        assert np.all(fp == self.phase2)
