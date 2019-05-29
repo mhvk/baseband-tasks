@@ -225,6 +225,7 @@ class Integrate(BaseTaskBase):
             ih_time = self.ih.start_time + old_offsets / self.ih.sample_rate
             # TODO: the conversion is only necessary because of a bug in
             # Quantity._to_own_unit; see https://github.com/astropy/astropy/pull/8535
+            # Remove when we require astropy >= 3.2.
             ih_phase[mask] = (self._phase(ih_time) - self._start).to(ih_phase.unit)
             # Next, interpolate in known phases to get improved offsets.
             offsets[mask] = np.interp(phase[mask], all_ih_phase, all_offsets)

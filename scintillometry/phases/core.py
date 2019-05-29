@@ -52,8 +52,8 @@ class PintPhase:
 
         Returns
         -------
-        cycle, phase : tuple of `~astropy.units.Quantity`
-            The apparent pulse phase at time ``t``, as a 2-part tuple of
+        phase : `~scintillometry.phase.Phase`
+            The apparent pulse phase at time ``t``, using a 2-part double of
             the integer cycle and the fractional phase.  The latter is
             between -0.5 and 0.5.
         """
@@ -102,11 +102,12 @@ class PolycoPhase:
 
         Returns
         -------
-        cycle, phase : tuple of `~astropy.units.Quantity`
-            The apparent pulse phase at time ``t``, as a 2-part tuple of
+        phase : `~scintillometry.phase.Phase`
+            The apparent pulse phase at time ``t``, using a 2-part double of
             the integer cycle and the fractional phase.  The latter is
             between -0.5 and 0.5.
         """
+        # TODO: use Phase internally in Polyco.
         return Phase(self.polyco(t))
 
     def apparent_spin_freq(self, t):

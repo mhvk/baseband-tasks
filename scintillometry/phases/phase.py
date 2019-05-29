@@ -40,6 +40,7 @@ def day_frac(val1, val2, factor=None, divisor=None):
     """
     # Note that this is basically as astropy has it, but with an extra round.
     # See https://github.com/astropy/astropy/pull/8763
+    # TODO: remove when we only support astropy >=3.2.
     #
     # Add val1 and val2 exactly, returning the result as two float64s.
     # The first is the approximate sum (with some floating point error)
@@ -135,7 +136,7 @@ class Phase(Angle):
     """
     _equivalent_unit = _unit = _default_unit = u.cycle
     _phase_dtype = np.dtype({'names': ['int', 'frac'],
-                             'formats': [np.float64]*2})
+                             'formats': ['f8']*2})
 
     def __new__(cls, phase1, phase2=None, copy=True, subok=False):
         if isinstance(phase1, Phase):
@@ -152,7 +153,8 @@ class Phase(Angle):
             if isinstance(phase2, Phase):
                 phase2 = phase2 + phase1
                 return phase2 if subok or type(phase2) is cls else phase2.view(cls)
-            phase2 = Angle(phase2, cls._unit, copy=False)
+            else:
+                phase2 = Angle(phase2, cls._unit, copy=False)
 
         return cls.from_angles(phase1, phase2)
 
@@ -219,7 +221,10 @@ class Phase(Angle):
         return self['int'] + self['frac']
 
     def to_value(self, unit=None, equivalencies=[]):
-        """The numerical value, possibly in a different unit."""
+        """The numerical value, possibly in a different unit.
+
+        The result will use a standard double, and thus likely loose precision.
+        """
         return self.cycle.to_value(unit, equivalencies)
 
     value = property(to_value,
@@ -230,9 +235,17 @@ class Phase(Angle):
     to_value : Get the numerical value in a given unit.
     """)
 
-    def to(self, *args, **kwargs):
-        """The phase in a different unit, using standard doubles."""
-        return self.cycle.to(*args, **kwargs)
+    def to(self, unit, equivalencies=[]):
+        """The phase in a different unit.
+
+        For any unit except "cycle", this will likely loose precision as
+        an `~astropy.coordinates.Angle` or `~astropy.units.Quantity`
+        is returned.
+        """
+        if unit == u.cycle:
+            return self.copy()
+        else:
+            return self.cycle.to(unit, equivalencies=equivalencies)
 
     def _take_along_axis(self, indices, axis=None, keepdims=False):
         if axis is None:
@@ -370,17 +383,14 @@ class Phase(Angle):
 
         out = kwargs.get('out', None)
         if out is not None and len(out) == 1 and isinstance(out[0], Phase):
-            phase_out = kwargs.pop('out')[0]
+            phase_out = out[0]
             out = None
         else:
             phase_out = None
 
         if function in FRACTION_UFUNCS and i_self == 0:
-            if phase_out is not None:  # TODO: spacing is in principle OK.
-                return NotImplemented
-
-            return self.frac.__array_ufunc__(function, method,
-                                             self.frac, **kwargs)
+            frac = self.frac.view(Angle)
+            return getattr(function, method)(frac, **kwargs)
 
         elif function in {np.add, np.subtract} and out is None:
             try:
@@ -395,9 +405,6 @@ class Phase(Angle):
                 out=phase_out)
 
         elif function in COMPARISON_UFUNCS and i_self <= 1:
-            if phase_out is not None:
-                return NotImplemented
-
             phases = list(inputs)
             try:
                 phases[1-i_self] = Phase(inputs[1-i_self], copy=False,
@@ -405,13 +412,15 @@ class Phase(Angle):
             except Exception:
                 return NotImplemented
 
-            diff = ((phases[0]['int'] - phases[1]['int']) +
-                    (phases[0]['frac'] - phases[1]['frac']))
-            return diff.__array_ufunc__(function, method, diff, 0, **kwargs)
+            # Going with values allows us to properly override out,
+            # while if we stick with a Quantity, we run into a bug; see
+            # https://github.com/astropy/astropy/issues/8764
+            v0, v1 = phases[0].view(np.ndarray), phases[1].view(np.ndarray)
+            diff = (v0['int'] - v1['int']) + (v0['frac'] - v1['frac'])
+            return getattr(function, method)(diff, 0, **kwargs)
 
         elif ((function is np.multiply and i_self < 2 or
-               function is np.divide and i_self == 0) and out is None and
-              not isinstance(inputs[1-i_self], Phase)):
+               function is np.divide and i_self == 0) and out is None):
             try:
                 other = u.Quantity(inputs[1-i_self], u.dimensionless_unscaled,
                                    copy=False)
@@ -430,17 +439,27 @@ class Phase(Angle):
 
         elif (function in {np.floor_divide, np.remainder, np.divmod} and
               i_self == 0):
-            fd = np.floor_divide(self.cycle, inputs[1])
-            corr = Phase.from_angles(inputs[1], factor=fd)
-            remainder = np.subtract(self, corr)
+            fd_out = None
+            if out is not None:
+                if function is np.divmod:
+                    fd_out = out[0]
+                    phase_out = out[1]
+                elif function is np.floor_divide:
+                    fd_out = out[0]
+            elif phase_out is not None and function is np.floor_divide:
+                return NotImplemented
+
+            fd = np.floor_divide(self.cycle, inputs[1], out=fd_out)
+            corr = Phase.from_angles(inputs[1], factor=fd, out=phase_out)
+            remainder = np.subtract(self, corr, out=corr)
             fdx = np.floor_divide(remainder.cycle, inputs[1])
             # This can likely be optimized...
             # Note: one cannot just loop, because rounding of exact 0.5.
             # TODO: check this method is really correct.
             if np.count_nonzero(fdx):
                 fd += fdx
-                corr = Phase.from_angles(inputs[1], factor=fd)
-                remainder = np.subtract(self, corr, out=remainder)
+                corr = Phase.from_angles(inputs[1], factor=fd, out=corr)
+                remainder = np.subtract(self, corr, out=corr)
 
             if function is np.floor_divide:
                 return fd
@@ -457,10 +476,14 @@ class Phase(Angle):
             return self.from_angles(-self['int'], -self['frac'],
                                     out=phase_out)
 
-        elif function in {np.absolute, np.fabs} and out is None:
+        elif function in {np.absolute, np.fabs} and (i_self == 0 and
+                                                     out is None):
             return self.from_angles(self['int'], self['frac'],
                                     factor=np.sign(self.value),
                                     out=phase_out)
+
+        elif function is np.rint and i_self == 0:
+            return np.positive(self['int'], **kwargs)
 
         # Fall-back: treat Phase as a simple Quantity.
         if i_self < function.nin:
@@ -476,8 +499,9 @@ class Phase(Angle):
         else:
             # We won't be able to store in a phase directly, but might
             # as well use one of its elements to store the angle.
+            kwargs['out'] = (phase_out['int'],)
             result = quantity.__array_ufunc__(function, method, *inputs,
-                                              out=(phase_out['int'],), **kwargs)
+                                              **kwargs)
             return phase_out.from_angles(result, out=phase_out)
 
     def _new_view(self, obj=None, unit=None):
