@@ -8,14 +8,15 @@ from astropy import units as u
 from astropy.coordinates import Angle, Longitude
 from astropy.time import Time
 from astropy.time.utils import two_sum, two_product
-from astropy.utils.compat import NUMPY_LT_1_16
+from astropy.utils import minversion
 
 
 __all__ = ['Phase', 'FractionalPhase']
 
 
-FRACTION_UFUNCS = {np.cos, np.sin, np.tan, np.spacing}
+NUMPY_LT_1_16 = not minversion('numpy', '1.16')
 
+FRACTION_UFUNCS = {np.cos, np.sin, np.tan, np.spacing}
 
 COMPARISON_UFUNCS = {
     np.equal, np.not_equal,
