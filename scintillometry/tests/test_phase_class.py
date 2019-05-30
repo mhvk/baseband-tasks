@@ -17,7 +17,11 @@ def assert_equal(one, other):
     assert type(one) is type(other)
     assert np.all(one == other)
     if isinstance(one, Phase):
-        assert np.all(one.int % (1. * u.cycle) == 0)
+        assert one.unit == other.unit == u.cycle
+        assert one.imaginary == other.imaginary
+        assert np.all(one.view(np.ndarray)['int'] % 1. == 0)
+    elif hasattr(one, 'unit'):
+        assert one.unit == other.unit
 
 
 class TestPhaseInit:
@@ -39,7 +43,7 @@ class TestPhaseInit:
         phase = Phase(phase1, phase2)
         assert isinstance(phase, Phase)
         assert_equal(phase['int'], Angle(phase1, u.cycle))
-        assert_equal(phase['frac'], FractionalPhase(phase2))
+        assert_equal(phase['frac'], FractionalPhase(phase2, u.cycle))
         expected_cycle = Angle(phase1, u.cycle) + Angle(phase2, u.cycle)
         assert_equal(phase.cycle, expected_cycle)
 
@@ -85,6 +89,16 @@ class TestPhaseInit:
         phase8 = Phase(phase2, my_phase, copy=False, subok=True)
         assert type(phase8) is MyPhase
 
+    def test_init_imaginary(self):
+        phase = Phase(1j)
+        assert isinstance(phase, Phase)
+        assert phase.imaginary
+        assert_equal(phase.int, Angle(1j, u.cycle))
+        assert_equal(phase.frac, Angle(0j, u.cycle))
+        assert_equal(phase.cycle, Angle(1j, u.cycle))
+        with pytest.raises(ValueError):
+            Phase(1., 0.0001j)
+
 
 class PhaseSetup:
     def setup(self):
@@ -94,6 +108,7 @@ class PhaseSetup:
                             np.array([-0.5, 0., 0., 0.5]), u.cycle)
         self.phase = Phase(self.phase1, self.phase2)
         self.delta = Phase(0., self.phase2)
+        self.im_phase = Phase(self.phase1 * 1j, self.phase2 * 1j)
 
 
 class TestPhase(PhaseSetup):
@@ -119,20 +134,32 @@ class TestPhase(PhaseSetup):
 
     def test_conversion(self):
         degrees = self.phase.to(u.degree)
-        assert_equal(degrees, Angle(self.phase1 + self.phase2))
+        assert_equal(degrees, Angle(self.phase1 + self.phase2, u.deg))
 
     @pytest.mark.parametrize('item', (0, (0, 1), (slice(2), 1)))
     def test_selection(self, item):
-        phase2 = self.phase[item]
+        phase1 = self.phase[item]
         expected_cycle = self.phase.cycle[item]
-        assert phase2.shape == expected_cycle.shape
-        assert_equal(phase2.cycle, expected_cycle)
+        assert phase1.shape == expected_cycle.shape
+        assert_equal(phase1.cycle, expected_cycle)
+        phase2 = self.im_phase[item]
+        expected_cycle2 = self.im_phase.cycle[item]
+        assert phase2.shape == expected_cycle2.shape
+        assert_equal(phase2.cycle, expected_cycle2)
 
     def test_equality(self):
         phase2 = self.phase[:, 1:2]
         eq = self.phase == phase2
         expected = [False, True, False, False]
         assert np.all(eq == expected)
+
+        im_phase2 = self.im_phase[:, 1:2]
+        eq = self.im_phase == im_phase2
+        assert np.all(eq == expected)
+
+        eq_real_imag = phase2 == im_phase2
+        assert eq_real_imag.shape == phase2.shape
+        assert not np.any(eq_real_imag)
 
     def test_addition(self):
         add = self.phase + self.phase
@@ -148,6 +175,9 @@ class TestPhase(PhaseSetup):
         add5 = 360. * u.deg + self.phase
         assert_equal(add5, add4)
 
+        add6 = self.phase + self.im_phase
+        assert_equal(add6, self.phase.cycle + self.im_phase.cycle)
+
     def test_subtraction(self):
         double = Phase(self.phase1 * 2., self.phase2 * 2.)
         sub = double - self.phase
@@ -160,6 +190,9 @@ class TestPhase(PhaseSetup):
         assert_equal(sub3, sub)
         sub4 = self.phase - 1. * u.cycle
         assert_equal(sub4, Phase(self.phase1 - 1 * u.cycle, self.phase2))
+
+        sub6 = self.phase - self.im_phase
+        assert_equal(sub6, self.phase.cycle - self.im_phase.cycle)
 
     def test_inplace_addition_subtraction(self):
         add = self.phase.copy()
@@ -183,6 +216,9 @@ class TestPhase(PhaseSetup):
 
         with pytest.raises(TypeError):  # array output is not OK.
             np.add(out, self.phase, out=out.value)
+
+        with pytest.raises(TypeError):
+            out += self.im_phase
 
     @pytest.mark.parametrize('op', (operator.eq, operator.ne,
                                     operator.le, operator.lt,
@@ -221,11 +257,13 @@ class TestPhase(PhaseSetup):
         with pytest.raises(TypeError):
             np.less(self.phase, self.phase[0], out=self.phase)
 
-    def test_negation(self):
+    def test_negative(self):
         neg = -self.phase
         assert_equal(neg, Phase(-self.phase1, -self.phase2))
+        neg2 = -self.im_phase
+        assert_equal(neg2, Phase(-1j*self.phase1, -1j*self.phase2))
 
-    def test_negation_with_out(self):
+    def test_negative_with_out(self):
         out = 0 * self.phase
         result = np.negative(self.phase, out=out)
         assert result is out
@@ -235,10 +273,18 @@ class TestPhase(PhaseSetup):
         result2 = np.negative(self.phase1, out=out2)
         assert result2 is out2
         assert_equal(result2, Phase(-self.phase1))
+        # And for imaginary output
+        result = np.negative(self.im_phase, out=out)
+        assert result is out
+        assert_equal(result, Phase(-1j*self.phase1, -1j*self.phase2))
 
     def test_absolute(self):
-        check = abs(-self.phase)
-        assert_equal(check, self.phase)
+        check1 = abs(-self.phase)
+        assert_equal(check1, self.phase)
+        check2 = abs(self.im_phase)
+        assert_equal(check2, self.phase)
+        check3 = abs(-self.im_phase)
+        assert_equal(check3, self.phase)
 
     def test_absolute_with_out(self):
         out = 0 * self.phase
@@ -250,10 +296,17 @@ class TestPhase(PhaseSetup):
         result2 = np.absolute(-self.phase1, out=out2)
         assert result2 is out2
         assert_equal(result2, Phase(self.phase1))
+        # And with imaginary phase
+        out3 = 0 * self.im_phase
+        result3 = np.absolute(-self.im_phase, out=out3)
+        assert result3 is out3
+        assert_equal(result3, self.phase)
 
     def test_rint(self):
         out = np.rint(self.phase)
         assert_equal(out, self.phase.int)
+        out2 = np.rint(self.im_phase)
+        assert_equal(out2, self.im_phase.int)
 
     def test_rint_with_out(self):
         out = 0 * self.phase
@@ -337,6 +390,19 @@ class TestPhase(PhaseSetup):
         div4 /= self.phase
         assert div4 is link
         assert_equal(div4, 1. / div)
+
+    def test_imaginary_scalings(self):
+        mul = self.phase * 1j
+        expected = Phase(self.phase1 * 1j, self.phase2 * 1j)
+        assert_equal(mul, expected)
+        mul2 = self.phase * 0.125j
+        expected2 = expected * 0.125
+        assert_equal(mul2, expected2)
+        div = self.phase / 8j
+        expected3 = -expected2
+        assert_equal(div, expected3)
+        with pytest.raises(ValueError):
+            self.phase * (1+1j)
 
     def test_floor_division_mod(self):
         fd = self.phase // (1. * u.cycle)
@@ -452,6 +518,20 @@ class TestPhase(PhaseSetup):
         # Also bail if one got there because of out.
         with pytest.raises(TypeError):
             np.sin(self.phase2, out=self.phase)
+
+    def test_exp(self):
+        in_ = self.phase * 1j
+        out = np.exp(in_)
+        expected = np.exp(self.phase.frac.to_value(u.radian) * 1j) * u.one
+        assert_equal(out, expected)
+
+        out *= 0
+        result = np.exp(in_, out=out)
+        assert result is out
+        assert_equal(result, expected)
+
+        with pytest.raises(u.UnitsError):
+            np.exp(self.phase)
 
     def test_spacing(self):
         out = np.spacing(self.phase)

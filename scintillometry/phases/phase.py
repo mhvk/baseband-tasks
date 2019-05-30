@@ -117,6 +117,18 @@ class FractionalPhase(Longitude):
                                **kwargs)
 
 
+def check_imaginary(a):
+    if np.iscomplexobj(a):
+        if np.all(a.real == 0):
+            return True, a.imag
+        elif np.all(a.imag == 0):
+            return False, a.real
+        else:
+            raise ValueError("cannot have mixed real/imaginary Phase")
+    else:
+        return False, a
+
+
 class Phase(Angle):
     """Represent two-part phase.
 
@@ -160,6 +172,21 @@ class Phase(Angle):
 
     @classmethod
     def from_angles(cls, phase1, phase2=None, factor=None, divisor=None, out=None):
+        imaginary, phase1 = check_imaginary(phase1)
+        if phase2 is not None:
+            im2, phase2 = check_imaginary(phase2)
+            if im2 is not imaginary:
+                raise ValueError("phase1 and phase2 must either be both "
+                                 "real or both imaginary.")
+        if factor is not None:
+            imf, factor = check_imaginary(factor)
+            imaginary ^= imf
+        if divisor is not None:
+            imd, divisor = check_imaginary(divisor)
+            if imd and not imaginary:
+                divisor = -divisor
+            imaginary ^= imd
+
         # TODO: would be nice if day_frac had an out parameter.
         phase1_value = phase1.to_value(cls._unit)
         if phase2 is None:
@@ -175,7 +202,12 @@ class Phase(Angle):
             value = out.view(np.ndarray)
         value['int'] = count
         value['frac'] = fraction
+        out.imaginary = imaginary
         return out
+
+    def __array_finalize__(self, obj):
+        super().__array_finalize__(obj)
+        self.imaginary = getattr(obj, 'imaginary', False)
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
@@ -183,10 +215,15 @@ class Phase(Angle):
             return result
 
         if item == 'frac':
-            return result.view(FractionalPhase)
+            result = result.view(Angle if self.imaginary else FractionalPhase)
         else:
             assert item == 'int'
-            return result.view(Angle)
+            result = result.view(Angle)
+
+        if self.imaginary:
+            result = result * 1j
+
+        return result
 
     def _set_unit(self, unit):
         if unit is None or unit != self._unit:
@@ -381,30 +418,35 @@ class Phase(Angle):
         else:
             i_self += 1
 
+        basic = method == '__call__' and i_self < function.nin
+        basic_real = basic and not self.imaginary
+        basic_phase_out = basic
+
         out = kwargs.get('out', None)
-        if out is not None and len(out) == 1 and isinstance(out[0], Phase):
-            phase_out = out[0]
-            out = None
+        if out is not None:
+            if len(out) == 1 and isinstance(out[0], Phase):
+                phase_out = out[0]
+                out = None
+            else:
+                phase_out = None
+                basic_phase_out = False
         else:
             phase_out = None
 
-        if function in FRACTION_UFUNCS and i_self == 0:
-            frac = self.frac.view(Angle)
-            return getattr(function, method)(frac, **kwargs)
-
-        elif function in {np.add, np.subtract} and out is None:
+        if function in {np.add, np.subtract} and out is None:
             try:
                 phases = [Phase(input_, copy=False, subok=True)
                           for input_ in inputs]
             except Exception:
                 return NotImplemented
 
-            return self.from_angles(
-                function(phases[0]['int'], phases[1]['int']),
-                function(phases[0]['frac'], phases[1]['frac']),
-                out=phase_out)
+            if phases[0].imaginary == phases[1].imaginary:
+                return self.from_angles(
+                    function(phases[0]['int'], phases[1]['int']),
+                    function(phases[0]['frac'], phases[1]['frac']),
+                    out=phase_out)
 
-        elif function in COMPARISON_UFUNCS and i_self <= 1:
+        elif function in COMPARISON_UFUNCS and basic:
             phases = list(inputs)
             try:
                 phases[1-i_self] = Phase(inputs[1-i_self], copy=False,
@@ -412,18 +454,19 @@ class Phase(Angle):
             except Exception:
                 return NotImplemented
 
-            # Going with values allows us to properly override out,
-            # while if we stick with a Quantity, we run into a bug; see
-            # https://github.com/astropy/astropy/issues/8764
-            v0, v1 = phases[0].view(np.ndarray), phases[1].view(np.ndarray)
-            diff = (v0['int'] - v1['int']) + (v0['frac'] - v1['frac'])
-            return getattr(function, method)(diff, 0, **kwargs)
+            if phases[0].imaginary == phases[1].imaginary:
+                # Going with values allows us to properly override out,
+                # while if we stick with a Quantity, we run into a bug; see
+                # https://github.com/astropy/astropy/issues/8764
+                v0, v1 = phases[0].view(np.ndarray), phases[1].view(np.ndarray)
+                diff = (v0['int'] - v1['int']) + (v0['frac'] - v1['frac'])
+                return getattr(function, method)(diff, 0, **kwargs)
 
         elif ((function is np.multiply and i_self < 2 or
-               function is np.divide and i_self == 0) and out is None):
+               function is np.divide and i_self == 0) and basic_phase_out):
             try:
                 other = u.Quantity(inputs[1-i_self], u.dimensionless_unscaled,
-                                   copy=False)
+                                   copy=False).value
             except Exception:
                 # If not consistent with a dimensionless quantity,
                 # we follow the standard route of downgrading ourself
@@ -432,13 +475,13 @@ class Phase(Angle):
             else:
                 if function is np.multiply:
                     return self.from_angles(self['int'], self['frac'],
-                                            factor=other.value, out=phase_out)
+                                            factor=other, out=phase_out)
                 else:
                     return self.from_angles(self['int'], self['frac'],
-                                            divisor=other.value, out=phase_out)
+                                            divisor=other, out=phase_out)
 
         elif (function in {np.floor_divide, np.remainder, np.divmod} and
-              i_self == 0):
+              basic_real):
             fd_out = None
             if out is not None:
                 if function is np.divmod:
@@ -468,22 +511,33 @@ class Phase(Angle):
             else:
                 return fd, remainder
 
-        elif function is np.positive and i_self == 0 and out is None:
+        elif function is np.positive and basic_phase_out:
             return self.from_angles(self['int'], self['frac'],
                                     out=phase_out)
 
-        elif function is np.negative and i_self == 0 and out is None:
+        elif function is np.negative and basic_phase_out:
             return self.from_angles(-self['int'], -self['frac'],
                                     out=phase_out)
 
-        elif function in {np.absolute, np.fabs} and (i_self == 0 and
-                                                     out is None):
-            return self.from_angles(self['int'], self['frac'],
+        elif function in {np.absolute, np.fabs} and basic_phase_out:
+            # Go via view to avoid having to deal with imaginary.
+            v = self.view(np.ndarray)
+            return self.from_angles(u.Quantity(v['int'], u.cycle, copy=False),
+                                    u.Quantity(v['frac'], u.cycle, copy=False),
                                     factor=np.sign(self.value),
                                     out=phase_out)
 
-        elif function is np.rint and i_self == 0:
+        elif function is np.rint and basic:
             return np.positive(self['int'], **kwargs)
+
+        elif function in FRACTION_UFUNCS and basic_real:
+            frac = self.frac.view(Angle)
+            return function(frac, **kwargs)
+
+        elif function is np.exp and basic and self.imaginary:
+            # Avoid dimensionless_angles, but still get Quantity out.
+            exponent = u.Quantity(self.frac.to_value(u.radian), copy=False)
+            return function(exponent, **kwargs)
 
         # Fall-back: treat Phase as a simple Quantity.
         if i_self < function.nin:
