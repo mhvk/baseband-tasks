@@ -89,13 +89,21 @@ class TestPhaseInit:
         phase8 = Phase(phase2, my_phase, copy=False, subok=True)
         assert type(phase8) is MyPhase
 
-    def test_init_imaginary(self):
+    def test_init_complex(self):
         phase = Phase(1j)
         assert isinstance(phase, Phase)
         assert phase.imaginary
         assert_equal(phase.int, Angle(1j, u.cycle))
         assert_equal(phase.frac, Angle(0j, u.cycle))
         assert_equal(phase.cycle, Angle(1j, u.cycle))
+        assert '1j cycle' in repr(phase)
+
+        phase2 = Phase(1 + 0j)
+        assert isinstance(phase2, Phase)
+        assert not phase2.imaginary
+        assert_equal(phase2, Phase(1))
+        assert '1j cycle' not in repr(phase2)
+
         with pytest.raises(ValueError):
             Phase(1., 0.0001j)
 
@@ -131,6 +139,18 @@ class TestPhase(PhaseSetup):
         expected = u.Quantity(in1 + in2, u.cycle).value
         assert (phase.int + phase.frac).value == expected
         assert phase.value == expected
+
+    def test_astype(self):
+        float64 = self.phase.astype('f8')
+        assert_equal(float64, self.phase.cycle)
+        float32 = self.phase.astype('f4')
+        assert_equal(float32, self.phase.cycle.astype('f4'))
+        copy = self.phase.astype(self.phase.dtype)
+        assert copy is not self.phase
+        assert not np.may_share_memory(copy, self.phase)
+        assert_equal(copy, self.phase)
+        same = self.phase.astype(self.phase.dtype, copy=False)
+        assert same is self.phase
 
     def test_conversion(self):
         degrees = self.phase.to(u.degree)
@@ -401,8 +421,9 @@ class TestPhase(PhaseSetup):
         div = self.phase / 8j
         expected3 = -expected2
         assert_equal(div, expected3)
-        with pytest.raises(ValueError):
-            self.phase * (1+1j)
+        mul4 = self.phase * (1+1j)
+        expected4 = self.phase.cycle * (1+1j)
+        assert_equal(mul4, expected4)
 
     def test_floor_division_mod(self):
         fd = self.phase // (1. * u.cycle)

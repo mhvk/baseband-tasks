@@ -52,7 +52,7 @@ class PintPhase:
 
         Returns
         -------
-        phase : `~scintillometry.phase.Phase`
+        phase : `~scintillometry.phases.Phase`
             The apparent pulse phase at time ``t``, using a 2-part double of
             the integer cycle and the fractional phase.  The latter is
             between -0.5 and 0.5.
@@ -102,7 +102,7 @@ class PolycoPhase:
 
         Returns
         -------
-        phase : `~scintillometry.phase.Phase`
+        phase : `~scintillometry.phases.Phase`
             The apparent pulse phase at time ``t``, using a 2-part double of
             the integer cycle and the fractional phase.  The latter is
             between -0.5 and 0.5.

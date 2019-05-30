@@ -24,21 +24,31 @@ COMPARISON_UFUNCS = {
 
 
 def day_frac(val1, val2, factor=None, divisor=None):
-    """
-    Return the sum of ``val1`` and ``val2`` as two float64s, an integer part
-    and the fractional remainder.  If ``factor`` is given, then multiply the
-    sum by it.  If ``divisor`` is given, then divide the sum by it.
+    """Return the sum of ``val1`` and ``val2`` as two float64s.
+
+    The returned floats are an integer part and the fractional remainder,
+    with the latter guaranteed to be within -0.5 and 0.5 (inclusive on
+    either side, as the integer is rounded to even).
 
     The arithmetic is all done with exact floating point operations so no
-    precision is lost to rounding error.  This routine assumes the sum is less
-    than about 1e16, otherwise the ``frac`` part will be greater than 1.0.
+    precision is lost to rounding error.  It is assumed the sum is less
+    than about 1e16, otherwise the remainder will be greater than 1.0.
+
+    Parameters
+    ----------
+    val1, val2 : array of float
+        Values to be summed.
+    factor : float, optional
+        If given, multiply the sum by it.
+    divisor : float, optional
+        If given, divide the sum by it.
 
     Returns
     -------
     day, frac : float64
         Integer and fractional part of val1 + val2.
     """
-    # Note that this is basically as astropy has it, but with an extra round.
+    # Note that the version of astropy >=3.2;
     # See https://github.com/astropy/astropy/pull/8763
     # TODO: remove when we only support astropy >=3.2.
     #
@@ -76,10 +86,9 @@ def day_frac(val1, val2, factor=None, divisor=None):
 class FractionalPhase(Longitude):
     """Phase without the cycle count, i.e., with a range of 1 cycle.
 
-    The input parser is flexible and supports all of the input formats
-    supported by :class:`~astropy.coordinates.Angle`: array, list,
-    scalar, tuple, string, :class:`~astropy.units.Quantity`
-    or another :class:`~astropy.coordinates.Angle`.
+    This subclass of `~astropy.coordinates.Longitude` differs from it
+    mostly in being able to take the fractional part of any
+    `~scintillometry.phases.Phase` input.
 
     Parameters
     ----------
@@ -91,7 +100,7 @@ class FractionalPhase(Longitude):
     unit : :class:`~astropy.units.UnitBase`, str, optional
         The unit of the value specified for the angle.  This may be any
         string that `~astropy.units.Unit` understands.  Must be an angular
-        unit.
+        unit.  Default is 'cycle'.
     wrap_angle : :class:`~astropy.coordinates.Angle` or equivalent, optional
         Angle at which to wrap back to ``wrap_angle - 1 cycle``.
         If ``None`` (default), it will be taken to be 0.5 cycle unless ``angle``
@@ -118,15 +127,33 @@ class FractionalPhase(Longitude):
 
 
 def check_imaginary(a):
+    """Check whether a value is purely imaginary or purely real.
+
+    Parameters
+    ----------
+    a : array_like or `~numpy.ndarray` subclass
+
+    Returns
+    -------
+    real, imaginary : array of float, bool
+        A float array, either just the input array if not complex
+        or the real or imaginary part if complex, with the bool indicating
+        whether it is the imaginary part.
+
+    Raises
+    ------
+    ValueError
+        If the input is complex and is not purely real or purely imaginary.
+    """
     if np.iscomplexobj(a):
         if np.all(a.real == 0):
-            return True, a.imag
+            return a.imag, True
         elif np.all(a.imag == 0):
-            return False, a.real
+            return a.real, False
         else:
             raise ValueError("cannot have mixed real/imaginary Phase")
     else:
-        return False, a
+        return a, False
 
 
 class Phase(Angle):
@@ -134,10 +161,24 @@ class Phase(Angle):
 
     With one part the integer cycle count and the other the fractional phase.
 
+    The class is a high-precision version of `~astropy.coordinates.Angle`
+    that aims to behave just like it, but use its precision in operations
+    where possible -- decaying to a `~astropy.units.Quantity` otherwise.
+
+    For instance, addition and subtraction preserve precision, as do
+    multiplication and division with dimensionless quantities.  Similarly,
+    trigonometric functions use just the fractional phase.
+
+    The phase can either be purely real or purely imaginary, not mixed.  If
+    imaginary, using it in `~numpy.exp` will again preserve precision.
+
+    Note that the machinery to keep precision is not complete; in particular,
+    reductions such as summing along an axis will currently loose precision.
+
     Parameters
     ----------
     phase1, phase2 : array or `~astropy.units.Quantity`
-        Two-part phase.  If arrays, the assumed units are cycles.
+        Two-part phase.  If not quantities, the assumed units are cycles.
     copy : bool, optional
         Ensure a copy is made.  Only relevant if ``phase1`` is a `Phase`
         and ``phase2`` is not given.
@@ -145,6 +186,7 @@ class Phase(Angle):
         If `False` (default), the returned array will be forced to be a
         `Phase`.  Otherwise, `Phase` subclasses will be passed through.
         Only relevant if ``phase1`` or ``phase2`` is a `Phase` subclass.
+
     """
     _equivalent_unit = _unit = _default_unit = u.cycle
     _phase_dtype = np.dtype({'names': ['int', 'frac'],
@@ -172,17 +214,41 @@ class Phase(Angle):
 
     @classmethod
     def from_angles(cls, phase1, phase2=None, factor=None, divisor=None, out=None):
-        imaginary, phase1 = check_imaginary(phase1)
+        """Create a Phase instance from two angles.
+
+        The two angles will be added, and possibly multiplied by a factor or divided
+        by a divisor, preserving precision using two doubles, one for the integer
+        part and one for the remainder.
+
+        Note that this class method is mostly meant for internal use.
+
+        Parameters
+        ----------
+        phase1 : `~astropy.units.Quantity`
+             With angular units.
+        phase2 : `~astropy.units.Quantity` or `None`
+             With angular units.
+        factor : float or complex
+             Posisble factor to multiply the angles with.
+        divisor : float or complex
+             Posisble divisor to divide the angles by.
+
+        Raises
+        ------
+        ValueError
+            If the result is not purely real or purely imaginary
+        """
+        phase1, imaginary = check_imaginary(phase1)
         if phase2 is not None:
-            im2, phase2 = check_imaginary(phase2)
+            phase2, im2 = check_imaginary(phase2)
             if im2 is not imaginary:
                 raise ValueError("phase1 and phase2 must either be both "
                                  "real or both imaginary.")
         if factor is not None:
-            imf, factor = check_imaginary(factor)
+            factor, imf = check_imaginary(factor)
             imaginary ^= imf
         if divisor is not None:
-            imd, divisor = check_imaginary(divisor)
+            divisor, imd = check_imaginary(divisor)
             if imd and not imaginary:
                 divisor = -divisor
             imaginary ^= imd
@@ -236,11 +302,17 @@ class Phase(Angle):
         super()._set_unit(unit)
 
     def __repr__(self):
-        return "{0}({1}, {2})".format(self.__class__.__name__,
-                                      self['int'], self['frac'])
+        v = self.view(np.ndarray)
+        return "{0}({1}{3} cycle, {2}{3} cycle)".format(
+            self.__class__.__name__, v['int'], v['frac'],
+            " * 1j" if self.imaginary else '')
 
     def __str__(self):
-        return str(self.cycle)
+        if self.imaginary:
+            return (str(self.cycle.view(np.ndarray).imag) +
+                    ' * 1j {}'.format(self.unit))
+        else:
+            return str(self.cycle.view(u.Quantity))
 
     @property
     def int(self):
@@ -254,7 +326,10 @@ class Phase(Angle):
 
     @property
     def cycle(self):
-        """Full cycle, including phase."""
+        """Full cycle, including phase, as a regular Angle.
+
+        The result will use a standard double, and thus likely loose precision.
+        """
         return self['int'] + self['frac']
 
     def to_value(self, unit=None, equivalencies=[]):
@@ -265,7 +340,9 @@ class Phase(Angle):
         return self.cycle.to_value(unit, equivalencies)
 
     value = property(to_value,
-                     doc="""The numerical value, using standard doubles.
+                     doc="""The numerical value.
+
+    The result will use a standard double, and thus likely loose precision.
 
     See also
     --------
@@ -285,6 +362,7 @@ class Phase(Angle):
             return self.cycle.to(unit, equivalencies=equivalencies)
 
     def _take_along_axis(self, indices, axis=None, keepdims=False):
+        # More or less a straight copy from Time.
         if axis is None:
             return self[np.unravel_index(indices, self.shape)]
 
@@ -418,6 +496,7 @@ class Phase(Angle):
         else:
             i_self += 1
 
+        # Some bools for use in the if-statements below.
         basic = method == '__call__' and i_self < function.nin
         basic_real = basic and not self.imaginary
         basic_phase_out = basic
@@ -462,23 +541,22 @@ class Phase(Angle):
                 diff = (v0['int'] - v1['int']) + (v0['frac'] - v1['frac'])
                 return getattr(function, method)(diff, 0, **kwargs)
 
-        elif ((function is np.multiply and i_self < 2 or
+        elif ((function is np.multiply or
                function is np.divide and i_self == 0) and basic_phase_out):
             try:
                 other = u.Quantity(inputs[1-i_self], u.dimensionless_unscaled,
                                    copy=False).value
-            except Exception:
-                # If not consistent with a dimensionless quantity,
-                # we follow the standard route of downgrading ourself
-                # to a quantity and see if things work.
-                pass
-            else:
                 if function is np.multiply:
                     return self.from_angles(self['int'], self['frac'],
                                             factor=other, out=phase_out)
                 else:
                     return self.from_angles(self['int'], self['frac'],
                                             divisor=other, out=phase_out)
+            except Exception:
+                # If not consistent with a dimensionless quantity, or mixed
+                # real and complex, we follow the standard route of
+                # downgrading ourself to a quantity and see if things work.
+                pass
 
         elif (function in {np.floor_divide, np.remainder, np.divmod} and
               basic_real):
@@ -524,7 +602,7 @@ class Phase(Angle):
             v = self.view(np.ndarray)
             return self.from_angles(u.Quantity(v['int'], u.cycle, copy=False),
                                     u.Quantity(v['frac'], u.cycle, copy=False),
-                                    factor=np.sign(self.value),
+                                    factor=np.sign(v['int'] + v['frac']),
                                     out=phase_out)
 
         elif function is np.rint and basic:
@@ -540,7 +618,7 @@ class Phase(Angle):
             return function(exponent, **kwargs)
 
         # Fall-back: treat Phase as a simple Quantity.
-        if i_self < function.nin:
+        if basic:
             inputs = tuple((input_.cycle if isinstance(input_, Phase)
                             else input_) for input_ in inputs)
             quantity = inputs[i_self]
@@ -568,3 +646,21 @@ class Phase(Angle):
                 obj = obj.cycle
 
         return super()._new_view(obj, unit)
+
+    def astype(self, dtype, order='K', casting='unsafe', subok=True, copy=True):
+        """Copy of the array, cast to a specified type.
+
+        As `~numpy.ndarray.astype`, but using knowledge of format to cast to
+        floats.
+        """
+        dtype = np.dtype(dtype)
+        if not dtype.fields and casting in {'same_kind', 'unsafe'}:
+            parts = [self[part].astype(dtype, order=order, casting=casting,
+                                       subok=subok, copy=copy)
+                     for part, copy in (('int', True), ('frac', False))]
+            parts[0] += parts[1]
+            return parts[0]
+
+        else:
+            return super().astype(dtype, order=order, casting=casting,
+                                  subok=subok, copy=copy)

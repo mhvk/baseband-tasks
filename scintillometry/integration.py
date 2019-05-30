@@ -200,7 +200,8 @@ class Integrate(BaseTaskBase):
                              self._ih_start).astype(int))
 
         # Requested phases relative to start (we work relative to the start
-        # to avoid rounding errors for large cycle counts).
+        # to avoid rounding errors for large cycle counts).  Also, we want
+        # *not* to use the Phase class, as it makes interpolation tricky.
         phase = np.ravel(samples) / self.sample_rate
         # Initial guesses for the associated offsets.
         ih_mean_phase_size = self._mean_offset_size / self.sample_rate
@@ -223,10 +224,10 @@ class Integrate(BaseTaskBase):
             # First calculate phase associate with the current offset guesses.
             old_offsets = offsets[mask]
             ih_time = self.ih.start_time + old_offsets / self.ih.sample_rate
-            # TODO: the conversion is only necessary because of a bug in
-            # Quantity._to_own_unit; see https://github.com/astropy/astropy/pull/8535
-            # Remove when we require astropy >= 3.2.
-            ih_phase[mask] = (self._phase(ih_time) - self._start).to(ih_phase.unit)
+            # TODO: the conversion is necessary because Quantity(Phase)
+            # doesn't convert the two doubles to float internally.
+            ih_phase[mask] = (self._phase(ih_time) -
+                              self._start).astype(ih_phase.dtype, copy=False)
             # Next, interpolate in known phases to get improved offsets.
             offsets[mask] = np.interp(phase[mask], all_ih_phase, all_offsets)
             # Finally, update mask.
