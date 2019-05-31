@@ -10,6 +10,9 @@ optimized for pulsar scintillometry science.  It relies on `Baseband
 <https://pypi.org/project/baseband/>`_, `NumPy <http://www.numpy.org/>`_ and
 `Astropy <http://www.astropy.org/>`_.
 
+For installation and usage instructions, please see the `online documentation
+<https://scintillometry.readthedocs.io/>`_.
+
 Project Status
 --------------
 
