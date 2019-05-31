@@ -7,7 +7,6 @@ import warnings
 
 import numpy as np
 from astropy import units as u
-from pint import toa
 
 
 __all__ = ['PintToas']
@@ -67,6 +66,10 @@ class PintToas:
         time : `~astropy.time.Time`
             Input time stamps.
         """
+        # local import since we cannot count on PINT being present,
+        # and doing it globally messes up sphinx.
+        from pint import toa
+
         toa_list = make_toa_list(time, self.observatory, self.frequency)
         return toa.get_TOAs_list(toa_list, **self.control_params)
 
@@ -90,6 +93,10 @@ def make_toa_list(time, obs, freq, **other_meta):
     -------
     List of `~pint.toa.TOA`.
     """
+    # local import since we cannot count on PINT being present,
+    # and doing it globally messes up sphinx.
+    from pint import toa
+
     toa_list = []
     for t_stamp in time.ravel():
         # This format converting should be done by PINT in the future.

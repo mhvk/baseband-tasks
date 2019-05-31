@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import astropy.units as u
 from .predictor import Polyco
-# Note: to avoid importing pint, we import PintToas inside PintPhase.
+from .pint_toas import PintToas
 
 
 __all__ = ['PintPhase', 'PolycoPhase']
@@ -34,8 +34,8 @@ class PintPhase:
     timing precision).
     """
     def __init__(self, par_file, observatory, frequency, **kwargs):
-        from .pint_toas import PintToas
         from pint.models import get_model
+
         self.par_file = par_file
         self.model = get_model(self.par_file)
         self.toa_maker = PintToas(observatory, frequency, **kwargs)
