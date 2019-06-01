@@ -1,49 +1,76 @@
-"""hdu.py defines the object for PSRFTIS header-data-units(HDUs).
-"""
-
-
+# Licensed under the GPLv3 - see LICENSE
+"""Wrappers for PSRFTIS Header Data Units (HDUs)."""
 from collections import namedtuple
+
 import astropy.units as u
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, EarthLocation
 from astropy.coordinates import Angle, Latitude, Longitude
 from astropy.io import fits
 from astropy.utils import lazyproperty
 import numpy as np
 
 
-__all__ = ["HDU_map", "PsrfitsPrimaryHDU", "SubintHDUBase", "PSRSubint"]
+__all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
+           "SubintHDU", "PSRSubintHDU"]
 
 
-class PsrfitsPrimaryHDU(fits.PrimaryHDU):
-    """Helper class to translate between FITS primary HDU and baseband-style
-    file reader.
+class HDUWrapper:
+    def __init__(self, hdu, verify=True):
+        self.hdu = hdu
+        if verify:
+            self.verify()
+
+    def verify(self):
+        assert isinstance(self.header, fits.Header)
+
+    @property
+    def header(self):
+        return self.hdu.header
+
+    @property
+    def data(self):
+        return self.hdu.data
+
+    def close(self):
+        del self.hdu.data
+        del self.hdu
+
+
+class PSRFITSPrimaryHDU(HDUWrapper):
+    """Wrapper for PSRFITS primary HDU, providing baseband-style properties.
 
     Parameters
     ----------
-    primary_hdu : `primary_hdu`
-        PSRFITS primary HDU object.
+    hdu : `~astropy.io.fits.PrimaryHDU`
+        PSRFITS primary HDU instance.
 
     Notes
     -----
-    the frequency marker is on the center of the channels
+    Frequencies are defined to be in the center of the channels.
     """
-    _properties = ('start_time', 'observatory', 'frequency', 'ra', 'dec',
-                   'shape', 'sample_rate')
 
-    def __init__(self, primary_hdu):
-        super().__init__(header=primary_hdu.header, data=primary_hdu.data)
-        self.verify()
+    _properties = ('location', 'start_time', 'observatory', 'frequency',
+                   'ra', 'dec', 'shape', 'sample_rate')
 
     def verify(self):
-        assert self.header['SIMPLE'], "The input HDU is not a fits headers HDU."
+        assert self.header['SIMPLE'], "The HDU is not a FITS primary HDU."
         assert self.header['FITSTYPE'] == "PSRFITS", \
-            "The input fits header is not a PSRFITS type."
+            "The header is not from a PSRFITS file."
+
+    @property
+    def location(self):
+        try:
+            return EarthLocation(self.header['ANT_X'],
+                                 self.header['ANT_Y'],
+                                 self.header['ANT_Z'], u.m)
+        except KeyError:
+            return None
 
     @property
     def start_time(self):
-        # TODO add location
-        return (Time(self.header['STT_IMJD'], format='mjd', precision=9) +
+        return (Time(self.header['STT_IMJD'], format='mjd', precision=9,
+                     location=self.location) +
                 TimeDelta(self.header['STT_SMJD'], self.header['STT_OFFS'],
                           format='sec', scale='tai'))
 
@@ -54,13 +81,20 @@ class PsrfitsPrimaryHDU(fits.PrimaryHDU):
     @property
     def frequency(self):
         try:
-            n_chan = float(self.header['OBSNCHAN'])
-            c_chan = float(self.header['OBSFREQ'])
-            bw = float(self.header['OBSBW'])
-        except Exception:
+            n_chan = self.header['OBSNCHAN']
+            c_freq = self.header['OBSFREQ']
+            bw = self.header['OBSBW']
+        except KeyError:
             return None
+
         chan_bw = bw / n_chan
-        freq = np.arange(-n_chan / 2, n_chan / 2) * chan_bw + c_chan
+        # According to the PSRFITS definition document, channels are
+        # numbered 1 to n_chan, with the zeroth channel assumed removed
+        # and c_freq is the frequency of channel n_nchan / 2.  We use
+        # (n_chan + 1) // 2 to ensure this makes sense for n_chan = 1
+        # and is consistent with the document at least for even n_chan.
+        freq = c_freq + (np.arange(1, n_chan + 1) -
+                         ((n_chan + 1) // 2)) * chan_bw
         return u.Quantity(freq, u.MHz, copy=False)
 
     @property
@@ -76,47 +110,52 @@ class PsrfitsPrimaryHDU(fits.PrimaryHDU):
         return self.header['OBS_MODE']
 
 
-class SubintHDUBase(fits.BinTableHDU):
-    """SubintHDU class provides the translator functions between baseband-style
-    file object and the PSRFITS SUBINT HDU.
+class SubintHDU(HDUWrapper):
+    """Base for PSRFITS SUBINT HDU wrappers.
 
     Parameters
     ----------
-    primary_hdu : PsrfitsPrimaryHDU
-        The psrfits main header object
-    subint_hdu : HDU object
-        The psrfits data HDU.
+    hdu : `~astropy.io.fits.BinTableHDU` instance
+        The PSRFITS table HDU of SUBINT type.
+    primary : `~scintillometry.io.psrfits.PSRFITSPrimaryHDU`
+        The wrapped PSRFITS main header.
     verify: bool, optional
-        Does the hdu need to be verified? Default is True.
+        Whether to do basic verification.  Default is `True`.
 
     Notes
     -----
     Right now we are assuming the data rows are continuous in time and the
-    frequency are the same.
+    frequencies do not vary.
     """
 
-    _properties = ('start_time', 'sample_rate', 'shape', 'samples_per_frame',
+    _properties = ('start_time', 'sample_rate', 'sample_shape',
+                   'shape', 'samples_per_frame',
                    'polarization', 'frequency')
 
-    def __new__(cls, primary_hdu, subint_hdu=None, verify=True):
-        # Map Subint subclasses
+    _sample_shape_maker = namedtuple('SampleShape', 'nbin, nchan, npol')
+    _shape_maker = namedtuple('Shape', 'nsample, nbin, nchan, npol')
+
+    def __new__(cls, hdu, primary_hdu, verify=True):
+        # Map Subint subclasses;
+        # TODO: switch to__init_subclass__ when we only support python>=3.6.
         mode = primary_hdu.obs_mode
         try:
             cls = subint_map[mode]
         except KeyError:
             raise ValueError("'{}' is not a valid mode.".format(mode))
-        return super(SubintHDUBase, cls).__new__(cls)
 
-    def __init__(self, primary_hdu, subint_hdu=None, verify=True):
+        return super().__new__(cls)
+
+    def __init__(self, hdu, primary_hdu, verify=True):
         self.primary_hdu = primary_hdu
-        super().__init__(header=subint_hdu.header, data=subint_hdu.data)
-        if verify:
-            self.verify()
         self.offset = 0
+        super().__init__(hdu, verify=verify)
 
     def verify(self):
         assert self.header['EXTNAME'].strip() == "SUBINT", \
             "Input HDU is not a SUBINT type."
+        assert isinstance(self.primary_hdu, PSRFITSPrimaryHDU), \
+            "Primary HDU needs to be a PSRFITSPrimaryHDU instance."
 
     @property
     def mode(self):
@@ -124,10 +163,8 @@ class SubintHDUBase(fits.BinTableHDU):
 
     @property
     def start_time(self):
-        # NOTE should we get the start time for each raw, in case the time gaps
-        # in between the rows
-        file_start = self.primary_hdu.start_time
-        return file_start
+        # Note: subclasses can use or override this.
+        return self.primary_hdu.start_time
 
     @property
     def nrow(self):
@@ -146,114 +183,104 @@ class SubintHDUBase(fits.BinTableHDU):
         return self.header['NBIN']
 
     @property
-    def shape(self):
-        raw_shape = self.raw_shape
-        new_shape = namedtuple('shape', ['nsample', 'nbin', 'nchan', 'npol'])
-        result = new_shape(raw_shape.nrow * raw_shape.samples_per_frame,
-                           raw_shape.nbin, raw_shape.nchan, raw_shape.npol)
-        return result
+    def sample_shape(self):
+        return self._sample_shape_maker(self.nbin, self.nchan, self.npol)
 
     @property
-    def raw_shape(self):
-        r_shape = namedtuple('shape', ['nrow', 'samples_per_frame', 'nbin',
-                                       'nchan', 'npol'])
-        result = r_shape(self.nrow, self.samples_per_frame, self.nbin,
-                         self.nchan, self.npol)
-        return result
+    def shape(self):
+        return self._shape_maker(self.nrow * self.samples_per_frame,
+                                 self.nbin, self.nchan, self.npol)
 
     @property
     def polarization(self):
-        pol_len = int(len(self.header['POL_TYPE']) / self.npol)
-        return map(''.join, zip(*[iter(self.header['POL_TYPE'])] * pol_len))
+        pol_type = self.header['POL_TYPE']
+        # split into equal parts using zip;
+        # see https://docs.python.org/3.5/library/functions.html#zip
+        return np.array([map(''.join, zip(*[iter(self.header['POL_TYPE'])] *
+                                          (len(pol_type) // self.npol)))])
 
     @property
     def frequency(self):
-        if 'DAT_FREQ' in self.columns.names:
+        if 'DAT_FREQ' in self.data.names:
             freqs = u.Quantity(self.data['DAT_FREQ'],
                                u.MHz, copy=False)[0]
         else:
-            freqs = getattr(self.primary_hdu, 'frequency', None)
+            freqs = super().frequency
+
         if freqs is not None:
-            freqs_shape = self.shape._replace(npol=1, nbin=1)[1:]
-            freqs = freqs.reshape(freqs_shape)
+            freqs = freqs.reshape(-1, 1)
+
         return freqs
 
-    @property
+    @lazyproperty
     def dtype(self):
-        """
-        Notes
-        -----
-        PSRFITS subint defines the DAT_SCL using float, thus we choose the
-        highest precision.
-        """
+        """Data type of the data.  Inferred from ``read_data_row(0)``."""
+        return self.read_data_row(0).dtype
 
-        return self.data['DAT_SCL'].dtype
-
-    def read_data_row(self, row_index, weighted=False):
-        if row_index >= self.shape[0]:
+    def read_data_row(self, index, weighted=False):
+        if index >= self.nrow:
             raise EOFError("cannot read from beyond end of input SUBINT HDU.")
 
-        row = self.data[row_index]
+        row = self.data[index]
         # Reversed the header shape to match the data
-        new_shape = self.raw_shape._replace(samples_per_frame=1,
-                                            nbin=1)[-1:1:-1]
-        data_scale = row['DAT_SCL'].reshape(new_shape)
-        data_off_set = row['DAT_OFFS'].reshape(new_shape)
+        data_scale = row['DAT_SCL'].reshape(-1, 1)
+        data_off_set = row['DAT_OFFS'].reshape(-1, 1)
         try:
-            zero_off = float(self.header['ZERO_OFF'])
+            zero_off = self.header['ZERO_OFF']
+            # Sometimes zero_off equals * or some such
+            float(zero_off)
         except Exception:
-            zero_off = 0.0
+            zero_off = 0
         result = (row['DATA'] - zero_off) * data_scale + data_off_set
-        if 'DAT_WTS' in self.columns.names and weighted:
-            data_wts = row['DAT_WTS']
-            wts_shape = self.raw_shape._replace(samples_per_frame=1, nbin=1,
-                                                npol=1)[-1:1:-1]
-            result *= data_wts.reshape(wts_shape)
+        if weighted and 'DAT_WTS' in self.data.names:
+            result *= row['DAT_WTS'].reshape(-1, 1)
         return result
 
 
-class PSRSubint(SubintHDUBase):
-    """PSRSubint class is designed for handling the pulsar folding mode PSRFITS
-    Subint HDU.
+class PSRSubintHDU(SubintHDU):
+    """Wrapper for PSRFITS SUBINT HDUs, providing baseband-style properties.
 
     Parameters
     ----------
-    primary_hdu : PsrfitsHearderHDU
-        The psrfits main header object
-    psr_subint : HDU object
-        The psrfits subint HDU.
-    """
-    def __init__(self, primary_hdu, psr_subint=None, verify=True):
-        super().__init__(primary_hdu, psr_subint, verify=verify)
+    hdu : `~astropy.io.fits.BinTableHDU` instance
+        The PSRFITS table HDU of SUBINT type.
+    primary : `~scintillometry.io.psrfits.PSRFITSPrimaryHDU`
+        The wrapped PSRFITS main header.
+    verify: bool, optional
+        Whether to do basic verification.  Default is `True`.
 
+    Notes
+    -----
+    Right now we are assuming the data rows are continuous in time and the
+    frequency are the same.
+    """
     def verify(self):
         super().verify()
-        assert self.primary_hdu.obs_mode.upper() == 'PSR', \
+        assert self.mode.upper() == 'PSR', \
             "Header HDU is not in the folding mode."
 
         assert int(self.header['NBIN']) > 1, \
-            ("Folding mode requires a valid 'NBIN' field ('NBIN' > 1) in the"
-             " header.")
+            "Invalid 'NBIN' field in the header."
 
         # Check frequency
-        if 'DAT_FREQ' in self.columns.names:
+        if 'DAT_FREQ' in self.data.names:
             freqs = u.Quantity(self.data['DAT_FREQ'],
                                u.MHz, copy=False)
             assert np.array_equiv(freqs[0], freqs), \
-                "Frequencies are different within one subint rows."
+                "Frequencies are not all the same for different rows."
 
         tsubint = self.data['TSUBINT']
         assert all(np.isclose(tsubint[0], tsubint, atol=1e-1)), \
-            "Subints' durations has big difference between each other."
+            "TSUBINT differ by large amounts in different rows."
 
         d_shape_raw = self.data['DATA'].shape
         d_shape_header = (self.nbin, self.nchan, self.npol)
-        assert d_shape_raw == (self.nrow, ) + d_shape_header[::-1], \
+        assert d_shape_raw == (self.nrow,) + d_shape_header[::-1], \
             "Data shape does not match with the header information."
 
     @property
     def start_time(self):
-        """Start_time returns start time of the first sub-integration.
+        """Start time of the first sub-integration.
 
         Notes
         -----
@@ -261,36 +288,32 @@ class PSRSubint(SubintHDUBase):
         is consistent with PSRCHIVE's definition
         (defined in psrchive/Base/Classes/Integration.C)
         """
-        file_start = self.primary_hdu.start_time
-        if "OFFS_SUB" in self.columns.names:
-            subint_times = u.Quantity(self.data['OFFS_SUB'], u.s, copy=False)
-            start_time = (file_start + subint_times[0] -
-                          self.samples_per_frame / self.sample_rate / 2)
-        else:
-            start_time = file_start
+        start_time = super().start_time
+        if "OFFS_SUB" in self.data.names:
+            offset0 = (u.Quantity(self.data['OFFS_SUB'][0], u.s, copy=False) -
+                       self.samples_per_frame / 2 / self.sample_rate)
+            start_time += offset0
+
         return start_time
 
-    @lazyproperty
+    @property
     def samples_per_frame(self):
-        return int(np.prod(self.data_shape)/(self.nrow * self.nchan *
-                                             self.npol * self.nbin))
+        return 1
 
     @property
     def sample_rate(self):
-        # NOTE we are assuming TSUBINT is uniform.
-        sample_time = u.Quantity(self.data[0]['TSUBINT'] /
-                                 self.samples_per_frame, u.s)
+        # NOTE we are assuming TSUBINT is uniform; tested in verify,
+        # but as individual numbers seem to vary, take the mean.
+        # TODO: check whether there really isn't a better way!.
+        sample_time = u.Quantity(self.data['TSUBINT'], u.s).mean()
         return 1.0 / sample_time
 
-    @property
-    def data_shape(self):
-        # Data are save in the FORTRAN order. Reversed from the header label.
-        d_shape = namedtuple('d_shape', ['nrow', 'npol', 'nchan', 'nbin'])
-        result = d_shape(self.nrow, self.npol, self.nchan, self.nbin)
-        return result
+    def close(self):
+        super().close()
+        self.primary_hdu.close()
 
 
-HDU_map = {'PRIMARY': PsrfitsPrimaryHDU,
-           'SUBINT': SubintHDUBase}
+HDU_map = {'PRIMARY': PSRFITSPrimaryHDU,
+           'SUBINT': SubintHDU}
 
-subint_map = {'PSR': PSRSubint, }
+subint_map = {'PSR': PSRSubintHDU}

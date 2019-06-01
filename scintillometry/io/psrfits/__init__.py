@@ -1,1 +1,3 @@
-from .core import open, open_read, PsrfitsReader
+# Licensed under the GPLv3 - see LICENSE
+from .core import *
+from .hdu import *
