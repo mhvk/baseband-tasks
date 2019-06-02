@@ -14,8 +14,9 @@ Scintillometry requires:
 
 In addition, you may want to install:
 
-    - `PyFFTW <https://pypi.org/project/pyFFTW/>`_ to be able to use the
-      `FFTW <http://www.fftw.org/>`_ library for fast fourier transforms.
+    - `PyFFTW <https://pypi.org/project/pyFFTW/>`_ v0.11 or later, to be able
+      to use the `FFTW <http://www.fftw.org/>`_ library for fast fourier
+      transforms.
     - `PINT <https://github.com/nanograv/PINT>`_ to calculate phases without
       first generating polycos.
 
