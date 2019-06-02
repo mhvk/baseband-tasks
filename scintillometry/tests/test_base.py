@@ -88,6 +88,7 @@ class TestTaskBase:
         data = mh.read()
         assert np.all(data == expected)
         assert mh.time == fh.stop_time
+        mh.close()
 
     @staticmethod
     def convert_time_offset(offset, sample_rate):
@@ -317,6 +318,8 @@ class TestTasks:
         with pytest.raises(Exception):
             Task(fh, trial3)
 
+        fh.close()
+
 
 class TestPaddedTaskBase:
     def test_basics(self):
@@ -331,6 +334,7 @@ class TestPaddedTaskBase:
         expected = raw[:-2] + raw[1:-1] + raw[2:]
         data = sh.read(10)
         assert np.all(data == expected)
+        sh.close()
 
     def test_invalid(self):
         fh = vdif.open(SAMPLE_VDIF)
@@ -343,3 +347,4 @@ class TestPaddedTaskBase:
         with warnings.catch_warnings(record=True) as w:
             SquareHat(fh, 10, samples_per_frame=11)
         assert any('inefficient' in str(_w) for _w in w)
+        fh.close()
