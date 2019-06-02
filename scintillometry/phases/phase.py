@@ -497,6 +497,7 @@ class Phase(Angle):
             i_self += 1
 
         # Some bools for use in the if-statements below.
+        # TODO: support reductions on add, minimum, maximum; others?
         basic = method == '__call__' and i_self < function.nin
         basic_real = basic and not self.imaginary
         basic_phase_out = basic
@@ -512,7 +513,7 @@ class Phase(Angle):
         else:
             phase_out = None
 
-        if function in {np.add, np.subtract} and out is None:
+        if function in {np.add, np.subtract} and basic and out is None:
             try:
                 phases = [Phase(input_, copy=False, subok=True)
                           for input_ in inputs]
