@@ -210,3 +210,11 @@ class TestPyfftwFFT:
         assert y_back is y
         assert fft._fftw.input_array is ifft._fftw.output_array
         assert ifft._fftw.input_array is fft._fftw.output_array
+
+    def test_normalization(self):
+        x = np.linspace(0., 1., 16)
+        fft1 = self.maker()(x.shape, x.dtype, ortho=True)
+        fft2 = self.maker()(x.shape, x.dtype, ortho=False)
+        y1 = fft1(x.copy())
+        y2 = fft2(x.copy())
+        assert np.allclose(y1, y2 / np.sqrt(16))
