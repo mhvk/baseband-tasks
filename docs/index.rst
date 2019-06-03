@@ -50,6 +50,20 @@ one to generate fake signals.
 
    simulation/generators
 
+.. _input_output_toc:
+
+Input/output
+============
+
+Most I/O is via raw files read using :func:`baseband.open`, but
+Scintillometry offsers options to write out final products, such as
+folded profiles.
+
+.. toctree::
+   :maxdepth: 1
+
+   io/psrfits
+
 .. _helpers_toc:
 
 Helpers
