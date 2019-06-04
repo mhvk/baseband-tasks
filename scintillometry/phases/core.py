@@ -6,6 +6,8 @@ import warnings
 
 import numpy as np
 import astropy.units as u
+
+from .phase import Phase
 from .predictor import Polyco
 from .pint_toas import PintToas
 
@@ -50,16 +52,17 @@ class PintPhase:
 
         Returns
         -------
-        cycle, phase : tuple of `~astropy.units.Quantity`
-            The apparent pulse phase at time ``t``, as a 2-part tuple of
+        phase : `~scintillometry.phases.Phase`
+            The apparent pulse phase at time ``t``, using a 2-part double of
             the integer cycle and the fractional phase.  The latter is
             between -0.5 and 0.5.
         """
         toas = self.toa_maker(t)
         ph = self.model.phase(toas)
         shape = getattr(t, 'shape', ())
-        return (u.Quantity(ph.int.reshape(shape), u.cycle, copy=False),
-                u.Quantity(ph.frac.reshape(shape), u.cycle, copy=False))
+        # TODO: Once PINT uses the Phase class, we can return the
+        # result directly.
+        return Phase(ph.int, ph.frac).reshape(shape)
 
     def apparent_spin_freq(self, t):
         """Compute the apparent spin frequency at one or more times.
@@ -99,16 +102,13 @@ class PolycoPhase:
 
         Returns
         -------
-        cycle, phase : tuple of `~astropy.units.Quantity`
-            The apparent pulse phase at time ``t``, as a 2-part tuple of
+        phase : `~scintillometry.phases.Phase`
+            The apparent pulse phase at time ``t``, using a 2-part double of
             the integer cycle and the fractional phase.  The latter is
             between -0.5 and 0.5.
         """
-        ph = self.polyco(t)
-        with u.set_enabled_equivalencies([(u.cycle, None)]):
-            ph_int, ph_frac = divmod(ph, 1)
-            return (u.Quantity(ph_int, u.cycle, copy=False),
-                    u.Quantity(ph_frac, u.cycle, copy=False))
+        # TODO: use Phase internally in Polyco.
+        return Phase(self.polyco(t))
 
     def apparent_spin_freq(self, t):
         """Compute the apparent spin frequency at one or more times.

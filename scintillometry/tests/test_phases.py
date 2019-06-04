@@ -7,7 +7,7 @@ import os
 import astropy.units as u
 from astropy.time import Time
 
-from ..phases import PolycoPhase, PintPhase
+from ..phases import PolycoPhase, PintPhase, Phase
 
 pytest.importorskip('scintillometry.utils.pint_utils')
 
@@ -48,10 +48,8 @@ class PhaseTest:
         time = self.times[index]
         phase = self.pu(time)
         f0 = self.pu.apparent_spin_freq(time)
-        assert isinstance(phase[0], u.Quantity)
-        assert isinstance(phase[1], u.Quantity)
-        assert phase[0].shape == time.shape
-        assert phase[1].shape == time.shape
+        assert isinstance(phase, Phase)
+        assert phase.shape == time.shape
         assert isinstance(f0, u.Quantity)
         assert f0.shape == time.shape
 
@@ -73,11 +71,8 @@ class TestPhaseComparison(PintBase, PolycoBase):
         polyco_phase = self.polyco_pu(self.times)
         polyco_f0 = self.polyco_pu.apparent_spin_freq(self.times)
         # compare phases
-        diff_int = pint_phase[0] - polyco_phase[0]
-        diff_frac = pint_phase[1] - polyco_phase[1]
-        diff_total = diff_int + diff_frac
-        diff_total = diff_total - diff_total.mean()
-        assert np.all(diff_total < 1e-4 * u.cy), \
+        diff_phase = pint_phase - polyco_phase
+        assert np.all(diff_phase < 1e-4 * u.cy), \
             "The phase difference between PINT and polyco is too big."
 
         diff_f0 = pint_f0 - polyco_f0
