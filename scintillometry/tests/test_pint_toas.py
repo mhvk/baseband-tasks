@@ -6,8 +6,10 @@ import os
 import astropy.units as u
 from astropy.time import Time
 
+from ..phases import pint_toas
 
-pint_toas = pytest.importorskip('scintillometry.phases.pint_toas')
+
+pint = pytest.importorskip('pint')
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
