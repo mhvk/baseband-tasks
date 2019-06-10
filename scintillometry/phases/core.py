@@ -25,7 +25,9 @@ class PintPhase:
     observatory : str
         Observatory name or observatory code.
     frequency : `~astropy.units.Quantity`.
-        Observing frequency.
+        Observing frequency.  If not a scalar, one has to ensure it can be
+        broadcast properly against time arrays for which phases and spin
+        frequencies are calculated.
     **kwargs
         Additional key words arguments for making TOAs.  Please see the
         documentation of `~scintillometry.phases.pint_toas.PintToas`.
@@ -59,7 +61,7 @@ class PintPhase:
         """
         toas = self.toa_maker(t)
         ph = self.model.phase(toas)
-        shape = getattr(t, 'shape', ())
+        shape = getattr(toas, 'shape', ())
         # TODO: Once PINT uses the Phase class, we can return the
         # result directly.
         return Phase(ph.int, ph.frac).reshape(shape)

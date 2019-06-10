@@ -90,3 +90,28 @@ class TestPhaseComparison(PintBase, PolycoBase):
         diff_f0 = pint_f0 - polyco_f0
         assert np.all(diff_f0 < 2e-7 * u.Hz),  \
             "The apparent spin frequencyies do now match."
+
+
+@pytest.mark.skipif(not HAS_PINT,
+                    reason="pint phase tests require PINT to be installed.")
+class TestPintFrequencyBroadcasting(Base):
+    def setup(self):
+        super().setup()
+        self.obs = 'ao'
+        self.obs_freq = 1440.0
+        self.par_file = os.path.join(test_data,
+                                     'B1937+21_NANOGrav_11yv1.gls.par')
+
+    def test_multiple_frequencies(self):
+        # Regression test for gh-95
+        freq = np.array([[1.4], [1.5]]) * u.GHz
+        times = self.times
+        pu = PintPhase(self.par_file, observatory=self.obs, frequency=freq)
+        phases = pu(times)
+        assert phases.shape == (2, 30)
+        freq2 = freq.squeeze()
+        times2 = self.times[:, np.newaxis]
+        pu2 = PintPhase(self.par_file, observatory=self.obs, frequency=freq2)
+        phases2 = pu2(times2)
+        assert phases2.shape == (30, 2)
+        assert np.all(phases2.T == phases)

@@ -19,11 +19,14 @@ class PintToas:
     ----------
     observatory : str
         The observatory code or names
-    frequency : float or `~astropy.units.Quantity`
-        The observing frequency, the default unit is MHz
-    ephem : str, optinal
+    frequency : `~astropy.units.Quantity`.
+        Observing frequency.  If not a scalar, one has to ensure it can be
+        broadcast properly against time arrays for which lists of TOAs are
+        calculated.
+    ephemeris : str, optinal
         Solar system dynamic model file. Default is astropy's 'jpl'
-        (see `~astropy.coordinates.solar_system_ephemeris`).
+        (see `~astropy.coordinates.solar_system_ephemeris`).  For consistency
+        with PINT, this argument can also be passed in as ``ephem``.
     include_bipm : bool, optional
         Flag to include the TT BIPM correction. Default is True.
     bipm_version : str, optional
@@ -46,15 +49,17 @@ class PintToas:
     (e.g., observatory, observing frequency, etc.)
     """
     def __init__(self, observatory, frequency, *,
-                 ephem='jpl', include_bipm=True, bipm_version='BIPM2015',
+                 ephemeris='jpl', include_bipm=True, bipm_version='BIPM2015',
                  include_gps=True, planets=False, tdb_method="default",
                  **kwargs):
         self.observatory = observatory
         self.frequency = frequency
-        self.control_params = {'ephem': ephem, 'bipm_version': bipm_version,
+        self.control_params = {'ephem': ephemeris,
+                               'bipm_version': bipm_version,
                                'include_bipm': include_bipm,
                                'bipm_version': bipm_version,
-                               'include_gps': include_gps, 'planets': planets,
+                               'include_gps': include_gps,
+                               'planets': planets,
                                'tdb_method': tdb_method}
         self.control_params.update(kwargs)
 
@@ -70,38 +75,18 @@ class PintToas:
         # and doing it globally messes up sphinx.
         from pint import toa
 
-        toa_list = make_toa_list(time, self.observatory, self.frequency)
-        return toa.get_TOAs_list(toa_list, **self.control_params)
+        if time.scale == 'utc':
+            time = time.replicate(format='pulsar_mjd')
 
+        freq, _ = np.broadcast_arrays(self.frequency, time.jd1, subok=True)
+        time = time._apply(np.broadcast_to, freq.shape)
+        toa_list = []
+        for t, f in zip(time.ravel(), freq.ravel()):
+            # This format converting should be done by PINT in the future.
+            toa_entry = toa.TOA(t, obs=self.observatory, freq=f,
+                                **self.control_params)
+            toa_list.append(toa_entry)
 
-# NOTE, the functions below will be included in a future PINT release.
-def make_toa_list(time, obs, freq, **other_meta):
-    """Convert times to a list of PINT TOAs.
-
-    The input timestamps will be flattened to a 1-dimensional array.
-
-    Parameters
-    ----------
-    time : `~astropy.time.Time`
-        Input timestamps.
-    obs : str
-        The observatory code or names
-    freq : float or `~astropy.units.Quantity`
-        The observing frequency, the default unit is MHz
-
-    Returns
-    -------
-    List of `~pint.toa.TOA`.
-    """
-    # local import since we cannot count on PINT being present,
-    # and doing it globally messes up sphinx.
-    from pint import toa
-
-    toa_list = []
-    for t_stamp in time.ravel():
-        # This format converting should be done by PINT in the future.
-        if t_stamp.scale == 'utc':
-            t_stamp = t_stamp.replicate(format='pulsar_mjd')
-        toa_entry = toa.TOA(t_stamp, obs=obs, freq=freq, **other_meta)
-        toa_list.append(toa_entry)
-    return toa_list
+        toas = toa.get_TOAs_list(toa_list, **self.control_params)
+        toas.shape = time.shape
+        return toas
