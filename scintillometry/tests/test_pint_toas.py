@@ -1,13 +1,15 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Full-package tests of pint_utils sources."""
+"""Full-package tests of pint_toas sources."""
 import pytest
 import numpy as np
 import os
 import astropy.units as u
 from astropy.time import Time
 
+from ..phases import pint_toas
 
-pint_utils = pytest.importorskip('scintillometry.phases.pint_utils')
+
+pint = pytest.importorskip('pint')
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
@@ -24,7 +26,7 @@ class TestPintUtils:
         self.freq = 1.4 * u.GHz
 
     def test_time_input(self):
-        pt = pint_utils.PintToas(self.obs, self.freq)
+        pt = pint_toas.PintToas(self.obs, self.freq)
         toas = pt(self.times)
         assert toas.ntoas == len(self.times), \
             "TOAs did not input properly from timestamps"
@@ -45,8 +47,8 @@ class TestPintUtils:
         # Here, we pick the astropy/erfa built-in ephemeris, to avoid
         # downloading a(nother) big ephemeris file.  In principle,
         # this should not download anything, but PINT downloads IERS_B.
-        pt = pint_utils.PintToas(self.obs, self.freq, ephem='builtin',
-                                 include_bipm=False, include_gps=False)
+        pt = pint_toas.PintToas(self.obs, self.freq, ephem='builtin',
+                                include_bipm=False, include_gps=False)
         toas = pt(self.times)
         assert toas.ephem == 'builtin', \
             "Failed to initialize with input control parameters."
