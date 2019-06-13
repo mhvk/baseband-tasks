@@ -17,7 +17,7 @@ def get_fh():
     fh = vdif.open(SAMPLE_VDIF)
     # Add frequency, sideband, and polarization information by hand.
     fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
-    fh.sideband = 1
+    fh.sideband = np.array(1)
     fh.polarization = np.tile(['L', 'R'], 4)
     return fh
 
