@@ -155,6 +155,7 @@ class Concatenate(CombineStreamsBase):
         super().__init__(ihs)
 
     def task(self, data):
+        """Concatenate the pieces of data together."""
         # Reuse frame for in-place output if possible.
         if getattr(self._frame, 'shape', [-1])[0] == data[0].shape[0]:
             out = self._frame
@@ -184,6 +185,7 @@ class Stack(CombineStreamsBase):
         super().__init__(ihs)
 
     def task(self, data):
+        """Stack the pieces of data."""
         # Reuse frame for in-place output if possible.
         if getattr(self._frame, 'shape', [-1])[0] == data[0].shape[0]:
             out = self._frame

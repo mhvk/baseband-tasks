@@ -336,4 +336,5 @@ class GetItem(ChangeSampleShapeBase):
         super().__init__(ih)
 
     def task(self, data):
+        """Get the preset item from the data."""
         return data[self._item]
