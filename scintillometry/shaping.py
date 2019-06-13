@@ -60,7 +60,7 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
     ih : task or `baseband` stream reader
         Input data stream.
     task : callable
-        The function or method-like callable, The function must work with
+        The function or method-like callable. The task must work with
         any number of data samples and change the sample shape only.
         It will also be applied to the ``frequency``, ``sideband``, and
         ``polarization`` attributes of the underlying stream (if present).
