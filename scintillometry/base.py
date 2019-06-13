@@ -78,6 +78,12 @@ class Base:
         Dtype of the samples.
     """
 
+    # Initial values for sample and frame pointers, etc.
+    offset = 0
+    _frame_index = None
+    _frame = None
+    closed = False
+
     def __init__(self, shape, start_time, sample_rate, samples_per_frame=1,
                  frequency=None, sideband=None, polarization=None,
                  dtype=np.complex64):
@@ -98,11 +104,6 @@ class Base:
         self._frequency = frequency
         self._sideband = sideband
         self._polarization = polarization
-
-        # Sample and frame pointers.
-        self.offset = 0
-        self._frame_index = None
-        self.closed = False
 
     def _check_shape(self, value):
         """Check that value can be broadcast to the sample shape."""
