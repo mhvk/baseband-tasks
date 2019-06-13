@@ -25,8 +25,7 @@ class CombineStreamsBase(TaskBase):
         try:
             ih0 = ihs[0]
         except (TypeError, IndexError) as exc:
-            exc.args += ("Need an iterable tuple containing "
-                         "at least one stream.",)
+            exc.args += ("Need an iterable containing at least one stream.",)
             raise
 
         # Check consistency of the streams.
@@ -43,8 +42,8 @@ class CombineStreamsBase(TaskBase):
         try:
             a = self.task(fakes)
         except Exception as exc:
-            exc.args += ("stream samples with shapes {} cannot be combined "
-                         "as required".format([f.shape for f in fakes]),)
+            exc.args += ("streams with sample shapes {} cannot be combined "
+                         "as required".format([f.shape[1:] for f in fakes]),)
             raise
         if a.shape[0] != 7:
             raise ValueError("stream combination affected the sample axis (0).")
@@ -130,6 +129,8 @@ class CombineStreams(Task, CombineStreamsBase):
     Concatenate : to concatenate streams along an existing axis
     Stack : to stack streams together along a new axis
     """
+    # Override __init__ only to get rid of kwargs of Task, since these cannot
+    # be passed on to ChangeSampleShapeBase anyway.
     def __init__(self, ihs, task, method=None):
         super().__init__(ihs, task, method=method)
 

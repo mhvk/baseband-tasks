@@ -6,7 +6,7 @@ from numpy.testing import assert_array_equal
 import astropy.units as u
 
 from baseband import vdif, dada
-from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
+from baseband.data import SAMPLE_VDIF
 
 from ..shaping import GetItem, Reshape
 from ..combining import Concatenate, Stack, CombineStreams
