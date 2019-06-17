@@ -5,23 +5,20 @@ import numpy as np
 from numpy.testing import assert_array_equal
 import astropy.units as u
 
-from baseband import vdif, dada
-from baseband.data import SAMPLE_VDIF
-
 from ..shaping import GetItem, Reshape
 from ..combining import Concatenate, Stack, CombineStreams
 
-from .test_shaping import get_fh
+from .common import UseVDIFSampleWithAttrs
 
 
-class TestConcatenate:
+class TestConcatenate(UseVDIFSampleWithAttrs):
     @pytest.mark.parametrize('items',
                              ((slice(None, 4), slice(4, None)),
                               (slice(None, 3), slice(3, None)),
                               (slice(None, 2), slice(2, 6), slice(6, None)),
                               (slice(None),)))
     def test_concatenate_simple(self, items):
-        fh = get_fh()
+        fh = self.fh
         expected_data = fh.read()
         fhs = [GetItem(fh, item) for item in items]
         ch = Concatenate(fhs)
@@ -38,17 +35,16 @@ class TestConcatenate:
         ch.close()
 
     def test_wrong_axis(self):
-        with get_fh() as fh:
-            with pytest.raises(ValueError):
-                Concatenate((fh, fh), axis=0)
-            with pytest.raises(ValueError):
-                Concatenate((fh, fh), axis=-2)
+        with pytest.raises(ValueError):
+            Concatenate((self.fh, self.fh), axis=0)
+        with pytest.raises(ValueError):
+            Concatenate((self.fh, self.fh), axis=-2)
 
 
-class TestStack:
+class TestStack(UseVDIFSampleWithAttrs):
     @pytest.mark.parametrize('axis', (1, 2, -1))
     def test_stack_simple(self, axis):
-        fh = get_fh()
+        fh = self.fh
         data = fh.read()
         expected_data = np.stack((data[:, :4], data[:, 4:]), axis)
         fh0 = GetItem(fh, slice(None, 4))
@@ -74,7 +70,7 @@ class TestStack:
 
     @pytest.mark.parametrize('axis', (1, 2, -1))
     def test_stack_single_entry(self, axis):
-        fh = get_fh()
+        fh = self.fh
         data = fh.read()
         expected_data = np.stack((data,), axis=axis)
         ch = Stack((fh,), axis=axis)
@@ -96,24 +92,22 @@ class TestStack:
         ch.close()
 
     def test_wrong_axis(self):
-        with get_fh() as fh:
-            with pytest.raises(ValueError):
-                Stack((fh, fh), axis=0)
-            with pytest.raises(ValueError):
-                Stack((fh, fh), axis=-3)
+        with pytest.raises(ValueError):
+            Stack((self.fh, self.fh), axis=0)
+        with pytest.raises(ValueError):
+            Stack((self.fh, self.fh), axis=-3)
 
 
-class TestCombineStreams:
+class TestCombineStreams(UseVDIFSampleWithAttrs):
     def test_combine_callable(self):
         def doublestack(data):
             # concatenate frequencies, stack polarizations.
             data = [np.stack(data[i:i+2], axis=1) for i in range(0, 8, 2)]
             return np.stack(data, axis=1)
 
-        fh = get_fh()
-        fhs = [GetItem(fh, i) for i in range(8)]
+        fhs = [GetItem(self.fh, i) for i in range(8)]
         ch = CombineStreams(fhs, doublestack)
-        expected = Reshape(fh, (4, 2))
+        expected = Reshape(self.fh, (4, 2))
 
         assert ch.shape == expected.shape
         assert ch.start_time == expected.start_time
