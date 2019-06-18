@@ -9,7 +9,8 @@ import numpy as np
 import astropy.units as u
 
 
-__all__ = ['SetAttribute', 'Task']
+__all__ = ['Base', 'BaseTaskBase', 'SetAttribute', 'TaskBase',
+           'Task', 'PaddedTaskBase']
 
 
 def check_broadcast_to(value, sample_shape):
@@ -87,7 +88,8 @@ class Base:
     _frame = None
     closed = False
 
-    def __init__(self, shape, start_time, sample_rate, samples_per_frame=1,
+    def __init__(self, shape, start_time, sample_rate, *,
+                 samples_per_frame=1,
                  frequency=None, sideband=None, polarization=None,
                  dtype=np.complex64):
         self._shape = shape
@@ -372,7 +374,8 @@ class BaseTaskBase(Base):
 
     """
 
-    def __init__(self, ih, start_time=None, shape=None, sample_rate=None,
+    def __init__(self, ih, *,
+                 start_time=None, shape=None, sample_rate=None,
                  samples_per_frame=None, frequency=None, sideband=None,
                  polarization=None, dtype=None):
         self.ih = ih
@@ -410,13 +413,16 @@ class BaseTaskBase(Base):
 
 
 class SetAttribute(BaseTaskBase):
-    """Wrapper for streams that allows on to set or change attributes.
+    """Wrapper for streams that allows one to set or change attributes.
 
     Can be used to add ``frequency``, ``sideband`` and ``polarization``
-    attributes, which most baseband readers do not provide, or to correct the
-    ``start_time`` for a clock correction.  The ``sample_rate`` can also
-    be set, but no check is done to ensure it remains consistent with the
-    ``frequency``.
+    attributes, which most baseband readers do not provide, checking that
+    the values broadcast properly to the sample shape.
+
+    Can also be used to apply a clock correction by changing ``start_time``.
+
+    The ``sample_rate`` can also be set, but no check is done to ensure it
+    remains consistent with the ``frequency``.
 
     The class reads directly from the underlying stream, which means it has
     very little performance impact, but also that one cannot change the
@@ -502,9 +508,10 @@ class TaskBase(BaseTaskBase):
         Output dtype.  If not given, the dtype of the underlying stream.
     """
 
-    def __init__(self, ih, shape=None, sample_rate=None,
-                 samples_per_frame=None, frequency=None, sideband=None,
-                 polarization=None, dtype=None):
+    def __init__(self, ih, *,
+                 shape=None, sample_rate=None, samples_per_frame=None,
+                 frequency=None, sideband=None, polarization=None,
+                 dtype=None):
         if sample_rate is None:
             sample_rate = ih.sample_rate
             sample_rate_ratio = 1.
@@ -655,8 +662,8 @@ class PaddedTaskBase(BaseTaskBase):
         Possible further arguments; see `~scintillometry.base.BaseTaskBase`.
 
     """
-    def __init__(self, ih, pad_start=0, pad_end=0, samples_per_frame=None,
-                 **kwargs):
+    def __init__(self, ih, pad_start=0, pad_end=0, *,
+                 samples_per_frame=None, **kwargs):
         self._pad_start = operator.index(pad_start)
         self._pad_end = operator.index(pad_end)
         if self._pad_start < 0 or self._pad_end < 0:
