@@ -100,7 +100,7 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
                    [343.25]] MHz>
         >>> sh.sideband
         array(1, dtype=int8)
-        >>> sh.close()
+        >>> fh.close()
     """
     # Override __init__ only to get rid of kwargs of Task, since these cannot
     # be passed on to ChangeSampleShapeBase anyway.
@@ -152,7 +152,7 @@ class Reshape(ChangeSampleShapeBase):
                    [359.25]] MHz>
         >>> rh.sideband
         array(1, dtype=int8)
-        >>> rh.close()
+        >>> fh.close()
     """
 
     def __init__(self, ih, sample_shape):
@@ -209,7 +209,7 @@ class Transpose(ChangeSampleShapeBase):
         <Quantity [311.25, 327.25, 343.25, 359.25] MHz>
         >>> th.sideband
         array(1, dtype=int8)
-        >>> th.close()
+        >>> fh.close()
 
     Note that the example above could also be done in one go using
     `~scintillometry.shaping.ReshapeAndTranspose`.
@@ -273,7 +273,7 @@ class ReshapeAndTranspose(Reshape):
         <Quantity [311.25, 327.25, 343.25, 359.25] MHz>
         >>> rth.sideband
         array(1, dtype=int8)
-        >>> rth.close()
+        >>> fh.close()
     """
 
     def __init__(self, ih, sample_shape, sample_axes):
@@ -326,7 +326,7 @@ class GetItem(ChangeSampleShapeBase):
         <Quantity [311.25, 311.25, 327.25, 327.25, 343.25, 343.25] MHz>
         >>> gih.sideband
         array(1, dtype=int8)
-        >>> gih.close()
+        >>> fh.close()
     """
     def __init__(self, ih, item):
         if isinstance(item, tuple):

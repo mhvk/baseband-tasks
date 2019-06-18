@@ -409,7 +409,9 @@ class BaseTaskBase(Base):
     def close(self):
         """Close task, in particular closing its input source."""
         super().close()
-        self.ih.close()
+        # Delete the reference to the underlying filehandle, so that it
+        # can be freed if used nowhere else.
+        del self.ih
 
 
 class SetAttribute(BaseTaskBase):

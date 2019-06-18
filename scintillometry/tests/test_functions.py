@@ -6,20 +6,20 @@ from numpy.testing import assert_array_equal
 import astropy.units as u
 from astropy.time import Time
 
+from ..base import SetAttribute
 from ..functions import Square, Power
 from ..generators import EmptyStreamGenerator
 from ..shaping import Reshape
 
-from baseband import vdif, dada
-from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
+from .common import UseDADASample, UseVDIFSample
 
 
-class TestSquare:
+class TestSquareComplex(UseDADASample):
     """Test getting simple intensities using Baseband's sample DADA file."""
 
     def test_square(self):
         # Load baseband file and get reference intensities.
-        fh = dada.open(SAMPLE_DADA)
+        fh = self.fh
         ref_data = fh.read()
         ref_data = np.real(ref_data * np.conj(ref_data))
 
@@ -42,13 +42,16 @@ class TestSquare:
 
         st.close()
 
+
+class TestSquareAttrPropagation(UseVDIFSample):
     def test_frequency_sideband_propagation(self):
-        fh = vdif.open(SAMPLE_VDIF)
         # Add frequency and sideband information by hand.
         # (Note: sideband is incorrect; just for testing purposes)
-        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
-        fh.sideband = np.tile([-1, +1], 4)
-        fh.polarization = np.tile(['L', 'R'], 4)
+        fh = SetAttribute(
+            self.fh,
+            frequency=311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz,
+            sideband=np.tile([-1, +1], 4),
+            polarization=np.tile(['L', 'R'], 4))
         st = Square(fh)
         assert np.all(st.frequency == fh.frequency)
         assert np.all(st.sideband == fh.sideband)
@@ -56,22 +59,21 @@ class TestSquare:
         st.close()
 
     def test_missing_frequency_sideband_polarization(self):
-        fh = vdif.open(SAMPLE_VDIF)
-        with Square(fh) as st:
-            with pytest.raises(AttributeError):
-                st.frequency
-            with pytest.raises(AttributeError):
-                st.sideband
-            with pytest.raises(AttributeError):
-                st.polarization
+        st = Square(self.fh)
+        with pytest.raises(AttributeError):
+            st.frequency
+        with pytest.raises(AttributeError):
+            st.sideband
+        with pytest.raises(AttributeError):
+            st.polarization
 
 
-class TestPower:
+class TestPoweDADAr(UseDADASample):
     """Test getting polarized intensities using Baseband's sample DADA file."""
 
     def test_power(self):
         # Load baseband file and get reference intensities.
-        fh = dada.open(SAMPLE_DADA)
+        fh = self.fh
         ref_data = fh.read()
         r0, i0, r1, i1 = ref_data.view('f4').T
         ref_data = np.stack((r0 * r0 + i0 * i0,
@@ -91,14 +93,15 @@ class TestPower:
         pt.close()
 
     def test_polarization_propagation(self):
-        fh = dada.open(SAMPLE_DADA)
         # Add polarization information by hand.
-        fh.polarization = np.array(['L', 'R'])
+        fh = SetAttribute(self.fh,
+                          polarization=np.array(['L', 'R']))
         pt = Power(fh)
         assert np.all(pt.polarization == np.array(['LL', 'RR', 'LR', 'RL']))
         # Swap order.
-        fh.polarization = np.array(['R', 'L'])
-        pt = Power(fh)
+        fh2 = SetAttribute(self.fh,
+                           polarization=np.array(['R', 'L']))
+        pt = Power(fh2)
         assert np.all(pt.polarization == np.array(['RR', 'LL', 'RL', 'LR']))
         pt.close()
 
@@ -129,26 +132,16 @@ class TestPower:
         assert_array_equal(pt.sideband, eh.sideband)
 
     def test_missing_polarization(self):
-        with dada.open(SAMPLE_DADA) as fh:
-            with pytest.raises(AttributeError):
-                Power(fh)
+        with pytest.raises(AttributeError):
+            Power(self.fh)
 
     def test_wrong_polarization_data(self):
-        with dada.open(SAMPLE_DADA) as fh:
-            with pytest.raises(ValueError):  # Only one.
-                Power(fh, polarization=['L'])
-            with pytest.raises(ValueError):  # Duplication (same error as above)
-                Power(fh, polarization=['L', 'L'])
-            with pytest.raises(ValueError):  # Wrong axis.
-                Power(fh, polarization=[['L'], ['R']])
-
-    def test_wrong_polarization_vdif(self):
-        with vdif.open(SAMPLE_VDIF) as fh:
-            with pytest.raises(AttributeError):
-                Power(fh)
-            fh.polarization = np.array(['L', 'R'] * 4)
-            with pytest.raises(ValueError):  # Too many.
-                Power(fh)
+        with pytest.raises(ValueError):  # Only one.
+            Power(self.fh, polarization=['L'])
+        with pytest.raises(ValueError):  # Duplication (same error as above)
+            Power(self.fh, polarization=['L', 'L'])
+        with pytest.raises(ValueError):  # Wrong axis.
+            Power(self.fh, polarization=[['L'], ['R']])
 
     def test_power_needs_complex(self):
         eh = EmptyStreamGenerator((10000, 2, 4), sample_rate=1.*u.Hz,
@@ -174,3 +167,13 @@ class TestPower:
                                   frequency=frequency, sideband=bad_side)
         with pytest.raises(ValueError):
             Power(eh, polarization=polarization)
+
+
+class TestPowerVDIFFailures(UseVDIFSample):
+    def test_wrong_polarization_vdif(self):
+        with pytest.raises(AttributeError):
+            Power(self.fh)
+        fh = SetAttribute(self.fh,
+                          polarization=np.array(['L', 'R'] * 4))
+        with pytest.raises(ValueError):  # Too many.
+            Power(fh)

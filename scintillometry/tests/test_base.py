@@ -10,9 +10,7 @@ import pytest
 
 from ..base import (BaseTaskBase, SetAttribute, TaskBase, PaddedTaskBase,
                     Task)
-
-from baseband import vdif
-from baseband.data import SAMPLE_VDIF
+from .common import UseVDIFSample
 
 
 class ReshapeTime(TaskBase):
@@ -71,18 +69,17 @@ class SquareHat(PaddedTaskBase):
         return result
 
 
-class TestSetAttribute:
+class TestSetAttribute(UseVDIFSample):
     def test_set_basics(self):
-        fh = vdif.open(SAMPLE_VDIF)
-        expected = fh.read()
+        expected = self.fh.read()
         frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         sideband = np.tile([-1, +1], 4)
-        sa = SetAttribute(fh, frequency=frequency, sideband=sideband)
+        sa = SetAttribute(self.fh, frequency=frequency, sideband=sideband)
         assert np.all(sa.frequency == frequency)
         assert np.all(sa.sideband == sideband)
         for attr in ('start_time', 'sample_rate', 'samples_per_frame',
                      'shape', 'dtype'):
-            assert getattr(sa, attr) == getattr(fh, attr)
+            assert getattr(sa, attr) == getattr(self.fh, attr)
         data = sa.read()
         assert np.all(data == expected)
         with pytest.raises(AttributeError):
@@ -90,13 +87,12 @@ class TestSetAttribute:
         sa.close()
 
     def test_set_start_time(self):
-        fh = vdif.open(SAMPLE_VDIF)
-        expected = fh.read()
+        expected = self.fh.read()
         offset = 0.1 * u.s
-        sa = SetAttribute(fh, start_time=fh.start_time+offset)
-        assert sa.start_time == fh.start_time+offset
+        sa = SetAttribute(self.fh, start_time=self.fh.start_time+offset)
+        assert sa.start_time == self.fh.start_time+offset
         for attr in ('sample_rate', 'samples_per_frame', 'shape', 'dtype'):
-            assert getattr(sa, attr) == getattr(fh, attr)
+            assert getattr(sa, attr) == getattr(self.fh, attr)
         data = sa.read()
         assert np.all(data == expected)
         sa.seek(10)
@@ -105,7 +101,7 @@ class TestSetAttribute:
         sa.seek(10/sa.sample_rate)
         data3 = sa.read(10)
         assert np.all(data3 == expected[10:20])
-        sa.seek(sa.start_time+10/fh.sample_rate)
+        sa.seek(sa.start_time+10/self.fh.sample_rate)
         data4 = sa.read(10)
         assert np.all(data4 == expected[10:20])
         for attr in ('frequency', 'sideband', 'polarization'):
@@ -114,10 +110,9 @@ class TestSetAttribute:
         sa.close()
 
 
-class TestTaskBase:
-
+class TestTaskBase(UseVDIFSample):
     def test_basetaskbase(self):
-        fh = vdif.open(SAMPLE_VDIF)
+        fh = self.fh
         mh = Multiply(fh, 2.)
         # Check sample pointer.
         assert mh.sample_rate == fh.sample_rate
@@ -132,7 +127,12 @@ class TestTaskBase:
         data = mh.read()
         assert np.all(data == expected)
         assert mh.time == fh.stop_time
+        # Check closing.
         mh.close()
+        with pytest.raises(ValueError):
+            mh.read(1)
+        with pytest.raises(AttributeError):
+            mh.ih
 
     @staticmethod
     def convert_time_offset(offset, sample_rate):
@@ -144,9 +144,8 @@ class TestTaskBase:
         """Test properties and methods of TaskBase, including
         self-consistency with varying ``n`` and ``samples_per_frame``.
         """
-        fh = vdif.open(SAMPLE_VDIF)
+        fh = self.fh
         rt = ReshapeTime(fh, n, samples_per_frame=samples_per_frame)
-
         # Check sample pointer.
         assert rt.sample_rate == fh.sample_rate / n
         nsample = samples_per_frame * (fh.shape[0] // n // samples_per_frame)
@@ -160,6 +159,9 @@ class TestTaskBase:
 
         # Get reference data.
         ref_data = fh.read(nsample * n).reshape((-1, n) + fh.sample_shape)
+
+        # Let's delete fh here, so we check that `rt` keeps it alive.
+        del fh
 
         # Check sequential reading.
         data1 = rt.read()
@@ -196,74 +198,80 @@ class TestTaskBase:
 
         # Check closing.
         rt.close()
-        assert fh.closed
+        assert rt.closed
         with pytest.raises(ValueError):
             rt.read(1)
+        with pytest.raises(AttributeError):
+            rt.ih
 
     def test_frequency_sideband_propagation(self):
-        fh = vdif.open(SAMPLE_VDIF)
+        fh = self.fh
         # Add frequency and sideband information by hand.
         # (Note: sideband is incorrect; just for testing purposes)
         fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         fh.sideband = np.tile([-1, +1], 4)
-        rt = ReshapeTime(fh, 256)
-        assert np.all(rt.sideband == fh.sideband)
-        assert np.all(rt.frequency == fh.frequency)
-        rt.close()
+        with ReshapeTime(fh, 256) as rt:
+            assert np.all(rt.sideband == fh.sideband)
+            assert np.all(rt.frequency == fh.frequency)
+        # Check now closed
+        assert rt.closed
+        with pytest.raises(ValueError):
+            rt.read(1)
+        with pytest.raises(AttributeError):
+            rt.ih
 
     def test_frequency_sideband_setting(self):
-        fh = vdif.open(SAMPLE_VDIF)
+        fh = self.fh
         # Add frequency and sideband information by hand, broadcasting it.
         # (Note: sideband is incorrect; just for testing purposes)
         frequency_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
         sideband_in = np.tile([-1, +1], 4)
-        rt = ReshapeTime(fh, 256, frequency=frequency_in, sideband=sideband_in)
-        assert np.all(rt.sideband == sideband_in)
-        assert np.all(rt.frequency == frequency_in)
-        rt.close()
+        with ReshapeTime(fh, 256, frequency=frequency_in,
+                         sideband=sideband_in) as rt:
+            assert np.all(rt.sideband == sideband_in)
+            assert np.all(rt.frequency == frequency_in)
 
     def test_taskbase_exceptions(self):
         """Test exceptions in TaskBase."""
+        fh = self.fh
+        rt = ReshapeTime(fh, 1024, samples_per_frame=3)
 
-        with vdif.open(SAMPLE_VDIF) as fh:
-            rt = ReshapeTime(fh, 1024, samples_per_frame=3)
+        # Check that reading beyond the bounds of the data leads to an
+        # error.
+        rt.seek(0, 2)
+        with pytest.raises(EOFError):
+            rt.read(1)
+        rt.seek(-2, 'end')
+        with pytest.raises(EOFError):
+            rt.read(10)
+        rt.seek(-2, 'end')
+        with pytest.raises(EOFError):
+            rt.read(out=np.empty((5,) + rt.sample_shape))
+        rt.seek(-4, 'start')
+        with pytest.raises(OSError):
+            rt.read(1)
 
-            # Check that reading beyond the bounds of the data leads to an
-            # error.
-            rt.seek(0, 2)
-            with pytest.raises(EOFError):
-                rt.read(1)
-            rt.seek(-2, 'end')
-            with pytest.raises(EOFError):
-                rt.read(10)
-            rt.seek(-2, 'end')
-            with pytest.raises(EOFError):
-                rt.read(out=np.empty((5,) + rt.sample_shape))
-            rt.seek(-4, 'start')
-            with pytest.raises(OSError):
-                rt.read(1)
+        # Check invalid whence.
+        with pytest.raises(ValueError):
+            rt.seek(1, 'now')
+        with pytest.raises(ValueError):
+            rt.seek(1, 3)
 
-            # Check invalid whence.
-            with pytest.raises(ValueError):
-                rt.seek(1, 'now')
-            with pytest.raises(ValueError):
-                rt.seek(1, 3)
+        # Check external array shape mismatch raises an error.
+        with pytest.raises(AssertionError):
+            rt.read(out=np.empty(3))
 
-            # Check external array shape mismatch raises an error.
-            with pytest.raises(AssertionError):
-                rt.read(out=np.empty(3))
-
-            # Check missing frequency/sideband definitions
-            with pytest.raises(AttributeError):
-                rt.frequency
-            with pytest.raises(AttributeError):
-                rt.sideband
-            with pytest.raises(ValueError):
-                ReshapeTime(fh, 1024, samples_per_frame=3,
-                            frequency=np.arange(4.)*u.GHz)
-            with pytest.raises(ValueError):
-                ReshapeTime(fh, 1024, samples_per_frame=3,
-                            sideband=np.ones((2, 8), dtype=int))
+        # Check missing frequency/sideband definitions
+        with pytest.raises(AttributeError):
+            rt.frequency
+        with pytest.raises(AttributeError):
+            rt.sideband
+        with pytest.raises(ValueError):
+            ReshapeTime(fh, 1024, samples_per_frame=3,
+                        frequency=np.arange(4.)*u.GHz)
+        with pytest.raises(ValueError):
+            ReshapeTime(fh, 1024, samples_per_frame=3,
+                        sideband=np.ones((2, 8), dtype=int))
 
 
 def zero_channel_4(data):
@@ -290,7 +298,7 @@ def zero_every_8th_complex(fh, data):
     return data
 
 
-class TestTasks:
+class TestTasks(UseVDIFSample):
     """Test applying tasks to Baseband's sample VDIF file."""
 
     @pytest.mark.parametrize('task, sample_factor',
@@ -302,12 +310,11 @@ class TestTasks:
         """Test setting a channel to zero."""
 
         # Load baseband file and get reference intensities.
-        fh = vdif.open(SAMPLE_VDIF)
-        ref_data = task(fh.read())
+        ref_data = task(self.fh.read())
 
-        ft = Task(fh, task, sample_rate=fh.sample_rate * sample_factor)
+        ft = Task(self.fh, task, sample_rate=self.fh.sample_rate*sample_factor)
 
-        assert ft.shape[0] == fh.shape[0] * sample_factor
+        assert ft.shape[0] == self.fh.shape[0] * sample_factor
         # Apply to everything.
         data1 = ft.read()
         assert ft.tell() == ft.shape[0]
@@ -322,52 +329,51 @@ class TestTasks:
         data2 = ft.read()
         assert data2.shape[0] == 3
         assert np.allclose(ref_data[-3:], data2)
-
         ft.close()
+        assert ft.closed
+        with pytest.raises(ValueError):
+            ft.read(1)
 
     @pytest.mark.parametrize('samples_per_frame', (None, 15, 1000))
     def test_method_task(self, samples_per_frame):
-        fh = vdif.open(SAMPLE_VDIF)
-        count = fh.shape[0]
+        count = self.fh.shape[0]
         if samples_per_frame is not None:
             count = (count // samples_per_frame) * samples_per_frame
-        ref_data = zero_every_8th_sample(fh.read(count))
+        ref_data = zero_every_8th_sample(self.fh.read(count))
 
-        with Task(fh, zero_every_8th_complex,
+        with Task(self.fh, zero_every_8th_complex,
                   samples_per_frame=samples_per_frame) as ft:
             data1 = ft.read()
 
         assert np.all(data1 == ref_data)
+        assert ft.closed
 
     def test_invalid(self):
-        fh = vdif.open(SAMPLE_VDIF)
         with pytest.raises(Exception):  # Cannot determine function/method.
-            Task(fh, np.add)
+            Task(self.fh, np.add)
 
         def trial(data, bla=1):
             return data
 
-        th = Task(fh, trial)
-        assert not inspect.ismethod(th.task)
+        with Task(self.fh, trial) as th:
+            assert not inspect.ismethod(th.task)
 
         def trial2(data, bla, bla2=1):
             return data
 
-        th2 = Task(fh, trial2)
-        assert inspect.ismethod(th2.task)
+        with Task(self.fh, trial2) as th2:
+            assert inspect.ismethod(th2.task)
 
         def trial3(data, bla, bla2, bla3=1):
             return data
 
         with pytest.raises(Exception):
-            Task(fh, trial3)
-
-        fh.close()
+            Task(self.fh, trial3)
 
 
-class TestPaddedTaskBase:
+class TestPaddedTaskBase(UseVDIFSample):
     def test_basics(self):
-        fh = vdif.open(SAMPLE_VDIF)
+        fh = self.fh
         sh = SquareHat(fh, 3)
         expected_size = ((fh.shape[0] - 2) // 4) * 4
         assert sh.sample_rate == fh.sample_rate
@@ -379,16 +385,15 @@ class TestPaddedTaskBase:
         data = sh.read(10)
         assert np.all(data == expected)
         sh.close()
+        assert sh.closed
 
     def test_invalid(self):
-        fh = vdif.open(SAMPLE_VDIF)
         with pytest.raises(ValueError):
-            SquareHat(fh, -1)
+            SquareHat(self.fh, -1)
         with pytest.raises(ValueError):
-            SquareHat(fh, 10, offset=-1)
+            SquareHat(self.fh, 10, offset=-1)
         with pytest.raises(ValueError):
-            SquareHat(fh, 10, samples_per_frame=9)
+            SquareHat(self.fh, 10, samples_per_frame=9)
         with warnings.catch_warnings(record=True) as w:
-            SquareHat(fh, 10, samples_per_frame=11)
+            SquareHat(self.fh, 10, samples_per_frame=11)
         assert any('inefficient' in str(_w) for _w in w)
-        fh.close()

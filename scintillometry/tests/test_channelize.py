@@ -4,24 +4,24 @@ import numpy as np
 import astropy.units as u
 import pytest
 
+from ..base import SetAttribute
 from ..channelize import Channelize, Dechannelize
 from ..fourier import get_fft_maker
 
-from baseband import vdif, dada
-from baseband.data import SAMPLE_VDIF, SAMPLE_DADA
+from .common import UseVDIFSample, UseDADASample
 
 
-class TestChannelize:
+class TestChannelizeReal(UseVDIFSample):
     """Test channelization using Baseband's sample VDIF file."""
 
     def setup(self):
         """Pre-calculate channelized data."""
+        super().setup()
         self.n = 1024
 
-        with vdif.open(SAMPLE_VDIF) as fh:
-            self.ref_start_time = fh.start_time
-            self.ref_sample_rate = fh.sample_rate
-            data = fh.read()
+        self.ref_start_time = self.fh.start_time
+        self.ref_sample_rate = self.fh.sample_rate
+        data = self.fh.read()
 
         self.raw_data = data
         last_sample = self.n * (data.shape[0] // self.n)
@@ -30,15 +30,19 @@ class TestChannelize:
         rfft = FFT(shape=part.shape, dtype=part.dtype, axis=1,
                    sample_rate=self.ref_sample_rate)
         self.ref_data = rfft(part)
+        # Note: sideband is actually incorrect for this VDIF file;
+        # this is for testing only.
         self.ref_sideband = np.tile([-1, 1], 4)
         self.ref_frequency = ((311.25 + 16 * (np.arange(8) // 2)) * u.MHz +
                               self.ref_sideband * rfft.frequency)
+        self.fh_freq = SetAttribute(
+            self.fh,
+            frequency=311.25*u.MHz+(np.arange(8.)//2)*16.*u.MHz,
+            sideband=np.tile([-1, +1], 4))
 
     def test_channelizetask(self):
         """Test channelization task."""
-
-        fh = vdif.open(SAMPLE_VDIF)
-        ct = Channelize(fh, self.n)
+        ct = Channelize(self.fh, self.n)
 
         # Channelize everything.
         data1 = ct.read()
@@ -61,62 +65,32 @@ class TestChannelize:
 
         # Quick test of channel sanity check in __init__.
         with pytest.raises(AssertionError):
-            ct = Channelize(fh, 400001)
+            ct = Channelize(self.fh, 400001)
 
         ct.close()
+        assert ct.closed
+        with pytest.raises(ValueError):
+            ct.read(1)
+        with pytest.raises(AttributeError):
+            ct.ih
 
     def test_channelize_frequency_real(self):
         """Test frequency calculation."""
-
-        fh = vdif.open(SAMPLE_VDIF)
-        # Add frequency information by hand for now.
-        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
-        # Note: sideband is actually incorrect for this VDIF file;
-        # this is for testing only.
-        fh.sideband = np.tile([-1, +1], 4)
-
-        ct = Channelize(fh, self.n)
+        ct = Channelize(self.fh_freq, self.n)
         assert np.all(ct.sideband == self.ref_sideband)
         assert np.all(ct.frequency == self.ref_frequency)
-        ct.close()
-
-    def test_channelize_frequency_complex(self):
-        """Test frequency calculation."""
-
-        fh = dada.open(SAMPLE_DADA)
-        # Add frequency information by hand for now.
-        fh.frequency = fh.header0['FREQ'] * u.MHz
-        fh.sideband = np.where(fh.header0.sideband, 1, -1)
-
-        ct = Channelize(fh, self.n)
-
-        ref_frequency = (320. * u.MHz +
-                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
-        assert np.all(ct.sideband == fh.sideband)
-        assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
-
-        fh.sideband = -fh.sideband
-        ct = Channelize(fh, self.n)
-        ref_frequency = (320. * u.MHz -
-                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
-        assert np.all(ct.sideband == fh.sideband)
-        assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
-        ct.close()
 
     def test_dechannelizetask_real(self):
         """Test dechannelization round-tripping."""
-        fh = vdif.open(SAMPLE_VDIF)
-        fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
-        fh.sideband = np.tile([-1, +1], 4)
-        ct = Channelize(fh, self.n)
-        dt = Dechannelize(ct, self.n, dtype=fh.dtype)
-        nrec = (fh.shape[0] // self.n) * self.n
-        assert dt.shape == (nrec,) + fh.shape[1:]
+        ct = Channelize(self.fh_freq, self.n)
+        dt = Dechannelize(ct, self.n, dtype=self.fh.dtype)
+        nrec = (self.fh.shape[0] // self.n) * self.n
+        assert dt.shape == (nrec,) + self.fh.shape[1:]
         data = dt.read()
         # Note: round-trip is not perfect due to rounding errors.
         assert np.allclose(data, self.raw_data[:nrec], atol=1.e-5)
-        assert np.all(dt.frequency == fh.frequency)
-        assert np.all(dt.sideband == fh.sideband)
+        assert np.all(dt.frequency == self.fh_freq.frequency)
+        assert np.all(dt.sideband == self.fh_freq.sideband)
         # Check class method
         dt2 = ct.inverse(ct)
         data2 = dt2.read()
@@ -124,16 +98,46 @@ class TestChannelize:
 
         # For real data, need to pass in `n`
         with pytest.raises(ValueError):
-            Dechannelize(ct, dtype=fh.dtype)
+            Dechannelize(ct, dtype=self.fh_freq.dtype)
 
-        dt2.close()
+    def test_missing_frequency_sideband(self):
+        with Channelize(self.fh, self.n) as ct:
+            with pytest.raises(AttributeError):
+                ct.frequency
+            with pytest.raises(AttributeError):
+                ct.sideband
+
+
+class TestChannelizeComplex(UseDADASample):
+    def setup(self):
+        super().setup()
+        self.n = 1024
+        # Add frequency information by hand for now.
+        self.fh_freq = SetAttribute(
+            self.fh,
+            frequency=self.fh.header0['FREQ']*u.MHz,
+            sideband=np.where(self.fh.header0.sideband, 1, -1))
+
+    def test_channelize_frequency_complex(self):
+        """Test frequency calculation."""
+        fh = self.fh_freq
+        ct = Channelize(fh, self.n)
+        ref_frequency = (320. * u.MHz +
+                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
+        assert np.all(ct.sideband == fh.sideband)
+        assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
+
+        fh = SetAttribute(self.fh, frequency=self.fh_freq.frequency,
+                          sideband=-self.fh_freq.sideband)
+        ct = Channelize(fh, self.n)
+        ref_frequency = (320. * u.MHz -
+                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
+        assert np.all(ct.sideband == fh.sideband)
+        assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
 
     def test_dechannelizetask_complex(self):
         """Test dechannelization round-tripping."""
-        fh = dada.open(SAMPLE_DADA)
-        # Add frequency information by hand for now.
-        fh.frequency = fh.header0['FREQ'] * u.MHz
-        fh.sideband = np.where(fh.header0.sideband, 1, -1)
+        fh = self.fh_freq
         raw_data = fh.read()
         ct = Channelize(fh, self.n)
         dt = Dechannelize(ct)
@@ -155,11 +159,3 @@ class TestChannelize:
         ft2 = ct2.read()
         assert np.all(ft == ft2)
         dt2.close()
-
-    def test_missing_frequency_sideband(self):
-        fh = vdif.open(SAMPLE_VDIF)
-        with Channelize(fh, self.n) as ct:
-            with pytest.raises(AttributeError):
-                ct.frequency
-            with pytest.raises(AttributeError):
-                ct.sideband
