@@ -5,6 +5,7 @@ import numpy as np
 from numpy.testing import assert_array_equal
 import astropy.units as u
 
+from ..base import SetAttribute
 from ..shaping import (Reshape, Transpose, ReshapeAndTranspose,
                        ChangeSampleShape, GetItem)
 
@@ -16,10 +17,11 @@ def get_fh():
     """Get sample VDIF file with correct frequency, sideband, polarization."""
     fh = vdif.open(SAMPLE_VDIF)
     # Add frequency, sideband, and polarization information by hand.
-    fh.frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
-    fh.sideband = np.array(1)
-    fh.polarization = np.tile(['L', 'R'], 4)
-    return fh
+    sa = SetAttribute(
+        fh, frequency=311.25*u.MHz+(np.arange(8.)//2)*16.*u.MHz,
+        sideband=np.array(1),
+        polarization=np.tile(['L', 'R'], 4))
+    return sa
 
 
 class TestReshape:

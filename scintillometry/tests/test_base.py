@@ -8,7 +8,8 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from ..base import TaskBase, Task, BaseTaskBase, PaddedTaskBase
+from ..base import (BaseTaskBase, SetAttribute, TaskBase, PaddedTaskBase,
+                    Task)
 
 from baseband import vdif
 from baseband.data import SAMPLE_VDIF
@@ -68,6 +69,49 @@ class SquareHat(PaddedTaskBase):
         for i in range(1, self._n):
             result += data[i:size-self._n+i+1]
         return result
+
+
+class TestSetAttribute:
+    def test_set_basics(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        expected = fh.read()
+        frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        sideband = np.tile([-1, +1], 4)
+        sa = SetAttribute(fh, frequency=frequency, sideband=sideband)
+        assert np.all(sa.frequency == frequency)
+        assert np.all(sa.sideband == sideband)
+        for attr in ('start_time', 'sample_rate', 'samples_per_frame',
+                     'shape', 'dtype'):
+            assert getattr(sa, attr) == getattr(fh, attr)
+        data = sa.read()
+        assert np.all(data == expected)
+        with pytest.raises(AttributeError):
+            sa.polarization
+        sa.close()
+
+    def test_set_start_time(self):
+        fh = vdif.open(SAMPLE_VDIF)
+        expected = fh.read()
+        offset = 0.1 * u.s
+        sa = SetAttribute(fh, start_time=fh.start_time+offset)
+        assert sa.start_time == fh.start_time+offset
+        for attr in ('sample_rate', 'samples_per_frame', 'shape', 'dtype'):
+            assert getattr(sa, attr) == getattr(fh, attr)
+        data = sa.read()
+        assert np.all(data == expected)
+        sa.seek(10)
+        data2 = sa.read(10)
+        assert np.all(data2 == expected[10:20])
+        sa.seek(10/sa.sample_rate)
+        data3 = sa.read(10)
+        assert np.all(data3 == expected[10:20])
+        sa.seek(sa.start_time+10/fh.sample_rate)
+        data4 = sa.read(10)
+        assert np.all(data4 == expected[10:20])
+        for attr in ('frequency', 'sideband', 'polarization'):
+            with pytest.raises(AttributeError):
+                getattr(sa, attr)
+        sa.close()
 
 
 class TestTaskBase:
