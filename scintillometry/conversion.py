@@ -18,7 +18,7 @@ except ImportError:
 __all__ = ['real_to_complex']
 
 
-def real_to_complex(z, axis=0):
+def real_to_complex(z):
     """
     Convert a real baseband signal to a complex baseband signal.
     This function computes the analytic representation of the input signal
@@ -56,17 +56,12 @@ def real_to_complex(z, axis=0):
     ----------
     .. https://dsp.stackexchange.com/q/43278/17721
     """
-    if np.iscomplexobj(z):
-        raise TypeError('Signal is already complex.')
 
     # Pick the correct axis to work on
-    if z.ndim > 1:
-        ind = [np.newaxis] * z.ndim
-        ind[axis] = slice(None)
-    N = z.shape[axis]
+    N = z.shape[0]
 
     # Hilbert transform
-    z = FFTPACK.fft(z, axis=axis, **_fftargs)
+    z = FFTPACK.fft(z, axis=0, **_fftargs)
 
     h = np.zeros(N)
     if N % 2 == 0:
@@ -75,26 +70,22 @@ def real_to_complex(z, axis=0):
     else:
         h[0] = 1
         h[1:(N + 1) // 2] = 2
-    if z.ndim > 1:
-        h = h[tuple(ind)]
-    z = FFTPACK.ifft(z * h, axis=axis, **_fftargs)
+    z = FFTPACK.ifft(z * h, axis=0, **_fftargs)
 
     # Frequency shift signal by -B/2
     h = np.exp(-1j * np.pi / 2 * np.arange(N))
-    if z.ndim > 1:
-        h = h[tuple(ind)]
     z *= h
 
-    # Decimate signal by factor of 2
-    dec = [slice(None)] * z.ndim
-    dec[axis] = slice(None, None, 2)
-    z = z[tuple(dec)]
+    z = z[::2]
 
     return z
 
 
 class Real2Complex(TaskBase):
     def __init__(self, ih, samples_per_frame=None, dtype='c8'):
+        if ih.complex_data:
+            raise ValueError("Stream should be real.")
+
         super().__init__(ih, samples_per_frame=samples_per_frame,
                          sample_rate=ih.sample_rate / 2.,
                          dtype=dtype)
