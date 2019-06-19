@@ -31,6 +31,7 @@ classes that can be linked together into a data reduction pipeline.
 
    tasks/channelize
    tasks/combining
+   tasks/conversion
    tasks/convolution
    tasks/dispersion
    tasks/functions
