@@ -25,6 +25,8 @@ def test_real_to_complex_delta():
                                samples_per_frame=1024,
                                start_time=Time('2010-11-12T13:14:15'),
                                sample_rate=1. * u.kHz,
+                               frequency=400 * u.kHz,
+                               sideband=1,
                                shape=(2048, ),
                                dtype='f8')
     real_data = delta_fh.read()
@@ -39,6 +41,8 @@ def test_real_to_complex_delta():
     assert complex_signal.shape == (1024, )
     assert np.iscomplexobj(complex_signal)
     assert np.isclose(complex_signal, complex_delta).all()
+    assert real2complex.frequency == 400.5 * u.kHz
+    assert real2complex.sideband == 1
 
 
 def test_expected_failures():
@@ -65,6 +69,8 @@ def test_real_to_complex_sine(f_nyquist):
                               samples_per_frame=1024,
                               start_time=Time('2010-11-12T13:14:15'),
                               sample_rate=1. * u.kHz,
+                              frequency=400 * u.kHz,
+                              sideband=-1,
                               shape=(2048, ),
                               dtype='f8')
 
@@ -78,3 +84,5 @@ def test_real_to_complex_sine(f_nyquist):
     assert complex_signal.shape == (1024, )
     assert np.iscomplexobj(complex_signal)
     assert_allclose(complex_signal, complex_dc, atol=1e-8)
+    assert real2complex.frequency == 399.5 * u.kHz
+    assert real2complex.sideband == -1

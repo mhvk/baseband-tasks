@@ -56,13 +56,18 @@ class Real2Complex(TaskBase):
         self._FFT = get_fft_maker(FFT)
         self._fft = self._FFT((samples_per_frame * 2, ) + ih.sample_shape,
                               dtype,
+                              sample_rate=ih.sample_rate,
                               axis=0)
-        self._ifft = self._fft.inverse()
 
+        self._ifft = self._fft.inverse()
         super().__init__(ih,
                          samples_per_frame=samples_per_frame,
-                         sample_rate=ih.sample_rate / 2.,
+                         sample_rate=ih.sample_rate / 2,
                          dtype=dtype)
+
+        if self._frequency is not None:
+            self._frequency = (self._frequency +
+                               ih.sample_rate / 2 * self.sideband)
 
     def task(self, data):
         z = data.astype(self.dtype)
