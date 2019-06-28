@@ -23,14 +23,14 @@ class CombineStreamsBase(TaskBase):
         Input data streams.
     atol : `~astropy.units.Quantity`
         Tolerance in units of time within which streams should be considered
-        aligned.
+        aligned.  By default, the lesser of 1 ns or 0.01 sample.
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
         Useful mostly in case the stream readers have time offsets, since
         the output stream will be shortened by an integer number of frames.
     """
-    def __init__(self, ihs, atol=1.*u.ns, samples_per_frame=None):
+    def __init__(self, ihs, atol=None, samples_per_frame=None):
         try:
             ih0 = ihs[0]
         except (TypeError, IndexError) as exc:
@@ -52,6 +52,8 @@ class CombineStreamsBase(TaskBase):
         # Calculate offsets for each file and check they are aligned well.
         # TODO: use future TimeInterpolate class to lift this restriction?
         self._start_offsets = []
+        if atol is None:
+            atol = min(1. * u.ns, 0.01 / ih0.sample_rate)
         for ih in ihs:
             offset = ih.seek(start_time)
             if abs(ih.time - start_time) > atol:
@@ -152,7 +154,7 @@ class CombineStreams(Task, CombineStreamsBase):
         (one argument).  Default: inferred by inspection.
     atol : `~astropy.units.Quantity`
         Tolerance in units of time within which streams should be considered
-        aligned.
+        aligned.  By default, the lesser of 1 ns or 0.01 sample.
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
@@ -166,7 +168,7 @@ class CombineStreams(Task, CombineStreamsBase):
     """
     # Override __init__ only to get rid of kwargs of Task, since these cannot
     # be passed on to ChangeSampleShapeBase anyway.
-    def __init__(self, ihs, task, method=None, atol=1.*u.ns,
+    def __init__(self, ihs, task, method=None, atol=None,
                  samples_per_frame=None):
         super().__init__(ihs, task, method=method, atol=atol,
                          samples_per_frame=samples_per_frame)
@@ -184,7 +186,7 @@ class Concatenate(CombineStreamsBase):
         axis and thus cannot be 0.
     atol : `~astropy.units.Quantity`
         Tolerance in units of time within which streams should be considered
-        aligned.
+        aligned.  By default, the lesser of 1 ns or 0.01 sample.
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
@@ -196,7 +198,7 @@ class Concatenate(CombineStreamsBase):
     Stack : to stack streams along a new axis
     CombineStreams : to combine streams with a user-supplied function
     """
-    def __init__(self, ihs, axis=1, atol=1.*u.ns, samples_per_frame=None):
+    def __init__(self, ihs, axis=1, atol=None, samples_per_frame=None):
         self.axis = axis
         super().__init__(ihs, atol=atol, samples_per_frame=samples_per_frame)
 
@@ -222,7 +224,7 @@ class Stack(CombineStreamsBase):
         axis and thus cannot be 0.
     atol : `~astropy.units.Quantity`
         Tolerance in units of time within which streams should be considered
-        aligned.
+        aligned.  By default, the lesser of 1 ns or 0.01 sample.
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
@@ -234,7 +236,7 @@ class Stack(CombineStreamsBase):
     Concatenate : to concatenate streams along an existing axis
     CombineStreams : to combine streams with a user-supplied function
     """
-    def __init__(self, ihs, axis=1, atol=1.*u.ns, samples_per_frame=None):
+    def __init__(self, ihs, axis=1, atol=None, samples_per_frame=None):
         self.axis = axis
         super().__init__(ihs, atol=atol, samples_per_frame=samples_per_frame)
 
