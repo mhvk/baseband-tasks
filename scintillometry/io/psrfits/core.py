@@ -98,7 +98,7 @@ def get_readers(hdu_list, **kwargs):
     psrfits_hdus = []
     for k, v in buffers.items():
         for hdu in v:
-            psrfits_hdus.append(HDU_map[k](primary_hdu, hdu))
+            psrfits_hdus.append(HDU_map[k](hdu, primary_hdu))
 
     # Build reader on the HDUs
     readers = []

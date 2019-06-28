@@ -216,18 +216,20 @@ class SubintHDU(HDUWrapper):
     _sample_shape_maker = namedtuple('SampleShape', 'nbin, nchan, npol')
     _shape_maker = namedtuple('Shape', 'nsample, nbin, nchan, npol')
 
-    def __new__(cls, primary_hdu, hdu=None, verify=True):
+    def __new__(cls, hdu=None, primary_hdu=None, verify=True):
         # Map Subint subclasses;
         # TODO: switch to__init_subclass__ when we only support python>=3.6.
-        mode = primary_hdu.obs_mode
         try:
+            mode = primary_hdu.obs_mode
             cls = subint_map[mode]
+        except AttributeError:
+            raise ValueError("need a primary HDU to determine the mode.")
         except KeyError:
             raise ValueError("'{}' is not a valid mode.".format(mode))
 
         return super().__new__(cls)
 
-    def __init__(self, primary_hdu=None, hdu=None, verify=True):
+    def __init__(self, hdu=None, primary_hdu=None, verify=True):
         self.primary_hdu = primary_hdu
         self.offset = 0
         super().__init__(hdu, verify=verify, hdu_type='SUBINT')
