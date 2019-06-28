@@ -149,3 +149,29 @@ class PSRFITSReader(BaseTaskBase):
         file = self.ih.hdu._file
         super().close()
         file.close()
+
+
+class PSRFITSWriter:
+    """Interface class for writing the PSRFITS HDUs
+
+    Parameters
+    ----------
+    filename : str
+        Output file name.
+    ih : input file handle
+        The file handle for input data.
+    hdus: str, optional
+
+
+
+    Notes
+    -----
+    Currently it only support write the PSRFITS primary HDU and Subint HDU.
+    """
+    def __init__(self, filename, ih, hdus=None):
+        self.filename = filename
+        self.ih = ih
+        self.hdus = hdus
+
+    def close(self):
+        pass

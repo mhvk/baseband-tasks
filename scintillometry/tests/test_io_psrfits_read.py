@@ -55,7 +55,7 @@ class TestFoldRead(TestRead):
         dec = primary.dec
         assert isinstance(dec, Latitude)
         assert u.allclose(dec, Latitude(9.72148333, u.deg))
-        assert primary.observatory == 'Arecibo'
+        assert primary.telescope == 'Arecibo'
 
     def test_reader_properties(self):
         hdu = self.reader.ih
