@@ -1,12 +1,13 @@
-from html.parser import HTMLParser
-from astropy.io import fits
-import astropy.units as u
 import re
 import os
-from ... import data_path
+from html.parser import HTMLParser
+
+from astropy.io import fits
+import astropy.units as u
+from astropy.utils.data import get_pkg_data_filename
 
 
-psrfits_doc_path = os.path.join(data_path, 'PsrfitsDocumentation.html')
+psrfits_doc_path = get_pkg_data_filename('../../data/PsrfitsDocumentation.html')
 fits_table_map = {'BINTABLE': fits.BinTableHDU,
                   'PRIMARY': fits.PrimaryHDU}
 unit_rex = re.compile(r'\[(.+)\]')

@@ -28,6 +28,3 @@ if (sys.version_info < tuple(
 if not _ASTROPY_SETUP_:
     # For egg_info test builds to pass, put package imports here.
     pass
-
-package_path = os.path.dirname(os.path.realpath(__file__))
-data_path = os.path.join(package_path, 'data')
