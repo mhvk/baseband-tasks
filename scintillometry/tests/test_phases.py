@@ -81,7 +81,8 @@ class TestPhaseComparison(PintBase, PolycoBase):
         polyco_f0 = self.polyco_pu.apparent_spin_freq(self.times)
         # compare phases
         diff_phase = pint_phase - polyco_phase
-        # TODO: bug!! phases have constant offset!!
+        # The test polyco file is made by tempo2 which has a constant phase
+        # offset vs PINT
         diff_phase -= diff_phase[0]
         assert np.all(diff_phase < 1e-4 * u.cy), \
             "The phase difference between PINT and polyco is too big."
