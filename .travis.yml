@@ -40,7 +40,7 @@ env:
         # so Cython is required for testing. If your package does not include
         # Cython code, you can set CONDA_DEPENDENCIES=''
         - CONDA_DEPENDENCIES=''
-        - CONDA_DEPENDENCIES_DOC='sphinx-astropy'
+        - CONDA_DEPENDENCIES_DOC='sphinx-astropy scipy pyfftw'
 
         # List other runtime dependencies for the package that are available as
         # pip packages here.
@@ -78,7 +78,7 @@ matrix:
                USE_PYFFTW=True
                USE_PINT=True
                PIP_DEPENDENCIES='jplephem'
-               CONDA_DEPENDENCIES='scipy pyfftw'
+               CONDA_DEPENDENCIES=$CONDA_DEPENDENCIES_DOC
 
         # Check Python 3 with stable astropy and numpy, also verifying coverage.
         - env: SETUP_CMD='test --coverage'
