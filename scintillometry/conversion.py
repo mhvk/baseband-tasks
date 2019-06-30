@@ -53,8 +53,7 @@ class Real2Complex(TaskBase):
             samples_per_frame = ih.samples_per_frame // 2
 
         dtype = np.dtype('c{}'.format(ih.dtype.itemsize * 2))
-        self._FFT = fft_maker.get()
-        self._fft = self._FFT((samples_per_frame * 2, ) + ih.sample_shape,
+        self._fft = fft_maker((samples_per_frame * 2, ) + ih.sample_shape,
                               dtype,
                               sample_rate=ih.sample_rate,
                               axis=0)

@@ -283,24 +283,27 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
 
 class fft_maker(ScienceState):
-    """Get an FFT maker.
+    """FFT maker with settable default engine.
 
     Parameters
     ----------
-    fft_engine : {'numpy', 'pyfftw'}, optional
-        Keyword identifying the FFT maker class.  If not given, the
-        default engine stored using the ``.set()`` method is returned.
-    **kwargs
-        Additional keyword arguments for initializing the maker class
-        (eg. ``n_simd`` for 'pyfftw').  Can only be used if ``fft_engine``
-        is given.
+    *args, **kwargs
+        Arguments for the fft_engine.
 
     Examples
     --------
-    To use PyFFTW on a machine with 4 threads::
+    To set up to use numpy's fft, and then create an fft function acting
+    on arrays of 1000 elements::
 
     >>> from scintillometry.fourier import fft_maker
-    >>> FFT = fft_maker('pyfftw', threads=4)
+    >>> from astropy import units as u
+    >>> with fft_maker.set('numpy'):
+    ...     fft = fft_maker((1000,), 'complex64', sample_rate=1.*u.kHz)
+    >>> fft
+    <NumpyFFT direction=forward,
+        axis=0, ortho=False, sample_rate=1.0 kHz
+        Time domain: shape=(1000,), dtype=complex64
+        Frequency domain: shape=(1000,), dtype=complex64>
     """
 
     # This is set in __init__.
@@ -308,17 +311,9 @@ class fft_maker(ScienceState):
 
     _value = None
 
-    def __new__(cls, fft_engine=None, **kwargs):
-        if fft_engine in FFT_MAKER_CLASSES:
-            return FFT_MAKER_CLASSES[fft_engine](**kwargs)
-        elif kwargs:
-            raise ValueError("cannot pass arguments except if fft_engine "
-                             "is the name of an FFT maker.")
-        elif fft_engine is None:
-            return cls.get()
-
-        raise TypeError("fft_engine should be the name of a FFTMaker "
-                        " class or None.")
+    def __new__(cls, *args, **kwargs):
+        fft_engine = cls.get()
+        return fft_engine(*args, **kwargs)
 
     @classproperty
     def system_default(cls):
@@ -377,7 +372,7 @@ class fft_maker(ScienceState):
             fft_engine = cls.system_default
 
         elif not isinstance(fft_engine, FFTMakerBase):
-            fft_engine = cls(fft_engine, **kwargs)
+            fft_engine = FFT_MAKER_CLASSES[fft_engine](**kwargs)
 
         elif kwargs:
             raise TypeError("cannot pass keyword arguments except if fft_engine "
