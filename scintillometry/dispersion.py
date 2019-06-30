@@ -5,7 +5,7 @@ import astropy.units as u
 from astropy.utils import lazyproperty
 
 from .base import PaddedTaskBase
-from .fourier import get_fft_maker
+from .fourier import fft_maker
 from .dm import DispersionMeasure
 
 
@@ -36,15 +36,14 @@ class Disperse(PaddedTaskBase):
     sideband : array, optional
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
-    FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
-        available, otherwise numpy).
+
+    See Also
+    --------
+    ~scintillometry.fourier.fft_maker : to select the FFT package used.
     """
 
     def __init__(self, ih, dm, reference_frequency=None,
-                 samples_per_frame=None, frequency=None, sideband=None,
-                 FFT=None):
+                 samples_per_frame=None, frequency=None, sideband=None):
         dm = DispersionMeasure(dm)
         if frequency is None:
             frequency = ih.frequency
@@ -98,7 +97,7 @@ class Disperse(PaddedTaskBase):
 
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
-        self._FFT = get_fft_maker(FFT)
+        self._FFT = fft_maker.get()
         self._fft = self._FFT(shape=(self._padded_samples_per_frame,) +
                               self.ih.sample_shape,
                               sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
@@ -165,14 +164,14 @@ class Dedisperse(Disperse):
     sideband : array, optional
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
-    FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
-        available, otherwise numpy).
+
+    See Also
+    --------
+    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+
     """
 
     def __init__(self, ih, dm, reference_frequency=None,
-                 samples_per_frame=None, frequency=None, sideband=None,
-                 FFT=None):
+                 samples_per_frame=None, frequency=None, sideband=None):
         super().__init__(ih, -dm, reference_frequency, samples_per_frame,
-                         frequency, sideband, FFT)
+                         frequency, sideband)

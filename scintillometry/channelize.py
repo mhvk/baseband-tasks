@@ -5,7 +5,7 @@ import operator
 import numpy as np
 
 from .base import TaskBase
-from .fourier import get_fft_maker
+from .fourier import fft_maker
 
 
 __all__ = ['Channelize', 'Dechannelize']
@@ -32,10 +32,10 @@ class Channelize(TaskBase):
     sideband : array, optional
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
-    FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
-        available, otherwise numpy).
+
+    See Also
+    --------
+    ~scintillometry.fourier.fft_maker : to select the FFT package used.
 
     Notes
     -----
@@ -50,12 +50,12 @@ class Channelize(TaskBase):
     """
 
     def __init__(self, ih, n, samples_per_frame=1,
-                 frequency=None, sideband=None, FFT=None):
+                 frequency=None, sideband=None):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
         # Initialize channelizer.
-        self._FFT = get_fft_maker(FFT)
+        self._FFT = fft_maker.get()
         self._fft = self._FFT((samples_per_frame, n) + ih.sample_shape,
                               ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
@@ -83,8 +83,9 @@ class Channelize(TaskBase):
             Input data stream to be dechannelized.
         """
         # TODO: would be nicer to somehow use _fft.inverse().
-        return Dechannelize(ih, n=self._fft.time_shape[1],
-                            dtype=self._fft.time_dtype, FFT=self._FFT)
+        with fft_maker.set(self._FFT):
+            return Dechannelize(ih, n=self._fft.time_shape[1],
+                                dtype=self._fft.time_dtype)
 
 
 class Dechannelize(TaskBase):
@@ -115,6 +116,10 @@ class Dechannelize(TaskBase):
         default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
         available, otherwise numpy).
 
+    See Also
+    --------
+    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+
     Notes
     -----
     To construct a Dechannelizer for a given Channelizer instance, use
@@ -123,7 +128,7 @@ class Dechannelize(TaskBase):
     """
 
     def __init__(self, ih, n=None, samples_per_frame=None,
-                 frequency=None, sideband=None, dtype=None, FFT=None):
+                 frequency=None, sideband=None, dtype=None):
 
         assert ih.complex_data, "Dechannelization needs complex spectra."
 
@@ -139,7 +144,7 @@ class Dechannelize(TaskBase):
             n = operator.index(n)
 
         # Initialize dechannelizer.
-        self._FFT = get_fft_maker(FFT)
+        self._FFT = fft_maker.get()
         self._ifft = self._FFT((ih.samples_per_frame, n) + ih.sample_shape[1:],
                                dtype=dtype, axis=1, direction='backward')
 
@@ -165,4 +170,5 @@ class Dechannelize(TaskBase):
             Input data stream to be channelized.
         """
         # TODO: would be nicer to somehow use _fft.inverse().
-        return Channelize(ih, n=self._ifft.time_shape[1], FFT=self._FFT)
+        with fft_maker.set(self._FFT):
+            return Channelize(ih, n=self._ifft.time_shape[1])

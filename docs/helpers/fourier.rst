@@ -22,13 +22,13 @@ frequency-domain values are always treated as complex.
 Using the Fourier Module
 ========================
 
-To get an FFT maker, we may use the `~scintillometry.fourier.base.get_fft_maker`
-function::
+To get an FFT maker, we may use the `~scintillometry.fourier.base.fft_maker`
+factory::
 
     >>> from scintillometry import fourier
-    >>> FFTMaker = fourier.get_fft_maker('numpy')
+    >>> FFTMaker = fourier.fft_maker('numpy')
 
-`~scintillometry.fourier.base.get_fft_maker` returns an instance of one of the
+`~scintillometry.fourier.base.fft_maker` returns an instance of one of the
 FFT maker classes - e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
 `~scintillometry.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options,
 such as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.

@@ -2,7 +2,7 @@
 
 import numpy as np
 from .base import TaskBase
-from .fourier import get_fft_maker
+from .fourier import fft_maker
 
 __all__ = ['Real2Complex']
 
@@ -24,10 +24,10 @@ class Real2Complex(TaskBase):
         Input data stream, with time as the first axis.
     samples_per_frame : int, optional
         Number of complete output samples per frame (see Notes).  Default: 1.
-    FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
-        available, otherwise numpy).
+
+    See Also
+    --------
+    ~scintillometry.fourier.fft_maker : to select the FFT package used.
 
     Raises
     ------
@@ -43,7 +43,7 @@ class Real2Complex(TaskBase):
     .. https://dsp.stackexchange.com/q/43278/17721
     """
 
-    def __init__(self, ih, samples_per_frame=None, FFT=None):
+    def __init__(self, ih, samples_per_frame=None):
         if ih.complex_data:
             raise ValueError("Stream should be real.")
 
@@ -53,7 +53,7 @@ class Real2Complex(TaskBase):
             samples_per_frame = ih.samples_per_frame // 2
 
         dtype = np.dtype('c{}'.format(ih.dtype.itemsize * 2))
-        self._FFT = get_fft_maker(FFT)
+        self._FFT = fft_maker.get()
         self._fft = self._FFT((samples_per_frame * 2, ) + ih.sample_shape,
                               dtype,
                               sample_rate=ih.sample_rate,

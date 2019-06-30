@@ -7,7 +7,7 @@ from astropy.tests.helper import assert_quantity_allclose
 import pytest
 
 from ..base import FFT_MAKER_CLASSES, FFTMakerBase
-from .. import get_fft_maker
+from .. import fft_maker
 from ... import fourier
 
 
@@ -47,11 +47,12 @@ class TestFFTClasses:
     @pytest.mark.parametrize('key', tuple(FFT_MAKER_CLASSES.keys()))
     def test_fft(self, key):
         """Test various FFT implementations."""
-        # Load class using get_fft_maker, check that we have the right one.
+        # Load class using fft_maker, check that we have the right one.
         kwargs = {}
         if key == 'pyfftw':
             kwargs['flags'] = ['FFTW_ESTIMATE']
-        FFTMaker = get_fft_maker(key, **kwargs)
+
+        FFTMaker = fft_maker(key, **kwargs)
 
         # 1D complex sinusoid.
         fft = FFTMaker(self.y_exp.shape, self.y_exp.dtype,
@@ -128,25 +129,28 @@ class TestFFTClasses:
 
 def test_default_maker():
     # Ensure we start with a clean slate
-    del get_fft_maker.default
-    default_maker = get_fft_maker()
-    assert default_maker is get_fft_maker.default
-    assert default_maker is get_fft_maker.system_default
+    fft_maker.set()
+    default_maker = fft_maker.get()
+    assert default_maker is fft_maker.system_default
     if 'pyfftw' in FFT_MAKER_CLASSES:
         assert isinstance(default_maker, fourier.PyfftwFFTMaker)
     else:
         assert isinstance(default_maker, fourier.NumpyFFTMaker)
 
     my_maker = fourier.base.FFTMakerBase()
-    try:
-        get_fft_maker.default = my_maker
-        assert get_fft_maker() is my_maker
-    finally:
-        del get_fft_maker.default
-        assert get_fft_maker() is default_maker
+    with fft_maker.set(my_maker):
+        assert fft_maker() is my_maker
+        assert fft_maker.get() is my_maker
+
+    assert fft_maker.get() is default_maker
+
+    # Just calling the class should not change the default.
+    maker = fft_maker('numpy')
+    assert maker is not default_maker
+    assert fft_maker.get() is default_maker
 
     with pytest.raises(TypeError):
-        get_fft_maker.default = 'nonsense'
+        fft_maker.set('nonsense')
 
 
 def test_against_duplication():

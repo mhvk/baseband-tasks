@@ -4,7 +4,7 @@ import numpy as np
 from astropy.utils import lazyproperty
 
 from .base import PaddedTaskBase, check_broadcast_to
-from .fourier import get_fft_maker
+from .fourier import fft_maker
 
 
 __all__ = ['ConvolveSamples', 'Convolve']
@@ -81,21 +81,17 @@ class Convolve(ConvolveSamples):
         output convolved samples per frame will be smaller to avoid wrapping.
         If not given, the minimum power of 2 needed to get at least 75%
         efficiency.
-    FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
-        available, otherwise numpy).
 
     See Also
     --------
     ConvolveSamples : convolution in the time domain (for simple responses)
+    ~scintillometry.fourier.fft_maker : to select the FFT package used.
     """
-    def __init__(self, ih, response, offset=0, samples_per_frame=None,
-                 FFT=None):
+    def __init__(self, ih, response, offset=0, samples_per_frame=None):
         super().__init__(ih, response=response, offset=offset,
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.
-        self._FFT = get_fft_maker(FFT)
+        self._FFT = fft_maker.get()
         self._fft = self._FFT(shape=(self._padded_samples_per_frame,) +
                               self.ih.sample_shape,
                               sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
