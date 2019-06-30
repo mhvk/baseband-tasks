@@ -5,6 +5,7 @@ import numpy as np
 from numpy.testing import assert_array_equal
 import astropy.units as u
 
+from ..base import SetAttribute
 from ..shaping import GetItem, Reshape
 from ..combining import Concatenate, Stack, CombineStreams
 
@@ -34,11 +35,40 @@ class TestConcatenate(UseVDIFSampleWithAttrs):
         assert_array_equal(data, expected_data)
         ch.close()
 
+    def test_time_offsets(self):
+        fh = self.fh
+        s1 = GetItem(fh, slice(None, 4))
+        s2 = SetAttribute(GetItem(fh, slice(4, None)),
+                          start_time=fh.start_time+10/fh.sample_rate)
+        fh_data = self.fh.read()
+        expected_data = np.concatenate((fh_data[10:, :4], fh_data[:-10, 4:]),
+                                       axis=1)
+        ch = Concatenate([s1, s2], samples_per_frame=10)
+        assert ch.start_time == s2.start_time
+        assert ch.shape == (fh.shape[0] - 10,) + fh.sample_shape
+        assert ch.sample_rate == fh.sample_rate
+        assert ch.dtype == fh.dtype
+        assert_array_equal(ch.frequency, fh.frequency)
+        assert_array_equal(ch.sideband, fh.sideband)
+        assert_array_equal(ch.polarization, fh.polarization)
+
+        data = ch.read()
+        assert_array_equal(data, expected_data)
+        ch.close()
+
     def test_wrong_axis(self):
         with pytest.raises(ValueError):
             Concatenate((self.fh, self.fh), axis=0)
         with pytest.raises(ValueError):
             Concatenate((self.fh, self.fh), axis=-2)
+
+    def test_wrong_time(self):
+        fh = self.fh
+        s1 = GetItem(fh, slice(None, 4))
+        s2 = SetAttribute(GetItem(fh, slice(4, None)),
+                          start_time=fh.start_time+1.5/fh.sample_rate)
+        with pytest.raises(ValueError):
+            Concatenate([s1, s2])
 
 
 class TestStack(UseVDIFSampleWithAttrs):
