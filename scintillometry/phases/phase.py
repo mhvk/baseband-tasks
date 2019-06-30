@@ -458,12 +458,16 @@ class Phase(Angle):
     def __eq__(self, other):
         try:
             return np.equal(self, other)
+        except u.UnitsError:
+            return False
         except Exception:
             return NotImplemented
 
     def __ne__(self, other):
         try:
             return np.not_equal(self, other)
+        except u.UnitsError:
+            return True
         except Exception:
             return NotImplemented
 

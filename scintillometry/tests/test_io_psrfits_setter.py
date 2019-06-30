@@ -19,10 +19,13 @@ class TestSetter:
     def setup(self):
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")
-        self.input = psrfits.open(self.fold_data, weighted=False)
-        self.input_p_hdu = self.input.ih.primary_hdu
+        self.reader = psrfits.open(self.fold_data, weighted=False)
+        self.input_p_hdu = self.reader.ih.primary_hdu
         # init Primary
         self.p_hdu = psrfits.PSRFITSPrimaryHDU()
+
+    def teardown(self):
+        self.reader.close()
 
     def test_set_location(self):
         self.p_hdu.location = self.input_p_hdu.location
