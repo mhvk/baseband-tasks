@@ -23,7 +23,8 @@ class Real2Complex(TaskBase):
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
     samples_per_frame : int, optional
-        Number of complete output samples per frame (see Notes).  Default: 1.
+        Number of complete output samples per frame (see Notes).
+        Default: Half the number of samples per frame in the input stream.
 
     See Also
     --------

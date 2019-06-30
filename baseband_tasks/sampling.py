@@ -120,7 +120,7 @@ class Resample(PaddedTaskBase):
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame)
 
-        self._fft = fft_maker(shape=(self._padded_samples_per_frame,)
+        self._fft = fft_maker(shape=(self._ih_samples_per_frame,)
                               + ih.sample_shape, sample_rate=ih.sample_rate,
                               dtype=ih.dtype)
         self._ifft = self._fft.inverse()
@@ -128,7 +128,7 @@ class Resample(PaddedTaskBase):
         self._fraction = fraction
         self._start_time += fraction / ih.sample_rate
         self._pad_slice = slice(self._pad_start,
-                                self._padded_samples_per_frame - self._pad_end)
+                                self._pad_start + self.samples_per_frame)
         self.seek(int(rounded_offset) - self._pad_start)
 
     @lazyproperty

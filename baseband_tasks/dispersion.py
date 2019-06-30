@@ -97,7 +97,7 @@ class Disperse(PaddedTaskBase):
 
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
-        self._fft = fft_maker(shape=(self._padded_samples_per_frame,)
+        self._fft = fft_maker(shape=(self._ih_samples_per_frame,)
                               + self.ih.sample_shape, dtype=self.ih.dtype,
                               sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
@@ -106,7 +106,7 @@ class Disperse(PaddedTaskBase):
         self._sample_offset = sample_offset
         self._start_time += sample_offset / ih.sample_rate
         self._pad_slice = slice(self._pad_start,
-                                self._padded_samples_per_frame - self._pad_end)
+                                self._pad_start + self.samples_per_frame)
 
     @lazyproperty
     def phase_factor(self):

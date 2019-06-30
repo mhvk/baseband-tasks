@@ -24,8 +24,7 @@ class ReshapeTime(TaskBase):
         samples_per_frame = operator.index(samples_per_frame)
         sample_rate = ih.sample_rate / n
 
-        nsample = samples_per_frame * (ih.shape[0] // n // samples_per_frame)
-        super().__init__(ih, shape=(nsample, n) + ih.shape[1:],
+        super().__init__(ih, shape=(-1, n) + ih.shape[1:],
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame, **kwargs)
 

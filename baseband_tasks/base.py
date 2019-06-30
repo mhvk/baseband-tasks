@@ -387,6 +387,8 @@ class BaseTaskBase(Base):
     ----------
     ih : stream handle
         Handle of a stream reader or another task.
+    ih_samples_per_frame : int, optional
+        Number of input samples which should be dealt with in one go.
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.
@@ -395,7 +397,8 @@ class BaseTaskBase(Base):
     sample_rate : `~astropy.units.Quantity`, optional
         With units of a rate.
     samples_per_frame : int, optional
-        Number of samples to be read and processed in one go.
+        Number of output samples produced per frame.  By default, equal
+        to the number of input samples.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.
@@ -411,11 +414,15 @@ class BaseTaskBase(Base):
 
     """
 
-    def __init__(self, ih, *,
+    def __init__(self, ih, *, ih_samples_per_frame=None,
                  start_time=None, shape=None, sample_rate=None,
                  samples_per_frame=None, frequency=None, sideband=None,
                  polarization=None, dtype=None):
         self.ih = ih
+        if ih_samples_per_frame is None:
+            ih_samples_per_frame = ih.samples_per_frame
+        self._ih_samples_per_frame = ih_samples_per_frame
+
         if shape is None:
             shape = ih.shape
         if start_time is None:
@@ -423,7 +430,7 @@ class BaseTaskBase(Base):
         if sample_rate is None:
             sample_rate = ih.sample_rate
         if samples_per_frame is None:
-            samples_per_frame = ih.samples_per_frame
+            samples_per_frame = self._ih_samples_per_frame
         if dtype is None:
             dtype = ih.dtype
         if frequency is None:
@@ -524,6 +531,10 @@ class TaskBase(BaseTaskBase):
     ----------
     ih : stream handle
         Handle of a stream reader or another task.
+    ih_samples_per_frame : int, optional
+        Number of input samples which should be dealt with in one go.
+        If not given, assumed equal to the output ``samples_per_frame``
+        or taken from the underlying stream.
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.  By
@@ -532,10 +543,10 @@ class TaskBase(BaseTaskBase):
         With units of a rate.  If not given, taken from the underlying
         stream.
     samples_per_frame : int, optional
-        Number of samples the task should handle in one go.  If given,
+        Number of samples the task produces per frame.  If given,
         ``shape`` will be adjusted to make the total number of samples
         an integer multiple of ``samples_per_frame``.  If not given,
-        the number from the underlying stream.
+        inferred from the input number of samples.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: taken from the underlying stream, if available.
@@ -552,44 +563,49 @@ class TaskBase(BaseTaskBase):
         Output dtype.  If not given, the dtype of the underlying stream.
     """
 
-    def __init__(self, ih, *,
+    def __init__(self, ih, *, ih_samples_per_frame=None,
                  shape=None, sample_rate=None, samples_per_frame=None,
                  frequency=None, sideband=None, polarization=None,
                  dtype=None):
+
         if sample_rate is None:
             sample_rate = ih.sample_rate
             sample_rate_ratio = 1.
         else:
             sample_rate_ratio = (ih.sample_rate / sample_rate).to(1).value
         if samples_per_frame is None:
-            (samples_per_frame, r) = divmod(ih.samples_per_frame
-                                            / sample_rate_ratio, 1.)
-            assert r == 0, "inferred samples per frame must be integer"
+            if ih_samples_per_frame is None:
+                ih_samples_per_frame = ih.samples_per_frame
+            samples_per_frame = ih_samples_per_frame / sample_rate_ratio
+            assert samples_per_frame % 1 == 0, (
+                "inferred samples per frame must be integer")
             samples_per_frame = int(samples_per_frame)
-            self._raw_samples_per_frame = ih.samples_per_frame
-        else:
-            (raw_samples_per_frame, r) = divmod(samples_per_frame
-                                                * sample_rate_ratio, 1.)
-            assert r == 0, "inferred raw samples per frame must be integer"
-            self._raw_samples_per_frame = int(raw_samples_per_frame)
 
-        nraw_frames = ih.shape[0] // self._raw_samples_per_frame
+        elif ih_samples_per_frame is None:
+            ih_samples_per_frame = samples_per_frame * sample_rate_ratio
+            assert ih_samples_per_frame % 1 == 0, (
+                "inferred input samples per frame must be integer")
+            ih_samples_per_frame = int(ih_samples_per_frame)
+
+        n_sample = (ih.shape[0] // ih_samples_per_frame) * samples_per_frame
+
         if shape is None:
-            shape = (nraw_frames * samples_per_frame,) + ih.shape[1:]
+            shape = (n_sample,) + ih.shape[1:]
+        elif shape[0] == -1:
+            shape = (n_sample,) + shape[1:]
         else:
-            assert shape[0] <= nraw_frames * samples_per_frame, \
-                "passed in shape[0] too large"
+            assert shape[0] <= n_sample, "passed in shape[0] too large"
 
-        super().__init__(ih=ih, shape=shape,
-                         sample_rate=sample_rate,
+        super().__init__(ih=ih, ih_samples_per_frame=ih_samples_per_frame,
+                         shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
 
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self._raw_samples_per_frame)
-        data = self.ih.read(self._raw_samples_per_frame)
+        self.ih.seek(frame_index * self._ih_samples_per_frame)
+        data = self.ih.read(self._ih_samples_per_frame)
         # Apply function to the data.  Note that the _get_frame() function
         # in base ensures that our offset pointer is correct.
         return self.task(data)
@@ -720,10 +736,10 @@ class PaddedTaskBase(BaseTaskBase):
             if samples_per_frame is None:
                 # Calculate the number of samples that ensures >75% efficiency:
                 # use 4 times power of two just above pad.
-                padded_samples_per_frame = 2**(int((np.ceil(np.log2(pad))))+2)
-                samples_per_frame = padded_samples_per_frame - pad
+                ih_samples_per_frame = 2**(int((np.ceil(np.log2(pad))))+2)
+                samples_per_frame = ih_samples_per_frame - pad
             else:
-                padded_samples_per_frame = samples_per_frame + pad
+                ih_samples_per_frame = samples_per_frame + pad
 
             if pad > samples_per_frame:
                 warnings.warn("task will be inefficient; for {} samples "
@@ -731,13 +747,13 @@ class PaddedTaskBase(BaseTaskBase):
                               .format(samples_per_frame, pad))
 
         shape = (ih.shape[0] - pad,) + ih.sample_shape
-        super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame,
-                         **kwargs)
-        self._padded_samples_per_frame = padded_samples_per_frame
-        self._start_time += self._pad_start / ih.sample_rate
+        start_time = ih.start_time + self._pad_start / ih.sample_rate
+        super().__init__(ih, ih_samples_per_frame=ih_samples_per_frame,
+                         shape=shape, samples_per_frame=samples_per_frame,
+                         start_time=start_time, **kwargs)
 
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.
         self.ih.seek(frame_index * self.samples_per_frame)
-        data = self.ih.read(self._padded_samples_per_frame)
+        data = self.ih.read(self._ih_samples_per_frame)
         return self.task(data)
