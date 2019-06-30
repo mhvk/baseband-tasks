@@ -9,7 +9,7 @@ from astropy.utils.state import ScienceState
 __all__ = ['FFTMakerBase', 'FFTBase', 'fft_maker']
 
 
-__doctest_requires__ = {'fft_maker.set': ['pyfftw']}
+__doctest_requires__ = {'fft_maker*': ['pyfftw']}
 
 
 FFT_MAKER_CLASSES = {}
@@ -220,6 +220,7 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
     """Base class for all FFT factories."""
 
     _FFTBase = FFTBase
+    _repr_kwargs = {}
 
     def __call__(self, shape, dtype, direction='forward', axis=0, ortho=False,
                  sample_rate=None, **kwargs):
@@ -274,6 +275,11 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
             return tuple(frequency_shape), frequency_dtype
         # No need to make a copy, since we're not altering shape.
         return shape, dtype
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__,
+                               ', '.join(['{k}={v}'.format(k=k, v=v)
+                                          for k, v in self._repr_kwargs.items()]))
 
 
 class fft_maker(ScienceState):
@@ -332,6 +338,9 @@ class fft_maker(ScienceState):
     def set(cls, fft_engine=None, **kwargs):
         """Set the FFT factory to be used in new tasks.
 
+        This method can be used to set the factory only temporarily, by
+        using it as a context in a ``with`` statement.
+
         Parameters
         ----------
         fft_engine : {'numpy', 'pyfftw'}, optional
@@ -348,7 +357,8 @@ class fft_maker(ScienceState):
         To use PyFFTW on a machine with 4 threads::
 
         >>> from scintillometry.fourier import fft_maker
-        >>> fft_maker.set('pyfftw', threads=4)  # doctest: +IGNORE_OUTPUT
+        >>> fft_maker.set('pyfftw', threads=4)
+        <ScienceState fft_maker: PyfftwFFTMaker(...)>
 
         This factory will be used by default when defining new tasks that
         need fourier transforms (channelization, dedispersion, etc.)
@@ -357,6 +367,11 @@ class fft_maker(ScienceState):
 
         >>> fft_maker.set()  # doctest: +IGNORE_OUTPUT
         >>> assert fft_maker.get() is fft_maker.system_default
+
+        To use the settings only for a few specific tasks::
+
+        >>> with fft_maker.set('numpy'):  # doctest: +SKIP
+        ...     ch = Channelize(fh, 1024)
         """
         if fft_engine is None:
             fft_engine = cls.system_default
