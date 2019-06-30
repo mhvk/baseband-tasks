@@ -56,10 +56,10 @@ class SquareHat(PaddedTaskBase):
     `SquareHat` simply convolves with a set of 1s of given length.
     """
 
-    def __init__(self, ih, n, offset=0, samples_per_frame=None):
+    def __init__(self, ih, n, offset=0, **kwargs):
         self._n = n
         super().__init__(ih, pad_start=n-1-offset, pad_end=offset,
-                         samples_per_frame=samples_per_frame)
+                         **kwargs)
 
     def task(self, data):
         size = data.shape[0]
@@ -421,7 +421,5 @@ class TestPaddedTaskBase(UseVDIFSample):
             SquareHat(self.fh, -1)
         with pytest.raises(ValueError):
             SquareHat(self.fh, 10, offset=-1)
-        with pytest.raises(ValueError):
-            SquareHat(self.fh, 10, samples_per_frame=9)
         with pytest.warns(UserWarning, match='inefficient'):
-            SquareHat(self.fh, 10, samples_per_frame=11)
+            SquareHat(self.fh, 10, samples_per_frame=8)

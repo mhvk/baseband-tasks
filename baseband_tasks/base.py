@@ -699,8 +699,8 @@ class PaddedTaskBase(BaseTaskBase):
     pad_start, pad_end : int
         Padding to apply at the start and end.  Default: 0.
     samples_per_frame : int, optional
-        Number of samples which should be dealt with in one go. The number of
-        output samples per frame will be smaller by the amount of padding.
+        Number of output samples which should be produced in each frame.
+        The number of input samples will be larger by the padding.
         If not given, the minimum power of 2 needed to get at least 75%
         efficiency.
     **kwargs
@@ -720,22 +720,20 @@ class PaddedTaskBase(BaseTaskBase):
             if samples_per_frame is None:
                 # Calculate the number of samples that ensures >75% efficiency:
                 # use 4 times power of two just above pad.
-                samples_per_frame = 2 ** (int((np.ceil(np.log2(pad)))) + 2)
-            elif pad >= samples_per_frame:
-                raise ValueError("need more than {} samples per frame to have "
-                                 "enough padding.".format(pad))
-            elif pad > samples_per_frame / 2.:
-                warnings.warn("task will be inefficient since of {} samples "
-                              "per frame, {} will be lost due to padding."
-                              .format(samples_per_frame, pad))
+                padded_samples_per_frame = 2**(int((np.ceil(np.log2(pad))))+2)
+                samples_per_frame = padded_samples_per_frame - pad
+            else:
+                padded_samples_per_frame = samples_per_frame + pad
 
-            # Subtract padding since that's actually produced per frame.
-            samples_per_frame -= pad
+            if pad > samples_per_frame:
+                warnings.warn("task will be inefficient; for {} samples "
+                              "per frame, more ({}) will be added for padding."
+                              .format(samples_per_frame, pad))
 
         shape = (ih.shape[0] - pad,) + ih.sample_shape
         super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame,
                          **kwargs)
-        self._padded_samples_per_frame = self.samples_per_frame + pad
+        self._padded_samples_per_frame = padded_samples_per_frame
         self._start_time += self._pad_start / ih.sample_rate
 
     def _read_frame(self, frame_index):

@@ -20,9 +20,9 @@ class TestConvolveDADA(UseDADASample):
         ref_data = fh.read()
         expected = ref_data[:-2] + ref_data[1:-1] + ref_data[2:]
 
-        # Have 16000 - 2 useful samples -> can use 842, but add 2 for response.
+        # Have 16000 - 2 useful samples -> can use 842.
         response = np.ones(3)
-        ct = convolve_task(fh, response, samples_per_frame=844)
+        ct = convolve_task(fh, response, samples_per_frame=842)
         # Convolve everything.
         data1 = ct.read()
         assert ct.tell() == ct.shape[0] == fh.shape[0] - 2
@@ -72,9 +72,9 @@ class TestConvolveNoise:
     @pytest.mark.parametrize('convolve_task', (ConvolveSamples, Convolve))
     def test_different_response(self, convolve_task):
         response = np.array([[1., 1., 1.], [1., 1., 0.]]).T
-        ct = convolve_task(self.nh, response, samples_per_frame=844)
-        assert abs(ct.start_time
-                   - self.start_time - 2 / self.sample_rate) < 1. * u.ns
+        ct = convolve_task(self.nh, response, samples_per_frame=842)
+        assert abs(ct.start_time - self.start_time
+                   - 2 / self.sample_rate) < 1. * u.ns
         expected = (self.data[:-2] * np.array([1, 0]) + self.data[1:-1]
                     + self.data[2:])
         data1 = ct.read()

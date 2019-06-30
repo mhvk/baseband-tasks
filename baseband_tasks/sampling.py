@@ -42,7 +42,7 @@ def float_offset(ih, offset, whence=0):
 
 
 class Resample(PaddedTaskBase):
-    """Rsample a stream such that a sample occurs at the given offset.
+    """Resample a stream such that a sample occurs at the given offset.
 
     The offset pointer is left at the requested time.
 
@@ -60,9 +60,10 @@ class Resample(PaddedTaskBase):
         'current', or 'end' for 0, 1, or 2, respectively.  Ignored if
         ``offset`` is a time.
     samples_per_frame : int, optional
-        Number of samples which should be resampled in one go. The number of
-        output samples per frame will be one less than this.  If not given,
-        the larger of the sampler per frame in the underlying stream or 1024.
+        Number of resampled samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, works on the larger of the samples per frame from
+        the underlying stream or 1024.
 
     Examples
     --------
@@ -114,7 +115,7 @@ class Resample(PaddedTaskBase):
             pad_start, pad_end = 0, 1
 
         if samples_per_frame is None:
-            samples_per_frame = max(ih.samples_per_frame, 1024)
+            samples_per_frame = max(ih.samples_per_frame-1, 1023)
 
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame)
