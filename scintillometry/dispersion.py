@@ -39,7 +39,7 @@ class Disperse(PaddedTaskBase):
 
     See Also
     --------
-    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+    scintillometry.fourier.fft_maker : to select the FFT package used.
     """
 
     def __init__(self, ih, dm, reference_frequency=None,
@@ -166,7 +166,7 @@ class Dedisperse(Disperse):
 
     See Also
     --------
-    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+    scintillometry.fourier.fft_maker : to select the FFT package used.
 
     """
 

@@ -27,7 +27,7 @@ class Real2Complex(TaskBase):
 
     See Also
     --------
-    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+    scintillometry.fourier.fft_maker : to select the FFT package used.
 
     Raises
     ------

@@ -14,7 +14,7 @@ from ... import fourier
 class TestFFTMaker:
     def setup(self):
         # Ensure we start with a clean slate
-        fft_maker.set()
+        fft_maker.set(None)
         self.default_maker = fft_maker.get()
 
     def test_system_default(self):

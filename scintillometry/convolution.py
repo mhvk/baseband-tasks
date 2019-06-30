@@ -85,7 +85,7 @@ class Convolve(ConvolveSamples):
     See Also
     --------
     ConvolveSamples : convolution in the time domain (for simple responses)
-    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+    scintillometry.fourier.fft_maker : to select the FFT package used.
     """
     def __init__(self, ih, response, offset=0, samples_per_frame=None):
         super().__init__(ih, response=response, offset=offset,

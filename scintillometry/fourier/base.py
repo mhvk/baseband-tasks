@@ -330,7 +330,7 @@ class fft_maker(ScienceState):
         return value
 
     @classmethod
-    def set(cls, fft_engine=None, **kwargs):
+    def set(cls, fft_engine, **kwargs):
         """Set the FFT factory to be used in new tasks.
 
         This method can be used to set the factory only temporarily, by
@@ -338,14 +338,14 @@ class fft_maker(ScienceState):
 
         Parameters
         ----------
-        fft_engine : {'numpy', 'pyfftw'}, optional
-            Keyword identifying the FFT maker class.  If not given, the
-            engine stored in the ``default`` attribute is returned.  If
-            already a FFT maker instance and no other arguments are passed,
-            it is returned directly.
+        fft_engine : {'numpy', 'pyfftw'}, FFTMaker instance, or `None`
+            Keyword identifying the FFT maker class to create, or an FFT
+            maker instance.  If `None`, the engine stored in the
+            ``system_default`` attribute is used.
         **kwargs
             Additional keyword arguments for initializing the maker class
-            (eg. ``n_simd`` for 'pyfftw').
+            (eg. ``n_simd`` for 'pyfftw').  Only allowed when ``fft_engine``
+            is a name of a maker class.
 
         Examples
         --------
@@ -358,9 +358,9 @@ class fft_maker(ScienceState):
         This factory will be used by default when defining new tasks that
         need fourier transforms (channelization, dedispersion, etc.)
 
-        To reset to the system default, do not pass in arguments::
+        To reset to the system default, pass in `None`::
 
-        >>> fft_maker.set()  # doctest: +IGNORE_OUTPUT
+        >>> fft_maker.set(None)  # doctest: +IGNORE_OUTPUT
         >>> assert fft_maker.get() is fft_maker.system_default
 
         To use the settings only for a few specific tasks::

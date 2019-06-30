@@ -35,7 +35,7 @@ class Channelize(TaskBase):
 
     See Also
     --------
-    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+    scintillometry.fourier.fft_maker : to select the FFT package used.
 
     Notes
     -----
@@ -111,14 +111,10 @@ class Dechannelize(TaskBase):
     sideband : array, optional
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
-    FFT : FFT maker or None, optional
-        FFT maker.  Default: `None`, in which case the channelizer uses the
-        default from `~scintillometry.fourier.base.get_fft_maker` (pyfftw if
-        available, otherwise numpy).
 
     See Also
     --------
-    ~scintillometry.fourier.fft_maker : to select the FFT package used.
+    scintillometry.fourier.fft_maker : to select the FFT package used.
 
     Notes
     -----

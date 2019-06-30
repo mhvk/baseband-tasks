@@ -7,9 +7,9 @@ from .numpy import NumpyFFTMaker
 try:
     from .pyfftw import PyfftwFFTMaker
     from os import environ
-    fft_maker.system_default = PyfftwFFTMaker(
+    fft_maker._system_default = PyfftwFFTMaker(
         flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'],
         threads=int(environ.get('OMP_NUM_THREADS', 2)))
     del environ
 except ImportError:
-    fft_maker.system_default = NumpyFFTMaker()
+    fft_maker._system_default = NumpyFFTMaker()
