@@ -57,6 +57,15 @@ class TestSetter:
         assert (self.p_hdu.header['OBSBW'] ==
                 self.input_p_hdu.header['OBSBW'])
 
+    def test_set_sideband(self):
+        self.p_hdu.header['OBSBW'] = self.input_p_hdu.header['OBSBW']
+        self.p_hdu.sideband = -self.input_p_hdu.sideband
+        assert (self.p_hdu.header['OBSBW'] ==
+                -self.input_p_hdu.header['OBSBW'])
+        self.p_hdu.sideband = self.input_p_hdu.sideband
+        assert (self.p_hdu.header['OBSBW'] ==
+                self.input_p_hdu.header['OBSBW'])
+
     def test_set_mode(self):
         self.p_hdu.obs_mode = 'PSR'
         assert self.p_hdu.header['OBS_MODE'] == 'PSR'
