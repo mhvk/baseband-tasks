@@ -1,4 +1,43 @@
 # Licensed under the GPLv3 - see LICENSE
+"""Base classes and tools for the fourier module.
+
+Implementation Notes
+--------------------
+
+The base classes provide common code for adding new FFT engines.
+
+In particular, the `FFTMakerBase` class is subclassed to create
+``*FFTMaker`` classes (where ``*`` stands for a package such as `pyfftw`
+or `numpy`).  These classes are initialized with default information
+needed for creating an FFT instance. For instance, for
+``PyfftwFFTMaker``, this holds ``flags``, ``threads``, etc. Via the
+`FFTMakerMeta` meta class, all such maker classes are registered in the
+`FFT_MAKER_CLASSES` dict, keyed by a lower-case version of the name
+(with ``fftmaker`` removed).
+
+These ``*FFTMaker`` instances in turn can be used, via their
+``__call__`` method, to create ``*FFT`` subclass instances, setting
+relevant attributes such as ``time_shape``, ``time_dtype``, ``axis``,
+etc., and instantiating them for a given direction.
+
+The ``*FFT`` classes themselves are most easily based on `FFTBase`,
+which defines properties for accessing the various attributes, a default
+``__init__`` method that allows on to create an instance for a given
+direction of the FFT, and a :meth:`FFTBase.__call__` method for actually
+doing the FFT on data.  The `FFTBase` class also defines convenience
+properties, such as `FFTBase.frequency` to get the sample frequencies,
+and :meth:`FFTBase.inverse` for getting the FFT in the inverse
+direction.
+
+Selection of a default FFT package is done via `fft_maker`, which stores
+a default ``*FFTMaker`` instance.  It is based on
+`astropy.utils.state.ScienceState`, but adds a `fft_maker.system_default`
+factory that one can access by setting the state to `None`, as well as
+``__new__`` method which allows one to use the default ``*FFTMaker``
+instance to create an ``*FFT`` instance.
+
+"""
+
 import operator
 
 import numpy as np
@@ -6,7 +45,8 @@ from astropy.utils.decorators import classproperty
 from astropy.utils.state import ScienceState
 
 
-__all__ = ['FFTMakerBase', 'FFTBase', 'fft_maker']
+__all__ = ['FFTMakerBase', 'FFTBase', 'fft_maker',
+           'FFTMakerMeta', 'FFT_MAKER_CLASSES']
 
 
 __doctest_requires__ = {'fft_maker*': ['pyfftw']}
@@ -154,11 +194,8 @@ class FFTBase:
             direction=('forward' if self.direction == 'backward'
                        else 'backward'))
 
-    def copy(self):
-        return self.__class__(direction=self.direction)
-
     def __copy__(self):
-        return self.copy()
+        return self.__class__(direction=self.direction)
 
     def __eq__(self, other):
         return (self.direction == other.direction and
@@ -224,7 +261,33 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
     def __call__(self, shape, dtype, direction='forward', axis=0, ortho=False,
                  sample_rate=None, **kwargs):
-        """Placeholder for FFT setup."""
+        """Create an FFT instance.
+
+        This method should generally by overridden by subclasses.
+
+        Parameters
+        ----------
+        shape : tuple
+            Shape of the time-domain data array, i.e. the input to the forward
+            transform and the output of the inverse.
+        dtype : str or `~numpy.dtype`
+            Data type of the time-domain data array.  May pass either the
+            name of the dtype or the `~numpy.dtype` object.
+        direction : 'forward' or 'backward', optional
+            Direction of the FFT.
+        axis : int, optional
+            Axis to transform.  Default: 0.
+        ortho : bool, optional
+            Whether to use orthogonal normalization.  Default: `False`.
+        sample_rate : float, `~astropy.units.Quantity`, or None, optional
+            Sample rate, used to determine the FFT sample frequencies.  If
+            `None`, a unitless rate of 1 is used.
+
+        Returns
+        -------
+        fft : ``cls._FFTBase`` instance
+            Single pre-defined FFT object.
+        """
         # Ensure arguments have proper types and values.
         time_shape = tuple(shape)
         time_dtype = np.dtype(dtype)
@@ -283,27 +346,47 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
 
 class fft_maker(ScienceState):
-    """FFT maker with settable default engine.
+    """Create an FFT, with a settable default engine.
 
     Parameters
     ----------
-    *args, **kwargs
-        Arguments for the fft_engine.
+    shape : tuple
+        Shape of the time-domain data array, i.e. the input to the forward
+        transform and the output of the inverse.
+    dtype : `~numpy.dtype`
+        Data type of the time-domain data array.  May pass either a
+        `~numpy.dtype` instance, or anything that initializes one.
+    direction : 'forward' or 'backward', optional
+        Direction of the FFT.  Default: 'forward'
+    axis : int, optional
+        Axis to transform.  Default: 0.
+    ortho : bool, optional
+        Whether to use orthogonal normalization.  Default: `False`.
+    sample_rate : float, `~astropy.units.Quantity`, or None, optional
+        Sample rate, used to determine the FFT sample frequencies.  If
+        `None`, a unitless rate of 1 is used.
+
+    Notes
+    -----
+    The `fft_maker.set` method can be used to set the default engine for
+    all tasks that require fourier transforms.
+
 
     Examples
     --------
     To set up to use numpy's fft, and then create an fft function acting
     on arrays of 1000 elements::
 
-    >>> from scintillometry.fourier import fft_maker
-    >>> from astropy import units as u
-    >>> with fft_maker.set('numpy'):
-    ...     fft = fft_maker((1000,), 'complex64', sample_rate=1.*u.kHz)
-    >>> fft
-    <NumpyFFT direction=forward,
-        axis=0, ortho=False, sample_rate=1.0 kHz
-        Time domain: shape=(1000,), dtype=complex64
-        Frequency domain: shape=(1000,), dtype=complex64>
+      >>> from scintillometry.fourier import fft_maker
+      >>> from astropy import units as u
+      >>> with fft_maker.set('numpy'):
+      ...     fft = fft_maker((1000,), 'complex64', sample_rate=1.*u.kHz)
+      >>> fft
+      <NumpyFFT direction=forward,
+          axis=0, ortho=False, sample_rate=1.0 kHz
+          Time domain: shape=(1000,), dtype=complex64
+          Frequency domain: shape=(1000,), dtype=complex64>
+
     """
 
     # This is set in __init__.
@@ -311,9 +394,11 @@ class fft_maker(ScienceState):
 
     _value = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, shape, dtype, *,
+                direction='forward', axis=0, ortho=False, sample_rate=None):
         fft_engine = cls.get()
-        return fft_engine(*args, **kwargs)
+        return fft_engine(shape, dtype, direction=direction, axis=axis,
+                          ortho=ortho, sample_rate=sample_rate)
 
     @classproperty
     def system_default(cls):
@@ -351,22 +436,22 @@ class fft_maker(ScienceState):
         --------
         To use PyFFTW on a machine with 4 threads::
 
-        >>> from scintillometry.fourier import fft_maker
-        >>> fft_maker.set('pyfftw', threads=4)
-        <ScienceState fft_maker: PyfftwFFTMaker(...)>
+          >>> from scintillometry.fourier import fft_maker
+          >>> fft_maker.set('pyfftw', threads=4)
+          <ScienceState fft_maker: PyfftwFFTMaker(...)>
 
         This factory will be used by default when defining new tasks that
         need fourier transforms (channelization, dedispersion, etc.)
 
         To reset to the system default, pass in `None`::
 
-        >>> fft_maker.set(None)  # doctest: +IGNORE_OUTPUT
-        >>> assert fft_maker.get() is fft_maker.system_default
+          >>> fft_maker.set(None)  # doctest: +IGNORE_OUTPUT
+          >>> assert fft_maker.get() is fft_maker.system_default
 
         To use the settings only for a few specific tasks::
 
-        >>> with fft_maker.set('numpy'):  # doctest: +SKIP
-        ...     ch = Channelize(fh, 1024)
+          >>> with fft_maker.set('numpy'):  # doctest: +SKIP
+          ...     ch = Channelize(fh, 1024)
         """
         if fft_engine is None:
             fft_engine = cls.system_default

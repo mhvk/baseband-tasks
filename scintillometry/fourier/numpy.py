@@ -1,11 +1,12 @@
 # Licensed under the GPLv3 - see LICENSE
+"""FFT maker and class using the `numpy.fft` routines."""
 
 import numpy as np
 import operator
 from .base import FFTMakerBase, FFTBase
 
 
-__all__ = ['NumpyFFTMaker']
+__all__ = ['NumpyFFTBase', 'NumpyFFTMaker']
 
 
 class NumpyFFTBase(FFTBase):

@@ -133,13 +133,9 @@ class TestFFTClasses:
                         sample_rate=self.sample_rate)
         assert fftc == fft
         # Check that we can copy an FFT.
-        fft_copy = fft.copy()
+        fft_copy = copy.copy(fft)
         assert fft_copy is not fft
         assert fft_copy == fft
-        fft_copy2 = copy.copy(fft)
-        assert fft_copy2 is not fft
-        assert fft_copy2 is not fft_copy
-        assert fft_copy2 == fft
 
         # Check Parseval's Theorem (factor of 2 from using a real transform).
         assert np.isclose(np.sum(self.y_rnsine**2),

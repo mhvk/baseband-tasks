@@ -1,5 +1,24 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Fourier transform module."""
+"""Fourier transform module.
+
+This module provides a standard interface to various FFT packages.
+
+Routine listings
+----------------
+
+`fft_maker` : primary interface for creating FFT instances.
+
+Implementation Notes
+--------------------
+
+For each packages, there is a corresponding ``*FFTMaker`` class, which
+holds default information needed for creating an FFT instance. For
+instance, for `PyfftwFFTMaker`, this holds ``flags``, ``threads``, etc.
+
+These ``*FFTMaker`` instances in turn can be used to create ``*FFT``
+instances which are set up to do the FFT on data with a given shape, in
+a given direction, etc.
+"""
 from .base import fft_maker
 from .numpy import NumpyFFTMaker
 

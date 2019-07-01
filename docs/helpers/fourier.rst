@@ -23,16 +23,17 @@ Using the Fourier Module
 ========================
 
 To make FFTs, easiest is to use the `~scintillometry.fourier.base.fft_maker`
-factory.  Below, we will use it with numpy fft::
+factory.  In our examples, we will use it with the numpy fft back-end::
 
     >>> from scintillometry.fourier import fft_maker
     >>> fft_maker.set('numpy')
     <ScienceState fft_maker: NumpyFFTMaker()>
 
-`~scintillometry.fourier.base.fft_maker.set` allows one to choose any of the
-FFT maker classes - e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
-`~scintillometry.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options,
-such as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.
+The :meth:`~scintillometry.fourier.base.fft_maker.set` method allows one to
+choose any of the FFT maker classes -
+e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
+`~scintillometry.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options, such
+as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.
 
 To create a transform, we pass the time-dimension data array shape and dtype,
 transform direction ('forward' or 'backward'), transform axis (if the data is

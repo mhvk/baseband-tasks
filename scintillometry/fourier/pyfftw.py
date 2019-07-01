@@ -1,4 +1,14 @@
 # Licensed under the GPLv3 - see LICENSE
+"""FFT maker and class using `pyfftw` routines.
+
+Implementation Notes
+--------------------
+
+The code for `PyfftwFFTBase` is relatively complex to ensure that the
+input and output arrays are re-used, even between the forward and
+backward transforms (if created using :meth:`PyfftwFFTBase.inverse`)
+
+"""
 
 import operator
 import numpy as np
@@ -6,7 +16,7 @@ import pyfftw
 from .base import FFTMakerBase, FFTBase
 
 
-__all__ = ['PyfftwFFTMaker']
+__all__ = ['PyfftwFFTBase', 'PyfftwFFTMaker']
 
 
 class PyfftwFFTBase(FFTBase):
