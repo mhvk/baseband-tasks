@@ -7,8 +7,37 @@ from astropy.tests.helper import assert_quantity_allclose
 import pytest
 
 from ..base import FFT_MAKER_CLASSES, FFTMakerBase
-from .. import get_fft_maker
+from .. import fft_maker
 from ... import fourier
+
+
+class TestFFTMaker:
+    def setup(self):
+        # Ensure we start with a clean slate
+        fft_maker.set(None)
+        self.default_maker = fft_maker.get()
+
+    def test_system_default(self):
+        assert self.default_maker is fft_maker.system_default
+        if 'pyfftw' in FFT_MAKER_CLASSES:
+            assert isinstance(self.default_maker, fourier.PyfftwFFTMaker)
+        else:
+            assert isinstance(self.default_maker, fourier.NumpyFFTMaker)
+
+    def test_set_default(self):
+        my_maker = fourier.base.FFTMakerBase()
+        with fft_maker.set(my_maker):
+            assert fft_maker.get() is my_maker
+
+        assert fft_maker.get() is self.default_maker
+
+    def test_invalid_input(self):
+        with pytest.raises(TypeError):
+            fft_maker('nonsense')
+        with pytest.raises(TypeError):
+            fft_maker(None, a='nonsense')
+        with pytest.raises(KeyError):
+            fft_maker.set('nonsense')
 
 
 class TestFFTClasses:
@@ -44,14 +73,28 @@ class TestFFTClasses:
         # Set common array comparison tolerances.
         self.tolerances = {'atol': 1e-13, 'rtol': 1e-6}
 
+    def test_basic(self):
+        # 1D complex sinusoid.
+        fft = fft_maker(self.y_exp.shape, self.y_exp.dtype,
+                        sample_rate=self.sample_rate)
+        y = self.y_exp.copy()  # ensure we don't write back to it!
+        Y = fft(y)
+        assert Y.dtype is self.y_exp.dtype
+        assert np.allclose(Y, self.Y_exp, **self.tolerances)
+        ifft = fft.inverse()
+        y_back = ifft(Y)
+        assert np.allclose(y_back, self.y_exp, **self.tolerances)
+
     @pytest.mark.parametrize('key', tuple(FFT_MAKER_CLASSES.keys()))
     def test_fft(self, key):
         """Test various FFT implementations."""
-        # Load class using get_fft_maker, check that we have the right one.
+        # Load class using fft_maker, check that we have the right one.
         kwargs = {}
         if key == 'pyfftw':
             kwargs['flags'] = ['FFTW_ESTIMATE']
-        FFTMaker = get_fft_maker(key, **kwargs)
+
+        with fft_maker.set(key, **kwargs):
+            FFTMaker = fft_maker.get()
 
         # 1D complex sinusoid.
         fft = FFTMaker(self.y_exp.shape, self.y_exp.dtype,
@@ -90,13 +133,9 @@ class TestFFTClasses:
                         sample_rate=self.sample_rate)
         assert fftc == fft
         # Check that we can copy an FFT.
-        fft_copy = fft.copy()
+        fft_copy = copy.copy(fft)
         assert fft_copy is not fft
         assert fft_copy == fft
-        fft_copy2 = copy.copy(fft)
-        assert fft_copy2 is not fft
-        assert fft_copy2 is not fft_copy
-        assert fft_copy2 == fft
 
         # Check Parseval's Theorem (factor of 2 from using a real transform).
         assert np.isclose(np.sum(self.y_rnsine**2),
@@ -124,29 +163,6 @@ class TestFFTClasses:
         # Check frequency.
         assert_quantity_allclose(fft.frequency,
                                  self.frequency_Y_3D[:, np.newaxis])
-
-
-def test_default_maker():
-    # Ensure we start with a clean slate
-    del get_fft_maker.default
-    default_maker = get_fft_maker()
-    assert default_maker is get_fft_maker.default
-    assert default_maker is get_fft_maker.system_default
-    if 'pyfftw' in FFT_MAKER_CLASSES:
-        assert isinstance(default_maker, fourier.PyfftwFFTMaker)
-    else:
-        assert isinstance(default_maker, fourier.NumpyFFTMaker)
-
-    my_maker = fourier.base.FFTMakerBase()
-    try:
-        get_fft_maker.default = my_maker
-        assert get_fft_maker() is my_maker
-    finally:
-        del get_fft_maker.default
-        assert get_fft_maker() is default_maker
-
-    with pytest.raises(TypeError):
-        get_fft_maker.default = 'nonsense'
 
 
 def test_against_duplication():

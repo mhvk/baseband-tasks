@@ -5,7 +5,7 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.tests.helper import assert_quantity_allclose
 
-from ..fourier import get_fft_maker
+from ..fourier import fft_maker
 from ..dispersion import Disperse, Dedisperse, DispersionMeasure
 from ..generators import StreamGenerator
 
@@ -152,8 +152,8 @@ class TestDispersion:
         gp = self.gp.read()
         # Shift in time using a phase gradient in the Fourier domain
         # (plus the phase offset between new and old reference frequency).
-        FFT = get_fft_maker()
-        fft = FFT(shape=gp.shape, dtype=gp.dtype, sample_rate=self.sample_rate)
+        fft = fft_maker(shape=gp.shape, dtype=gp.dtype,
+                        sample_rate=self.sample_rate)
         ifft = fft.inverse()
         ft = fft(gp)
         freqs = self.gp.frequency + fft.frequency * self.gp.sideband

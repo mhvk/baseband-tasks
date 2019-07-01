@@ -6,7 +6,7 @@ import pytest
 
 from ..base import SetAttribute
 from ..channelize import Channelize, Dechannelize
-from ..fourier import get_fft_maker
+from ..fourier import fft_maker
 
 from .common import UseVDIFSample, UseDADASample
 
@@ -26,9 +26,8 @@ class TestChannelizeReal(UseVDIFSample):
         self.raw_data = data
         last_sample = self.n * (data.shape[0] // self.n)
         part = data[:last_sample].reshape((-1, self.n) + data.shape[1:])
-        FFT = get_fft_maker()
-        rfft = FFT(shape=part.shape, dtype=part.dtype, axis=1,
-                   sample_rate=self.ref_sample_rate)
+        rfft = fft_maker(shape=part.shape, dtype=part.dtype, axis=1,
+                         sample_rate=self.ref_sample_rate)
         self.ref_data = rfft(part)
         # Note: sideband is actually incorrect for this VDIF file;
         # this is for testing only.

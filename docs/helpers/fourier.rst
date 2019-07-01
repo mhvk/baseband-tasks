@@ -22,25 +22,27 @@ frequency-domain values are always treated as complex.
 Using the Fourier Module
 ========================
 
-To get an FFT maker, we may use the `~scintillometry.fourier.base.get_fft_maker`
-function::
+To make FFTs, easiest is to use the `~scintillometry.fourier.base.fft_maker`
+factory.  In our examples, we will use it with the numpy fft back-end::
 
-    >>> from scintillometry import fourier
-    >>> FFTMaker = fourier.get_fft_maker('numpy')
+    >>> from scintillometry.fourier import fft_maker
+    >>> fft_maker.set('numpy')
+    <ScienceState fft_maker: NumpyFFTMaker()>
 
-`~scintillometry.fourier.base.get_fft_maker` returns an instance of one of the
-FFT maker classes - e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
-`~scintillometry.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options,
-such as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.
+The :meth:`~scintillometry.fourier.base.fft_maker.set` method allows one to
+choose any of the FFT maker classes -
+e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
+`~scintillometry.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options, such
+as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.
 
 To create a transform, we pass the time-dimension data array shape and dtype,
 transform direction ('forward' or 'backward'), transform axis (if the data is
-multi-dimensional), normalization convention and sample rate to ``FFTMaker``::
+multi-dimensional), normalization convention and sample rate::
 
     >>> import numpy as np
     >>> import astropy.units as u
-    >>> fft = FFTMaker((1000,), 'float64', direction='forward', ortho=True,
-    ...                sample_rate=1.*u.kHz)
+    >>> fft = fft_maker((1000,), 'float64', direction='forward', ortho=True,
+    ...                 sample_rate=1.*u.kHz)
 
 Here, we have chosen orthogonal normalization, which normalizes both the
 frequency and time-domain outputs by :math:`1 / n^{1/2}`, where :math:`n` is
