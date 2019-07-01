@@ -164,6 +164,15 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         self.hdu.header['OBSBW'] = bw
 
     @property
+    def sideband(self):
+        return np.where(self.hdu.header['OBSBW'] > 0, np.int8(1), np.int8(-1))
+
+    @sideband.setter
+    def sideband(self, sideband):
+        assert np.all(np.abs(sideband) == 1), "sideband should be +/- 1"
+        self.hdu.header['OBSBW'] = sideband * abs(self.hdu.header['OBSBW'])
+
+    @property
     def ra(self):
         return Longitude(self.header['RA'], unit=u.hourangle)
 
@@ -330,6 +339,15 @@ class SubintHDU(HDUWrapper):
         freqs = freqs.to_value(u.MHz)
         self.hdu.data['DAT_FREQ'] = np.broadcast_to(freqs, (self.nrow,
                                                             self.nchan))
+
+    @property
+    def sideband(self):
+        return np.where(self.header['CHAN_BW'] > 0, np.int8(1), np.int8(-1))
+
+    @sideband.setter
+    def sideband(self, sideband):
+        assert np.all(np.abs(sideband) == 1), "sideband should be +/- 1"
+        self['CHAN_BW'] = sideband * abs(self['CHAN_BW'])
 
     @lazyproperty
     def dtype(self):

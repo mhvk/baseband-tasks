@@ -40,8 +40,9 @@ def simplify_shape(value):
     # Remove leading ones, which are not needed in numpy broadcasting.
     first_not_unity = next((i for (i, s) in enumerate(value.shape)
                             if s > 1), value.ndim)
-    value.shape = value.shape[first_not_unity:]
-    return value
+    # Make copy to ensure we're not a view of the input value (so
+    # things cannot get changed under our feet).
+    return value.reshape(value.shape[first_not_unity:]).copy()
 
 
 class Base:
@@ -98,11 +99,14 @@ class Base:
         assert shape[0] % samples_per_frame == 0
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
-        if frequency is not None:
+        if frequency is not None or sideband is not None:
+            if frequency is None or sideband is None:
+                raise ValueError('frequency and sideband should both '
+                                 'be passed in.')
             frequency = self._check_shape(frequency)
-        if sideband is not None:
             sideband = self._check_shape(np.where(sideband > 0,
                                                   np.int8(1), np.int8(-1)))
+
         if polarization is not None:
             polarization = self._check_shape(polarization)
 

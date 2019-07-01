@@ -36,6 +36,7 @@ class TestFoldRead(TestRead):
         assert hdu.sample_shape == (2048, 1, 1)
         assert hdu.shape == (1, 2048, 1, 1)
         assert u.allclose(hdu.frequency, 433.12399292 * u.MHz)
+        assert hdu.sideband == 1
 
         with pytest.raises(EOFError):
             hdu.read_data_row(hdu.nrow)
@@ -49,6 +50,7 @@ class TestFoldRead(TestRead):
         # Channel 32 should have mid-frequency; given that channel 0
         # is assumed omitted, this is index 31.
         assert u.allclose(primary.frequency[31], 372.34375 * u.MHz)
+        assert primary.sideband == 1
         ra = primary.ra
         assert isinstance(ra, Longitude)
         assert u.allclose(ra, Longitude(18.96010972, u.hourangle))

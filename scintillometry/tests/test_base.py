@@ -80,8 +80,15 @@ class TestSetAttribute(UseVDIFSample):
         for attr in ('start_time', 'sample_rate', 'samples_per_frame',
                      'shape', 'dtype'):
             assert getattr(sa, attr) == getattr(self.fh, attr)
+        # Check that frequency does not propagate.
+        frequency[...] = 0
+        assert np.all(sa.frequency != 0)
+        sideband[...] = 0
+        assert np.all(np.abs(sa.sideband) == 1)
+        # Check data can be read.
         data = sa.read()
         assert np.all(data == expected)
+        # Check we didn't magically define polarization.
         with pytest.raises(AttributeError):
             sa.polarization
         sa.close()
@@ -108,6 +115,14 @@ class TestSetAttribute(UseVDIFSample):
             with pytest.raises(AttributeError):
                 getattr(sa, attr)
         sa.close()
+
+    def test_need_both_frequency_and_sideband(self):
+        frequency = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        sideband = np.tile([-1, +1], 4)
+        with pytest.raises(ValueError):
+            SetAttribute(self.fh, frequency=frequency)
+        with pytest.raises(ValueError):
+            SetAttribute(self.fh, sideband=sideband)
 
 
 class TestTaskBase(UseVDIFSample):
@@ -266,11 +281,17 @@ class TestTaskBase(UseVDIFSample):
             rt.frequency
         with pytest.raises(AttributeError):
             rt.sideband
-        with pytest.raises(ValueError):
-            ReshapeTime(fh, 1024, samples_per_frame=3,
+        frequency_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        sideband_in = np.tile([-1, +1], 4)
+        with pytest.raises(ValueError):  # sideband missing
+            ReshapeTime(fh, 1024, frequency=frequency_in)
+        with pytest.raises(ValueError):  # frequency missing
+            ReshapeTime(fh, 1024, sideband=sideband_in)
+        with pytest.raises(ValueError):  # wrong shape
+            ReshapeTime(fh, 1024, sideband=sideband_in,
                         frequency=np.arange(4.)*u.GHz)
-        with pytest.raises(ValueError):
-            ReshapeTime(fh, 1024, samples_per_frame=3,
+        with pytest.raises(ValueError):  # wrong shape
+            ReshapeTime(fh, 1024, frequency=frequency_in,
                         sideband=np.ones((2, 8), dtype=int))
 
 
