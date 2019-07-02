@@ -56,3 +56,16 @@ class TestPintUtils:
             "Failed to initialize with input control parameters."
         assert not toas.clock_corr_info['include_gps'], \
             "Failed to initialize with input control parameters."
+
+    def test_multiple_frequencies(self):
+        # Regression test for gh-95
+        freq = np.array([[1.4], [1.5]]) * u.GHz
+        pt = pint_toas.PintToas(self.obs, frequency=freq, ephem='builtin',
+                                include_bipm=False, include_gps=False)
+        toas = pt(self.times)
+        assert toas.shape == (2, 30)
+        freq = freq.squeeze()
+        pt2 = pint_toas.PintToas(self.obs, frequency=freq, ephem='builtin',
+                                 include_bipm=False, include_gps=False)
+        toas2 = pt2(self.times[:, np.newaxis])
+        assert toas2.shape == (30, 2)
