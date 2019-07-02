@@ -8,6 +8,8 @@ from numpy.testing import assert_allclose
 import astropy.units as u
 from astropy.time import Time
 
+from baseband_tasks.base import Task, SetAttribute
+from baseband_tasks.combining import Stack
 from baseband_tasks.sampling import Resample, float_offset
 from baseband_tasks.generators import StreamGenerator
 
@@ -18,8 +20,8 @@ class Cosine:
         self.start_time = start_time
 
     def __call__(self, ih):
-        dt = ((ih.time - self.start_time).to(u.s) +
-              np.arange(ih.samples_per_frame) / ih.sample_rate)
+        dt = ((ih.time - self.start_time).to(u.s)
+              + np.arange(ih.samples_per_frame) / ih.sample_rate)
         dt = dt.reshape((-1,) + (1,) * self.frequency.ndim)
         phi = (self.frequency * dt * u.cycle).to_value(u.rad)
         if ih.dtype.kind == 'f':
@@ -144,3 +146,68 @@ class TestResampleNoise(TestResampleComplex):
             samples_per_frame=self.samples_per_frame // 4,
             frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
+
+
+def mix_downsample8(ih, data):
+    if ih.complex_data:
+        return (data[:, 0] * data[:, 1].conj())[::8]
+    else:
+        return (data[:, 0] * data[:, 1])[::8]
+
+
+class TestTimeShift:
+    dtype = np.dtype('c8')
+    full_sample_rate = 102.4 * u.kHz
+    sample_rate = full_sample_rate / 8
+    samples_per_frame = 1024
+    start_time = Time('2010-11-12T13:14:15')
+    frequency = full_sample_rate * 7 / 8
+    shape = (102400, 2)
+    sideband = np.array([-1, 1])
+    f_sine = frequency + sample_rate / 16 * sideband
+    delay = 128
+    delay_time = delay / full_sample_rate
+
+    def setup(self):
+        cosine = Cosine(self.f_sine, self.start_time)
+        mixer = Cosine(self.frequency * self.sideband, self.start_time)
+
+        self.full_fh = StreamGenerator(
+            cosine, shape=self.shape,
+            sample_rate=self.full_sample_rate,
+            samples_per_frame=self.samples_per_frame,
+            frequency=self.frequency, sideband=self.sideband,
+            start_time=self.start_time, dtype=self.dtype)
+
+        self.mixer_fh = StreamGenerator(
+            mixer, shape=self.shape,
+            sample_rate=self.full_sample_rate,
+            samples_per_frame=self.samples_per_frame,
+            frequency=self.frequency, sideband=self.sideband,
+            start_time=self.start_time, dtype=self.dtype)
+
+        self.tel1 = Task(Stack((self.full_fh, self.mixer_fh), axis=1),
+                         mix_downsample8, sample_rate=self.sample_rate,
+                         shape=(self.shape[0] // 8, 2))
+
+        self.delayed_fh = SetAttribute(
+            self.full_fh, start_time=self.start_time-self.delay_time)
+        delayed_mix = Stack((self.delayed_fh, self.mixer_fh), axis=1,
+                            samples_per_frame=128)
+        self.tel2 = Task(delayed_mix, mix_downsample8,
+                         sample_rate=self.sample_rate,
+                         shape=(delayed_mix.shape[0] // 8, 2))
+
+    def test_setup(self):
+        data1 = self.tel1.read()
+        dt1 = np.arange(self.tel1.shape[0]) / self.tel1.sample_rate
+        phi1 = dt1[:, np.newaxis] * u.cycle * (self.f_sine - self.frequency)
+        expected1 = np.exp(phi1.to_value(u.radian) * 1j)
+        assert_allclose(data1, expected1, atol=1e-4, rtol=0)
+        data2 = self.tel2.read()
+        assert data2.shape[0] == (self.shape[0] - self.delay) // 8
+        dt2 = dt1[self.delay//8:]
+        phi2 = dt2[:, np.newaxis] * u.cycle * (self.f_sine - self.frequency)
+        phi2 += self.delay / self.full_sample_rate * self.frequency * u.cycle
+        expected2 = np.exp(phi2.to_value(u.radian) * 1j)
+        assert_allclose(data2, expected2, atol=1e-4, rtol=0)
