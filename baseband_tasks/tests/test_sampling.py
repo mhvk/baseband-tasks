@@ -12,6 +12,23 @@ from baseband_tasks.sampling import Resample, float_offset
 from baseband_tasks.generators import StreamGenerator
 
 
+class Cosine:
+    def __init__(self, frequency, start_time):
+        self.frequency = frequency
+        self.start_time = start_time
+
+    def __call__(self, ih):
+        dt = ((ih.time - self.start_time).to(u.s) +
+              np.arange(ih.samples_per_frame) / ih.sample_rate)
+        dt = dt.reshape((-1,) + (1,) * self.frequency.ndim)
+        phi = (self.frequency * dt * u.cycle).to_value(u.rad)
+        if ih.dtype.kind == 'f':
+            cosine = np.cos(phi)
+        else:
+            cosine = np.exp(1j * phi)
+        return cosine.astype(ih.dtype, copy=False)
+
+
 class TestResampleReal:
 
     dtype = 'f4'
@@ -24,19 +41,9 @@ class TestResampleReal:
     sideband = np.array([-1, 1])
 
     def setup(self):
-        f_sine = self.sample_rate / 32
+        f_sine = self.sample_rate / 32 * np.ones(self.shape[1:])
 
-        def cosine(handle):
-            dt = (handle.offset
-                  + np.arange(handle.samples_per_frame)) / handle.sample_rate
-            phi = (f_sine * dt * u.cycle).to_value(u.rad)
-            if handle.dtype.kind == 'f':
-                cosine = np.sin(phi)
-            else:
-                cosine = np.exp(1j * phi)
-            return np.broadcast_to(
-                cosine[:, np.newaxis].astype(handle.dtype, copy=False),
-                (handle.samples_per_frame,) + handle.sample_shape)
+        cosine = Cosine(f_sine, self.start_time)
 
         self.full_fh = StreamGenerator(
             cosine, shape=self.shape,
