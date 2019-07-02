@@ -50,7 +50,7 @@ class CombineStreamsBase(TaskBase):
         n_sample = ih0.seek(stop_time) - ih0.seek(start_time)
 
         # Calculate offsets for each file and check they are aligned well.
-        # TODO: use future TimeInterpolate class to lift this restriction?
+        # TODO: use future Resample class to lift this restriction?
         self._start_offsets = []
         if atol is None:
             atol = min(1. * u.ns, 0.01 / ih0.sample_rate)
