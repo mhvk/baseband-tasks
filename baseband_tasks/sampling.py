@@ -5,10 +5,10 @@ import numpy as np
 from astropy import units as u
 from astropy.utils import lazyproperty
 
-from .base import PaddedTaskBase
+from .base import PaddedTaskBase, TaskBase, SetAttribute
 from .fourier import fft_maker
 
-__all__ = ['Resample', 'float_offset']
+__all__ = ['Resample', 'float_offset', 'TimeShift', 'ShiftAndResample']
 
 __doctest_requires__ = {'Resample*': ['pyfftw']}
 
@@ -41,7 +41,63 @@ def float_offset(ih, offset, whence=0):
                          "'current', or 2 or 'end'.")
 
 
-class Resample(PaddedTaskBase):
+class ResampleBase(PaddedTaskBase):
+    def __init__(self, ih, fraction, *,
+                 samples_per_frame=None, **kwargs):
+        if abs(fraction) > 1:
+            raise ValueError("offset must be a fraction of a sample.")
+
+        if fraction < 0:
+            pad_start, pad_end = 1, 0
+        else:
+            pad_start, pad_end = 0, 1
+
+        if samples_per_frame is None:
+            samples_per_frame = max(ih.samples_per_frame-1, 1023)
+
+        super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
+                         samples_per_frame=samples_per_frame, **kwargs)
+
+        self._fft = fft_maker(shape=(self._ih_samples_per_frame,)
+                              + ih.sample_shape, sample_rate=ih.sample_rate,
+                              dtype=ih.dtype)
+        self._ifft = self._fft.inverse()
+
+        self._fraction = fraction
+        self._start_time += fraction / ih.sample_rate
+        self._pad_slice = slice(self._pad_start,
+                                self._pad_start + self.samples_per_frame)
+
+    @lazyproperty
+    def phase_factor(self):
+        """Phase offsets of the Fourier-transformed frame."""
+        phase_delay = (self._fraction / self.sample_rate * u.cycle
+                       * self._fft.frequency)
+        phase_factor = np.exp(phase_delay.to_value(u.rad) * 1j)
+        phase_factor = phase_factor.astype(self._fft.frequency_dtype,
+                                           copy=False)
+        return phase_factor
+
+    def task(self, data):
+        ft = self._fft(data)
+        ft *= self.phase_factor
+        result = self._ifft(ft)
+        return result[self._pad_slice]
+
+    def close(self):
+        super().close()
+        # Clear the caches of the lazyproperties to release memory.
+        del self.phase_factor
+        del self._fft
+        del self._ifft
+
+    def _repr_item(self, key, default, value=None):
+        if key == 'offset':
+            value = self._offset
+        return super()._repr_item(key, default=default, value=value)
+
+
+class Resample(ResampleBase):
     """Resample a stream such that a sample occurs at the given offset.
 
     The offset pointer is left at the requested time.
@@ -112,52 +168,46 @@ class Resample(PaddedTaskBase):
         ih_offset = float_offset(ih, offset, whence)
         rounded_offset = np.around(ih_offset)
         fraction = ih_offset - rounded_offset
-        if fraction < 0:
-            pad_start, pad_end = 1, 0
-        else:
-            pad_start, pad_end = 0, 1
-
-        if samples_per_frame is None:
-            samples_per_frame = max(ih.samples_per_frame-1, 1023)
-
-        super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
-                         samples_per_frame=samples_per_frame)
-
-        self._fft = fft_maker(shape=(self._ih_samples_per_frame,)
-                              + ih.sample_shape, sample_rate=ih.sample_rate,
-                              dtype=ih.dtype)
-        self._ifft = self._fft.inverse()
-
-        self._fraction = fraction
-        self._start_time += fraction / ih.sample_rate
-        self._pad_slice = slice(self._pad_start,
-                                self._pad_start + self.samples_per_frame)
+        super().__init__(ih, fraction, samples_per_frame=samples_per_frame)
         self.seek(int(rounded_offset) - self._pad_start)
+
+
+class TimeShift(TaskBase):
+    def __init__(self, ih, shift, *, frequency=None, sideband=None):
+        assert ih.complex_data, "Time shift only works on complex data."
+        super().__init__(ih, frequency=frequency, sideband=sideband)
+        self._start_time += shift
+        phase_delay = -shift * self.frequency * u.cycle
+        self._phase_factor = (np.exp(phase_delay.to_value(u.rad) * 1j)
+                              .astype(ih.dtype))
+
+    def task(self, data):
+        data *= self._phase_factor
+        return data
+
+
+class ShiftAndResample(ResampleBase):
+    def __init__(self, ih, shift, offset=None, *,
+                 samples_per_frame=None, frequency=None, sideband=None):
+        if offset is None:
+            offset = ih.start_time
+
+        shifted = SetAttribute(ih, start_time=ih.start_time+shift)
+        ih_offset = float_offset(shifted, offset)
+        fraction = ih_offset - round(ih_offset)
+
+        super().__init__(ih, fraction, samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband)
+
+        self._start_time += shift
+        self._shift_phase_delay = -shift * self.frequency * u.cycle
 
     @lazyproperty
     def phase_factor(self):
         """Phase offsets of the Fourier-transformed frame."""
         phase_delay = (self._fraction / self.sample_rate * u.cycle
-                       * self._fft.frequency)
+                       * self._fft.frequency) + self._shift_phase_delay
         phase_factor = np.exp(phase_delay.to_value(u.rad) * 1j)
         phase_factor = phase_factor.astype(self._fft.frequency_dtype,
                                            copy=False)
         return phase_factor
-
-    def task(self, data):
-        ft = self._fft(data)
-        ft *= self.phase_factor
-        result = self._ifft(ft)
-        return result[self._pad_slice]
-
-    def close(self):
-        super().close()
-        # Clear the caches of the lazyproperties to release memory.
-        del self.phase_factor
-        del self._fft
-        del self._ifft
-
-    def _repr_item(self, key, default, value=None):
-        if key == 'offset':
-            value = self._offset
-        return super()._repr_item(key, default=default, value=value)

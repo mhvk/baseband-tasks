@@ -10,25 +10,29 @@ from astropy.time import Time
 
 from baseband_tasks.base import Task, SetAttribute
 from baseband_tasks.combining import Stack
-from baseband_tasks.sampling import Resample, float_offset
+from baseband_tasks.sampling import Resample, float_offset, TimeShift, ShiftAndResample
 from baseband_tasks.generators import StreamGenerator
 
 
-class Cosine:
+class PureTone:
     def __init__(self, frequency, start_time):
         self.frequency = frequency
         self.start_time = start_time
 
-    def __call__(self, ih):
-        dt = ((ih.time - self.start_time).to(u.s)
-              + np.arange(ih.samples_per_frame) / ih.sample_rate)
-        dt = dt.reshape((-1,) + (1,) * self.frequency.ndim)
-        phi = (self.frequency * dt * u.cycle).to_value(u.rad)
-        if ih.dtype.kind == 'f':
+    @staticmethod
+    def pure_tone(phi, dtype):
+        if dtype.kind == 'f':
             cosine = np.cos(phi)
         else:
             cosine = np.exp(1j * phi)
-        return cosine.astype(ih.dtype, copy=False)
+        return cosine.astype(dtype, copy=False)
+
+    def __call__(self, ih):
+        dt = ((ih.time - self.start_time).to(u.s)
+              + np.arange(ih.samples_per_frame) / ih.sample_rate)
+        dt = dt.reshape((-1,) + (1,) * len(ih.sample_shape))
+        phi = (self.frequency * dt * u.cycle).to_value(u.rad)
+        return self.pure_tone(phi, ih.dtype)
 
 
 class TestResampleReal:
@@ -45,7 +49,7 @@ class TestResampleReal:
     def setup(self):
         f_sine = self.sample_rate / 32 * np.ones(self.shape[1:])
 
-        cosine = Cosine(f_sine, self.start_time)
+        cosine = PureTone(f_sine, self.start_time)
 
         self.full_fh = StreamGenerator(
             cosine, shape=self.shape,
@@ -148,13 +152,6 @@ class TestResampleNoise(TestResampleComplex):
             start_time=self.start_time, dtype=self.dtype)
 
 
-def mix_downsample8(ih, data):
-    if ih.complex_data:
-        return (data[:, 0] * data[:, 1].conj())[::8]
-    else:
-        return (data[:, 0] * data[:, 1])[::8]
-
-
 class TestTimeShift:
     dtype = np.dtype('c8')
     full_sample_rate = 102.4 * u.kHz
@@ -162,52 +159,94 @@ class TestTimeShift:
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
     frequency = full_sample_rate * 7 / 8
-    shape = (102400, 2)
-    sideband = np.array([-1, 1])
+    sideband = np.array(1)
+    shape = (102400,) + sideband.shape
     f_sine = frequency + sample_rate / 16 * sideband
-    delay = 128
-    delay_time = delay / full_sample_rate
 
     def setup(self):
-        cosine = Cosine(self.f_sine, self.start_time)
-        mixer = Cosine(self.frequency * self.sideband, self.start_time)
+        self.signal = PureTone(self.f_sine, self.start_time)
+        self.mixer = PureTone(self.frequency * self.sideband, self.start_time)
 
         self.full_fh = StreamGenerator(
-            cosine, shape=self.shape,
+            self.signal, shape=self.shape,
             sample_rate=self.full_sample_rate,
             samples_per_frame=self.samples_per_frame,
-            frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
 
-        self.mixer_fh = StreamGenerator(
-            mixer, shape=self.shape,
-            sample_rate=self.full_sample_rate,
-            samples_per_frame=self.samples_per_frame,
-            frequency=self.frequency, sideband=self.sideband,
-            start_time=self.start_time, dtype=self.dtype)
+    def get_tel(self, delay=None):
+        if delay is None:
+            fh = self.full_fh
+        else:
+            delay_time = delay / self.full_fh.sample_rate
+            fh = SetAttribute(self.full_fh,
+                              start_time=self.start_time-delay_time)
 
-        self.tel1 = Task(Stack((self.full_fh, self.mixer_fh), axis=1),
-                         mix_downsample8, sample_rate=self.sample_rate,
-                         shape=(self.shape[0] // 8, 2))
+        def mix_downsample8(ih, data):
+            # Mix.
+            data = data * self.mixer(ih.ih).conj()
+            # Apply a low-pass filter:
+            ft = np.fft.fft(data, axis=0)
+            s, r = divmod(ft.shape[0], 16)
+            assert r == 0
+            ft[s:-s] = 0
+            data = np.fft.ifft(ft, axis=0).astype('c8')
+            # And down-sample.
+            return data[::8]
 
-        self.delayed_fh = SetAttribute(
-            self.full_fh, start_time=self.start_time-self.delay_time)
-        delayed_mix = Stack((self.delayed_fh, self.mixer_fh), axis=1,
-                            samples_per_frame=128)
-        self.tel2 = Task(delayed_mix, mix_downsample8,
-                         sample_rate=self.sample_rate,
-                         shape=(delayed_mix.shape[0] // 8, 2))
+        return Task(fh, mix_downsample8,
+                    sample_rate=self.sample_rate,
+                    shape=(fh.shape[0] // 8,)+fh.sample_shape,
+                    frequency=self.frequency, sideband=self.sideband)
 
-    def test_setup(self):
-        data1 = self.tel1.read()
-        dt1 = np.arange(self.tel1.shape[0]) / self.tel1.sample_rate
-        phi1 = dt1[:, np.newaxis] * u.cycle * (self.f_sine - self.frequency)
-        expected1 = np.exp(phi1.to_value(u.radian) * 1j)
-        assert_allclose(data1, expected1, atol=1e-4, rtol=0)
-        data2 = self.tel2.read()
-        assert data2.shape[0] == (self.shape[0] - self.delay) // 8
-        dt2 = dt1[self.delay//8:]
-        phi2 = dt2[:, np.newaxis] * u.cycle * (self.f_sine - self.frequency)
-        phi2 += self.delay / self.full_sample_rate * self.frequency * u.cycle
-        expected2 = np.exp(phi2.to_value(u.radian) * 1j)
-        assert_allclose(data2, expected2, atol=1e-4, rtol=0)
+    def test_setup_no_delay(self):
+        tel = self.get_tel(delay=None)
+        assert tel.start_time == self.start_time
+        data = tel.read()
+        # Calculate expected phase using time at telescope, relative
+        # to start of the simulated signal.
+        dt = np.arange(tel.shape[0]) / tel.sample_rate
+        dt.shape = (-1,) + (1,) * len(tel.sample_shape)
+        # Phase of the signal is that of the sine wave, minus mixer phase.
+        phi = dt * (self.f_sine - self.frequency) * u.cycle
+        expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
+        assert_allclose(data, expected, atol=1e-4, rtol=0)
+
+    @pytest.mark.parametrize('delay', (-2, -1, 1, 13, 111))
+    def test_setup_delay(self, delay):
+        tel = self.get_tel(delay=delay)
+        delay_time = delay / self.full_fh.sample_rate
+        assert abs(tel.start_time - self.start_time + delay_time) < 1. * u.ns
+        assert tel.shape == (self.shape[0] // 8,) + self.shape[1:]
+        data = tel.read()
+        # Calculate expected phase using time at telescope, working relative
+        # to the start time of the simulation.
+        dt = ((tel.start_time - self.start_time)
+              + np.arange(tel.shape[0]) / tel.sample_rate)
+        dt.shape = (-1,) + (1,) * len(tel.sample_shape)
+        # Calculate the signal phase, taking into account it was delayed.
+        phi = (dt + delay_time) * self.f_sine * u.cycle
+        # And subtract the mixer phase, which was not delayed.
+        phi -= dt * self.frequency * self.sideband * u.cycle
+        expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
+        assert_allclose(data, expected, atol=1e-4, rtol=0)
+
+    @pytest.mark.parametrize('delay', (-8, 8, 64))
+    def test_time_shift(self, delay):
+        tel1 = self.get_tel(delay=None)
+        tel2 = self.get_tel(delay=delay)
+        time_shift = TimeShift(tel2, delay / self.full_sample_rate)
+        # read both telescopes together.
+        both_tel = Stack((tel1, time_shift), axis=1)
+        data = both_tel.read()
+        assert_allclose(data[:, 0], data[:, 1], atol=1e-4)
+
+    @pytest.mark.parametrize('delay', (-18.25, -np.pi, -1, 0.1, 11, 65.4321))
+    def test_resample_shifted(self, delay):
+        tel1 = self.get_tel(delay=None)
+        tel2 = self.get_tel(delay=delay)
+        rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
+                              tel1.start_time)
+        # read both telescopes together.
+        both_tel = Stack((tel1, rs), axis=1)
+        data = both_tel.read()
+        assert_allclose(data[:, 0], data[:, 1], atol=1e-4)
