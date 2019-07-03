@@ -27,29 +27,29 @@ class PureTone:
             cosine = np.exp(1j * phi)
         return cosine.astype(dtype, copy=False)
 
-    def __call__(self, ih):
+    def __call__(self, ih, dtype=None):
         dt = ((ih.time - self.start_time).to(u.s)
               + np.arange(ih.samples_per_frame) / ih.sample_rate)
         dt = dt.reshape((-1,) + (1,) * len(ih.sample_shape))
         phi = (self.frequency * dt * u.cycle).to_value(u.rad)
-        return self.pure_tone(phi, ih.dtype)
+        return self.pure_tone(phi, dtype or ih.dtype)
 
 
 class TestResampleReal:
 
-    dtype = 'f4'
+    dtype = np.dtype('f4')
     atol = 1e-4
     sample_rate = 1 * u.kHz
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
     frequency = 400. * u.kHz
-    shape = (2048, 2)
     sideband = np.array([-1, 1])
+    shape = (2048,) + sideband.shape
 
     def setup(self):
-        f_sine = self.sample_rate / 32 * np.ones(self.shape[1:])
+        f_signal = self.sample_rate / 32 * np.ones(self.shape[1:])
 
-        cosine = PureTone(f_sine, self.start_time)
+        cosine = PureTone(f_signal, self.start_time)
 
         self.full_fh = StreamGenerator(
             cosine, shape=self.shape,
@@ -108,7 +108,7 @@ class TestResampleReal:
 
 class TestResampleComplex(TestResampleReal):
 
-    dtype = 'c16'
+    dtype = np.dtype('c16')
     atol = 1e-8
 
 
@@ -122,7 +122,7 @@ class StreamArray(StreamGenerator):
 
 class TestResampleNoise(TestResampleComplex):
 
-    dtype = 'c8'
+    dtype = np.dtype('c8')
     atol = 1e-4
 
     def setup(self):
@@ -152,26 +152,42 @@ class TestResampleNoise(TestResampleComplex):
             start_time=self.start_time, dtype=self.dtype)
 
 
-class TestTimeShift:
-    dtype = np.dtype('c8')
-    full_sample_rate = 102.4 * u.kHz
-    sample_rate = full_sample_rate / 8
+class TestShiftAndResampleReal:
+    dtype = np.dtype('f4')
+    atol = 1.e-4
+    full_sample_rate = 204.8 * u.kHz
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
-    frequency = full_sample_rate * 7 / 8
-    sideband = np.array(1)
-    shape = (102400,) + sideband.shape
-    f_sine = frequency + sample_rate / 16 * sideband
+    frequency = full_sample_rate * 7 / 16
+    sideband = np.array([-1, 1])
+    full_shape = (20480,) + sideband.shape
 
     def setup(self):
-        self.signal = PureTone(self.f_sine, self.start_time)
+        self.downsample = (16 if self.dtype.kind == 'c' else 8)
+        self.f_signal = (self.frequency
+                         + self.full_sample_rate / 256 * self.sideband)
+        self.sample_rate = self.full_sample_rate / self.downsample
+        self.signal = PureTone(self.f_signal, self.start_time)
+        # Create a mixer, which produces a complex tone for quadrature signals.
         self.mixer = PureTone(self.frequency * self.sideband, self.start_time)
-
+        # Create a real-valued stream with a single tone.
         self.full_fh = StreamGenerator(
-            self.signal, shape=self.shape,
-            sample_rate=self.full_sample_rate,
-            samples_per_frame=self.samples_per_frame,
-            start_time=self.start_time, dtype=self.dtype)
+            self.signal, shape=self.full_shape, start_time=self.start_time,
+            sample_rate=self.full_sample_rate, dtype=np.dtype('f4'),
+            samples_per_frame=self.samples_per_frame)
+
+    def mix_downsample(self, ih, data):
+        """Mix, low-pass filter, and downsample."""
+        mixed = data * self.mixer(ih.ih)
+        # Apply a low-pass filter to select only difference.
+        ft = np.fft.rfft(mixed, axis=0)
+        ft[ft.shape[0]//self.downsample:] = 0
+        # Account for half of signal lost in sum.
+        ft *= 2.
+        # Turn back into data stream.
+        filtered = np.fft.irfft(ft, axis=0).astype(data.dtype)
+        # Down-sample
+        return filtered[::self.downsample]
 
     def get_tel(self, delay=None):
         if delay is None:
@@ -181,21 +197,9 @@ class TestTimeShift:
             fh = SetAttribute(self.full_fh,
                               start_time=self.start_time-delay_time)
 
-        def mix_downsample8(ih, data):
-            # Mix.
-            data = data * self.mixer(ih.ih).conj()
-            # Apply a low-pass filter:
-            ft = np.fft.fft(data, axis=0)
-            s, r = divmod(ft.shape[0], 16)
-            assert r == 0
-            ft[s:-s] = 0
-            data = np.fft.ifft(ft, axis=0).astype('c8')
-            # And down-sample.
-            return data[::8]
-
-        return Task(fh, mix_downsample8,
-                    sample_rate=self.sample_rate,
-                    shape=(fh.shape[0] // 8,)+fh.sample_shape,
+        return Task(fh, self.mix_downsample,
+                    sample_rate=self.sample_rate, dtype=self.dtype,
+                    shape=(fh.shape[0] // self.downsample,)+fh.sample_shape,
                     frequency=self.frequency, sideband=self.sideband)
 
     def test_setup_no_delay(self):
@@ -207,16 +211,17 @@ class TestTimeShift:
         dt = np.arange(tel.shape[0]) / tel.sample_rate
         dt.shape = (-1,) + (1,) * len(tel.sample_shape)
         # Phase of the signal is that of the sine wave, minus mixer phase.
-        phi = dt * (self.f_sine - self.frequency) * u.cycle
+        phi = dt * (self.f_signal - self.frequency) * self.sideband * u.cycle
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
-        assert_allclose(data, expected, atol=1e-4, rtol=0)
+        assert_allclose(data, expected, atol=self.atol, rtol=0)
 
-    @pytest.mark.parametrize('delay', (-2, -1, 1, 13, 111))
+    @pytest.mark.parametrize('delay', (-13, -2, 1, 111))
     def test_setup_delay(self, delay):
         tel = self.get_tel(delay=delay)
         delay_time = delay / self.full_fh.sample_rate
         assert abs(tel.start_time - self.start_time + delay_time) < 1. * u.ns
-        assert tel.shape == (self.shape[0] // 8,) + self.shape[1:]
+        assert tel.shape == ((self.full_fh.shape[0] // self.downsample,)
+                             + self.full_fh.shape[1:])
         data = tel.read()
         # Calculate expected phase using time at telescope, working relative
         # to the start time of the simulation.
@@ -224,11 +229,45 @@ class TestTimeShift:
               + np.arange(tel.shape[0]) / tel.sample_rate)
         dt.shape = (-1,) + (1,) * len(tel.sample_shape)
         # Calculate the signal phase, taking into account it was delayed.
-        phi = (dt + delay_time) * self.f_sine * u.cycle
-        # And subtract the mixer phase, which was not delayed.
-        phi -= dt * self.frequency * self.sideband * u.cycle
+        phi = (dt + delay_time) * self.f_signal * u.cycle
+        # Subtract the mixer phase, which was not delayed.
+        phi -= dt * self.frequency * u.cycle
+        # And correct for the sideband
+        phi *= self.sideband
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
-        assert_allclose(data, expected, atol=1e-4, rtol=0)
+        assert_allclose(data, expected, atol=self.atol, rtol=0)
+
+    @pytest.mark.parametrize('delay', (-18.25, -np.pi, -1, 0.1, 65.4321))
+    def test_resample_shifted(self, delay):
+        tel1 = self.get_tel(delay=None)
+        tel2 = self.get_tel(delay=delay)
+        rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
+                              tel1.start_time)
+        # read both telescopes together.
+        both_tel = Stack((tel1, rs), axis=1)
+        data = both_tel.read()
+        assert_allclose(data[:, 0], data[:, 1], atol=self.atol, rtol=0)
+
+
+class TestShiftAndResampleComplex(TestShiftAndResampleReal):
+    dtype = np.dtype('c8')
+
+    def mix_downsample(self, ih, data):
+        """Quadrature mixer."""
+        # Get quadrature mix: data * cos, data * -sin
+        mixed = data * self.mixer(ih.ih, dtype=self.dtype).conj()
+        # Convert to real to simulate mixing more properly.
+        mixed = mixed.view(data.dtype).reshape(data.shape + (2,))
+        # Apply a low-pass filter to select only difference.
+        ft = np.fft.rfft(mixed, axis=0)
+        ft[ft.shape[0]//self.downsample:] = 0
+        # Account for half of signal lost in sum.
+        ft *= 2.
+        # Turn back into data stream.
+        filtered = np.fft.irfft(ft, axis=0).astype(data.dtype)
+        # Downsample and turn into complex.
+        filtered = filtered[::self.downsample]
+        return filtered[..., 0] + 1j * filtered[..., 1]
 
     @pytest.mark.parametrize('delay', (-8, 8, 64))
     def test_time_shift(self, delay):
@@ -238,15 +277,4 @@ class TestTimeShift:
         # read both telescopes together.
         both_tel = Stack((tel1, time_shift), axis=1)
         data = both_tel.read()
-        assert_allclose(data[:, 0], data[:, 1], atol=1e-4)
-
-    @pytest.mark.parametrize('delay', (-18.25, -np.pi, -1, 0.1, 11, 65.4321))
-    def test_resample_shifted(self, delay):
-        tel1 = self.get_tel(delay=None)
-        tel2 = self.get_tel(delay=delay)
-        rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
-                              tel1.start_time)
-        # read both telescopes together.
-        both_tel = Stack((tel1, rs), axis=1)
-        data = both_tel.read()
-        assert_allclose(data[:, 0], data[:, 1], atol=1e-4)
+        assert_allclose(data[:, 0], data[:, 1], atol=self.atol, rtol=0)

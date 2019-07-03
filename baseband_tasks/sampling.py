@@ -177,7 +177,7 @@ class TimeShift(TaskBase):
         assert ih.complex_data, "Time shift only works on complex data."
         super().__init__(ih, frequency=frequency, sideband=sideband)
         self._start_time += shift
-        phase_delay = -shift * self.frequency * u.cycle
+        phase_delay = -shift * self.frequency * self.sideband * u.cycle
         self._phase_factor = (np.exp(phase_delay.to_value(u.rad) * 1j)
                               .astype(ih.dtype))
 
@@ -200,7 +200,8 @@ class ShiftAndResample(ResampleBase):
                          frequency=frequency, sideband=sideband)
 
         self._start_time += shift
-        self._shift_phase_delay = -shift * self.frequency * u.cycle
+        self._shift_phase_delay = (-shift * self.frequency * self.sideband
+                                   * u.cycle)
 
     @lazyproperty
     def phase_factor(self):
