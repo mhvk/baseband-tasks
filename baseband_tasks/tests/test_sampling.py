@@ -85,7 +85,6 @@ class TestResampleReal:
 
     def setup(self):
         f_signal = self.sample_rate / 32 * np.ones(self.shape[1:])
-
         cosine = PureTone(f_signal, self.start_time)
 
         self.full_fh = StreamGenerator(
@@ -214,8 +213,8 @@ class BaseDelayAndResampleTestsReal:
     full_sample_rate = 204.8 * u.kHz  # For the real-valued input signal
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
-    lo = full_sample_rate * 7 / 16  # IF frequency.
     sideband = np.array([-1, 1])    # IF sideband
+    lo = full_sample_rate * 7 / 16  # IF frequency.
     n_frames = 16
     phi0_mixer = -12.3456789 * u.degree
 
@@ -245,11 +244,10 @@ class BaseDelayAndResampleTestsReal:
         else:
             # For real data, need to filter out the wrong sideband first.
             ft = np.fft.rfft(data, axis=0)
-            i_lo = int(round((ft.shape[0] * self.lo
-                              / (ih.ih.sample_rate / 2)).to_value(1)))
-            # for lower/upper sideband, keep only lower/upper part
-            ft[:i_lo] *= (ih.sideband < 0)
-            ft[i_lo:] *= (ih.sideband > 0)
+            f = np.fft.rfftfreq(data.shape[0], 1/ih.ih.sample_rate).reshape(
+                (-1,)+(1,)*(ft.ndim-1))
+            wrong_side = (f < self.lo) ^ (ih.sideband < 0)
+            ft[wrong_side] = 0
             data = np.fft.irfft(ft, axis=0)
             # And then mix.
             mixed = data * self.mixer(ih.ih)
@@ -364,11 +362,13 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
     the delaying itself, not whether the simulation is correct.
     """
     atol_channelized = 4e-4  # Channelization makes tone Resampling worse.
-    signal_offset = 1/128    # Offset from lo in units of full_sample_rate.
+    signal_offset = 7 / 16   # Signal frequency in units of full_sample_rate.
 
     def setup(self):
-        self.f_signal = self.lo + (self.signal_offset * self.sideband
-                                   * self.full_sample_rate)
+        self.f_signal = self.signal_offset * self.full_sample_rate
+        # Place lo on right side of signal
+        if self.lo != 0:
+            self.lo = self.lo - self.sideband / 128 * self.full_sample_rate
         self.phi0_signal = 98.7654321 * u.degree
         self.signal = PureTone(self.f_signal, self.start_time,
                                self.phi0_signal)
@@ -388,7 +388,7 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
         phi = self.phi0_signal + dt * self.f_signal * u.cycle
         # Subtract the mixer phase.
         # Note: CHIME has zero phi0_mixer and lo
-        phi -= self.phi0_mixer + dt * self.lo * u.cycle
+        phi = phi - (self.phi0_mixer + dt * self.lo * u.cycle)
         phi *= self.sideband
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
         if n is None:
@@ -419,7 +419,7 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
         phi = self.phi0_signal + (dt + delay_time) * self.f_signal * u.cycle
         # Subtract the mixer phase, which was not delayed.
         # Note: CHIME has zero phi0_mixer and lo
-        phi -= self.phi0_mixer + dt * self.lo * u.cycle
+        phi = phi - (self.phi0_mixer + dt * self.lo * u.cycle)
         phi *= self.sideband
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
         if n is None:
@@ -511,7 +511,7 @@ class CHIMELike:
 
 class TestDelayAndResampleToneCHIMELike(CHIMELike,
                                         TestDelayAndResampleToneComplex):
-    signal_offset = -7/8  # w/ sideband, tone at full_sample_rate * 7/8
+    signal_offset = 7/8  # Tone at full_sample_rate * 7/8
 
     # Redefined to remove the parametrization in n.
     def test_setup_no_delay(self):
