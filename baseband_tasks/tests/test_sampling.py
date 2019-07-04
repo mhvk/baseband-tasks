@@ -12,7 +12,7 @@ from baseband_tasks.base import Task, SetAttribute
 from baseband_tasks.channelize import Channelize
 from baseband_tasks.combining import Stack
 from baseband_tasks.sampling import (
-    Resample, float_offset, TimeDelay, DelayAndResample)
+    Resample, seek_float, TimeDelay, DelayAndResample)
 from baseband_tasks.generators import (
     EmptyStreamGenerator, StreamGenerator, Noise)
 
@@ -53,8 +53,8 @@ class TestFloatOffset:
                               np.linspace(1, 10, 6).reshape(3, 2) * u.ms,
                               Time(['2010-11-12T13:14:15.013',
                                     '2010-11-12T13:14:15.0135'])))
-    def test_float_offset(self, offset):
-        floats = float_offset(self.ih, offset)
+    def test_seek_float(self, offset):
+        floats = seek_float(self.ih, offset)
 
         if isinstance(offset, Time):
             offset = (offset - self.ih.start_time).to(u.s)
@@ -63,13 +63,13 @@ class TestFloatOffset:
 
         assert_allclose(floats, offset)
 
-    def test_invalid_float_offset(self):
+    def test_invalid_seek_float(self):
         with pytest.raises(TypeError):
-            float_offset(self.ih, object())
+            seek_float(self.ih, object())
         with pytest.raises(u.UnitsError):
-            float_offset(self.ih, 1.*u.m)
+            seek_float(self.ih, 1.*u.m)
         with pytest.raises(ValueError):
-            float_offset(self.ih, [1, 2, 3]*u.s)
+            seek_float(self.ih, [1, 2, 3]*u.s)
 
 
 class TestResampleReal:
@@ -126,7 +126,7 @@ class TestResampleReal:
                              + offset / self.part_fh.sample_rate)
         assert abs(ih.time - expected_time) < 1. * u.ns
 
-        ioffset, fraction = divmod(float_offset(self.part_fh, offset), 1)
+        ioffset, fraction = divmod(seek_float(self.part_fh, offset), 1)
         assert ih.offset == ioffset
         expected_start_time = (self.part_fh.start_time
                                + fraction / self.part_fh.sample_rate)
@@ -308,7 +308,7 @@ class BaseDelayAndResampleTestsReal:
         # time grid as the undelayed telescope.
         if n is None:
             tel2_rs = DelayAndResample(tel2, delay / self.full_sample_rate,
-                                       tel1.start_time)
+                                       tel1.start_time, lo=self.lo)
             self.assert_tel_same(tel1, tel2_rs)
         else:
             # For channelized data, we have to ensure we pass in an explicit
@@ -335,7 +335,8 @@ class BaseDelayAndResampleTestsComplex(BaseDelayAndResampleTestsReal):
         # anyway.
         tel1 = self.get_tel(delay=None)
         tel2 = self.get_tel(delay=delay)
-        time_delay = TimeDelay(tel2, delay / self.full_sample_rate)
+        time_delay = TimeDelay(tel2, delay / self.full_sample_rate,
+                               lo=self.lo)
         self.assert_tel_same(tel1, time_delay)
 
     @pytest.mark.parametrize('delay', (-1, 15.4321))

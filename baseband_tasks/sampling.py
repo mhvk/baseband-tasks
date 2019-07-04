@@ -4,16 +4,24 @@
 import numpy as np
 from astropy import units as u
 from astropy.utils import lazyproperty
+from astropy.time import Time
 
-from .base import PaddedTaskBase, TaskBase, SetAttribute, check_broadcast_to
+from .base import PaddedTaskBase, TaskBase, check_broadcast_to
 from .fourier import fft_maker
 
-__all__ = ['Resample', 'float_offset', 'TimeDelay', 'DelayAndResample']
+__all__ = ['float_offset', 'seek_float',
+           'ShiftAndResample', 'Resample', 'TimeDelay', 'DelayAndResample']
 
 __doctest_requires__ = {'Resample*': ['pyfftw']}
 
 
-def float_offset(ih, offset, whence=0):
+def float_offset(ih, offset):
+    offset = u.Quantity(offset, copy=False)
+    return offset.to_value(u.one, equivalencies=[
+        (u.one, u.Unit(1/ih.sample_rate))])
+
+
+def seek_float(ih, offset, whence=0):
     """Get a float sample position.
 
     Similar to ``ih.seek()``, but without rounding, and allowing
@@ -34,16 +42,12 @@ def float_offset(ih, offset, whence=0):
         'current', or 'end' for 0, 1, or 2, respectively.  Ignored if
         ``offset`` is a time.
     """
-    try:
-        offset = u.Quantity(offset)
-    except Exception:
-        offset = (offset - ih.start_time) * ih.sample_rate
+    if isinstance(offset, Time):
+        offset = (offset - ih.start_time).to(1./ih.sample_rate)
         whence = 0
-    else:
-        if not offset.unit.is_equivalent(u.one):
-            offset = offset * ih.sample_rate
 
-    offset = offset.to_value(u.one)
+    offset = float_offset(ih, offset)
+
     check_broadcast_to(offset, ih.sample_shape)
 
     if whence == 0 or whence == 'start':
@@ -57,15 +61,61 @@ def float_offset(ih, offset, whence=0):
                          "'current', or 2 or 'end'.")
 
 
-class ResampleBase(PaddedTaskBase):
-    def __init__(self, ih, offset, *,
+class ShiftAndResample(PaddedTaskBase):
+    """Shift and optionally resample a stream in time.
+
+    The shift is added to the sample times, and the stream is optionally
+    resampled to ensure a sample falls on the given offset.
+
+    Note that no account is taken of possible phase rotations, which are
+    important if the time shift represents a physical delay of the original
+    radio signal.  For that, see `~scintillometry.sampling.DelayAndResample`.
+    This task is meant to be used for clock corrections, post-mixing
+    cable delays, etc.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    shift : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
+        Amount by which to shift all times.  Can be (float) samples, or a
+        quantity with units of time.  Should broadcast to the sample shape.
+    offset : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
+        Offset to ensure the output stream includes.  Can an absolute time,
+        or a (float) number of samples or time offset relative to the start
+        of the underlying stream.  The default of ``0`` implies that the
+        output stream will be on the same grid as the input one.
+    whence : {0, 1, 2, 'start', 'current', or 'end'}, optional
+        Like regular seek, the offset is taken to be from the start if
+        ``whence=0`` (default), from the current position if 1,
+        and from the end if 2.  One can alternativey use 'start',
+        'current', or 'end' for 0, 1, or 2, respectively.  Ignored if
+        ``offset`` is a time.
+    lo : `~astropy.units.Quantity`, or `None`
+        Local oscillator frequency.  For raw data, this can just be
+        ``if.frequency``.  But for channelized data, the actual
+        frequency needs to be passed in.  If data were recorded without
+        mixing (like for CHIME), pass in `None`.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  By default, taken from the underlying stream.
+        (Note that these frequencies are not used in the calculations here.)
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  By default, taken
+        from the underlying stream.  Assumed to be correct for the lo.
+
+    """
+    def __init__(self, ih, shift, offset=0, whence='start', *,
                  samples_per_frame=None, **kwargs):
         if samples_per_frame is None:
             samples_per_frame = max(ih.samples_per_frame-1, 1023)
 
-        sample_offset = round(np.mean(offset))
-        pad_start = int(np.ceil(-np.min(offset - sample_offset)))
-        pad_end = int(np.floor(np.max(offset - sample_offset))) + 1
+        ih_shift = float_offset(ih, shift)
+        ih_offset = seek_float(ih, offset, whence)
+        fraction = ih_shift - ih_offset
+        pad_start = int(np.ceil(-np.min(fraction)))
+        pad_end = int(np.floor(np.max(fraction))) + 1
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame, **kwargs)
 
@@ -74,8 +124,8 @@ class ResampleBase(PaddedTaskBase):
                               dtype=ih.dtype)
         self._ifft = self._fft.inverse()
 
-        self._fraction = offset - sample_offset
-        self._start_time += sample_offset / ih.sample_rate
+        self._fraction = fraction
+        self._start_time += offset / ih.sample_rate
         self._pad_slice = slice(self._pad_start,
                                 self._pad_start + self.samples_per_frame)
 
@@ -108,18 +158,24 @@ class ResampleBase(PaddedTaskBase):
         return super()._repr_item(key, default=default, value=value)
 
 
-class Resample(ResampleBase):
+class Resample(ShiftAndResample):
     """Resample a stream such that a sample occurs at the given offset.
 
-    The offset pointer is left at the requested time.
+    The offset pointer is left at the requested time, so one can think of
+    this task as a precise version of the ``seek()`` method.
+
+    Generally, the stream start time will change, by up to one sample, and
+    the stream length reduced by one frame.  The precision with which the
+    resampling is done depends on the number of samples per frame.
 
     Parameters
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
-    offset : int, `~astropy.units.Quantity`, or `~astropy.time.Time`
-        Offset to ensure a sample falls on.  Can be a float number of samples,
-        an offset in time units, or an absolute time.
+    offset : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
+        Offset to ensure the output stream includes.  Can an absolute time,
+        or a (float) number of samples or time offset relative to the start
+        of the underlying stream.
     whence : {0, 1, 2, 'start', 'current', or 'end'}, optional
         Like regular seek, the offset is taken to be from the start if
         ``whence=0`` (default), from the current position if 1,
@@ -168,6 +224,7 @@ class Resample(ResampleBase):
       array([-3.316505,  3.316505, -3.316505, -1.      ,  1.      ,  1.      ,
              -3.316505,  1.      ], dtype=float32)
       >>> fh.close()
+
     """
 
     def __init__(self, ih, offset, whence='start', *,
@@ -176,7 +233,7 @@ class Resample(ResampleBase):
         self._offset = offset
         self._whence = whence
 
-        ih_offset = float_offset(ih, offset, whence)
+        ih_offset = seek_float(ih, offset, whence)
         rounded_offset = np.around(ih_offset)
         fraction = ih_offset - rounded_offset
         super().__init__(ih, fraction, samples_per_frame=samples_per_frame)
@@ -185,39 +242,124 @@ class Resample(ResampleBase):
 
 
 class TimeDelay(TaskBase):
-    def __init__(self, ih, delay, *, lo=None,
-                 frequency=None, sideband=None):
+    r"""Delay a stream by a given amount, taking care of phase rotations.
+
+    The delay is added to the sample times (by adding to the ``start_time``
+    of the stream), and the sample phases are rotated as needed if the
+    signal was recorded after mixing with a local oscillator. For an upper
+    sideband, the phases are rotated by
+
+    .. math:: \phi = - \tau f_{lo}.
+
+    For the lower sideband, the rotation is in the opposite direction.
+
+    Note that the input data stream must be complex.  For real-valued
+    streams, use `~scintillometry.sampling.DelayAndResample` without
+    ``offset``.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    delay : float, `~astropy.units.Quantity`
+        Delay to apply to all times.    Can be (float) samples, or a
+        quantity with units of time.
+    lo : `~astropy.units.Quantity`, or `None`
+        Local oscillator frequency.  For raw data, this can just be
+        ``if.frequency``.  But for channelized data, the actual
+        frequency needs to be passed in.  If data were recorded without
+        mixing (like for CHIME), pass in `None`.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  By default, taken from the underlying stream.
+        (Note that these frequencies are not used in the calculations here.)
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  By default, taken
+        from the underlying stream.  Assumed to be correct for the lo.
+
+    """
+    def __init__(self, ih, delay, *, lo, frequency=None, sideband=None):
         assert ih.complex_data, "Time delay only works on complex data."
+        ih_delay = float_offset(ih, delay)
+        delay = ih_delay / ih.sample_rate
         super().__init__(ih, frequency=frequency, sideband=sideband)
-        if lo is None:
-            lo = self.frequency
+
         self._start_time += delay
-        lo_phase_delay = -delay * lo * self.sideband * u.cycle
-        self._phase_factor = (np.exp(lo_phase_delay.to_value(u.rad) * 1j)
-                              .astype(ih.dtype))
+        if lo is None:
+            self._phase_factor = None
+        else:
+            lo_phase_delay = -delay * lo * self.sideband * u.cycle
+            self._phase_factor = np.exp(lo_phase_delay.to_value(u.rad)
+                                        * 1j).astype(ih.dtype)
 
     def task(self, data):
-        data *= self._phase_factor
+        if self._phase_factor is not None:
+            data *= self._phase_factor
         return data
 
 
-class DelayAndResample(ResampleBase):
-    def __init__(self, ih, delay, offset=None, *, lo=None,
-                 samples_per_frame=None, frequency=None, sideband=None):
-        if offset is None:
-            offset = ih.start_time
+class DelayAndResample(ShiftAndResample):
+    r"""Delay and optionally resample a stream, taking care of phase rotations.
 
-        delayed = SetAttribute(ih, start_time=ih.start_time+delay)
-        ih_offset = float_offset(delayed, offset)
+    The delay is added to the sample times, and the stream is optionally
+    resampled to ensure a sample falls on the given offset. Furthermore,
+    the sample phases are corrected for rotations needed if the signal was
+    recorded after mixing with a local oscillator. For an upper sideband,
+    their phases are rotated by
+
+    .. math:: \phi = - \tau f_{lo}.
+
+    For the lower sideband, the rotation is in the opposite direction.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    delay : float, `~astropy.units.Quantity`
+        Delay to apply to all times.  Can be (float) samples or a quantity
+        with units of time.
+    offset : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
+        Offset to ensure the output stream includes.  Can an absolute time,
+        or a (float) number of samples or time offset relative to the start
+        of the underlying stream.  The default of ``0`` implies that the
+        output stream will be on the same grid as the input one.
+    whence : {0, 1, 2, 'start', 'current', or 'end'}, optional
+        Like regular seek, the offset is taken to be from the start if
+        ``whence=0`` (default), from the current position if 1,
+        and from the end if 2.  One can alternativey use 'start',
+        'current', or 'end' for 0, 1, or 2, respectively.  Ignored if
+        ``offset`` is a time.
+    lo : `~astropy.units.Quantity`, or `None`
+        Local oscillator frequency.  For raw data, this can just be
+        ``if.frequency``.  But for channelized data, the actual
+        frequency needs to be passed in.  If data were recorded without
+        mixing (like for CHIME), pass in `None`.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.  By default, taken from the underlying stream.
+        (Note that these frequencies are not used in the calculations here.)
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.  By default, taken
+        from the underlying stream.  Assumed to be correct for the lo.
+
+    """
+    def __init__(self, ih, delay, offset=0, whence='start', *, lo,
+                 samples_per_frame=None, frequency=None, sideband=None):
+        ih_delay = float_offset(ih, delay)
+        ih_offset = seek_float(ih, offset, whence)
+        ih_offset -= ih_delay
         fraction = ih_offset - round(ih_offset)
 
         super().__init__(ih, fraction, samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband)
-        if lo is None:
-            lo = self.frequency
-
+        delay = ih_delay / ih.sample_rate
         self._start_time += delay
-        self._lo_phase_delay = -delay * lo * self.sideband * u.cycle
+        if lo is None:
+            self._lo_phase_delay = 0. * u.cycle
+        else:
+            self._lo_phase_delay = -delay * lo * self.sideband * u.cycle
 
     @lazyproperty
     def phase_factor(self):
