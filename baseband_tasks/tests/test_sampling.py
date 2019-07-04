@@ -171,16 +171,18 @@ class BaseShiftAndResampleTestsReal:
     full_sample_rate = 204.8 * u.kHz  # For the real-valued input signal
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
-    frequency = full_sample_rate * 7 / 16  # IF frequency.
-    sideband = np.array(1)           # IF sideband
-    full_shape = (samples_per_frame * 16,) + sideband.shape
+    lo = full_sample_rate * 7 / 16  # IF frequency.
+    sideband = np.array([-1, 1])    # IF sideband
+    n_frames = 16
+    phi0_mixer = -12.3456789 * u.degree
 
     def setup(self):
+        self.full_shape = ((self.samples_per_frame * self.n_frames,)
+                           + self.sideband.shape)
         self.downsample = (16 if self.dtype.kind == 'c' else 8)
         self.sample_rate = self.full_sample_rate / self.downsample
         # Create the IF (which can produce a complex tone for quadrature).
-        self.phi0_mixer = -12.3456789 * u.degree
-        self.mixer = PureTone(self.frequency, self.start_time,
+        self.mixer = PureTone(self.lo, self.start_time,
                               self.phi0_mixer)
         # Create a real-valued stream with a test-specific signal.
         self.raw = StreamGenerator(
@@ -200,11 +202,11 @@ class BaseShiftAndResampleTestsReal:
         else:
             # For real data, need to filter out the wrong sideband first.
             ft = np.fft.rfft(data, axis=0)
-            i_frequency = int(round((ft.shape[0] * ih.frequency
-                                     / (ih.ih.sample_rate / 2)).to_value(1)))
+            i_lo = int(round((ft.shape[0] * self.lo
+                              / (ih.ih.sample_rate / 2)).to_value(1)))
             # for lower/upper sideband, keep only lower/upper part
-            ft[:i_frequency] *= (ih.sideband < 0)
-            ft[i_frequency:] *= (ih.sideband > 0)
+            ft[:i_lo] *= (ih.sideband < 0)
+            ft[i_lo:] *= (ih.sideband > 0)
             data = np.fft.irfft(ft, axis=0)
             # And then mix.
             mixed = data * self.mixer(ih.ih)
@@ -235,7 +237,7 @@ class BaseShiftAndResampleTestsReal:
         # Observe the raw, possibly delayed samples, using mix_downsample.
         obs = Task(fh, self.mix_downsample, dtype=self.dtype,
                    sample_rate=self.sample_rate,
-                   frequency=self.frequency, sideband=self.sideband)
+                   frequency=self.lo, sideband=self.sideband)
         if n is None:
             return obs
         else:
@@ -267,9 +269,9 @@ class BaseShiftAndResampleTestsReal:
             self.assert_tel_same(tel1, tel2_rs)
         else:
             # For channelized data, we have to ensure we pass in an explicit
-            # sky frequency.
+            # local oscillator frequency.
             tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
-                                       tel1.start_time, lo=self.frequency,
+                                       tel1.start_time, lo=self.lo,
                                        samples_per_frame=1)
             self.assert_tel_same(tel1, tel2_rs, atol=self.atol_channelized)
 
@@ -299,7 +301,7 @@ class BaseShiftAndResampleTestsComplex(BaseShiftAndResampleTestsReal):
         tel1 = self.get_tel(delay=None, n=n)
         tel2 = self.get_tel(delay=delay, n=n)
         time_shift = TimeShift(tel2, delay / self.full_sample_rate,
-                               lo=self.frequency)
+                               lo=self.lo)
         # Check aligned data now the same.
         if n is None:
             aligned = Resample(time_shift, tel1.start_time)
@@ -318,37 +320,52 @@ class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
     the shifting itself, not whether the simulation is correct.
     """
     atol_channelized = 4e-4  # Channelization makes tone Resampling worse.
+    signal_offset = 1/128    # Offset from lo in units of full_sample_rate.
 
     def setup(self):
-        self.f_signal = (self.frequency
-                         + self.full_sample_rate / 256 * self.sideband)
+        self.f_signal = self.lo + (self.signal_offset * self.sideband
+                                   * self.full_sample_rate)
         self.phi0_signal = 98.7654321 * u.degree
         self.signal = PureTone(self.f_signal, self.start_time,
                                self.phi0_signal)
         super().setup()
 
-    def test_setup_no_delay(self):
-        tel = self.get_tel(delay=None)
+    @pytest.mark.parametrize('n', (None, 32))
+    def test_setup_no_delay(self, n):
+        tel = self.get_tel(delay=None, n=n)
         assert tel.start_time == self.start_time
         data = tel.read()
         # Calculate expected phase using time at telescope, relative
         # to start of the simulated signal.
-        i = np.arange(data.shape[0]).reshape((-1,)+(1,)*(data.ndim-1))
+        i = np.arange(data.shape[0]).reshape(
+            (-1,)+(1,)*len(self.raw.sample_shape))
         dt = i / tel.sample_rate
-        # Phase of the signal is that of the sine wave, minus mixer phase.
+        # Phase of the signal is that of the sine wave.
         phi = self.phi0_signal + dt * self.f_signal * u.cycle
-        phi -= self.phi0_mixer + dt * self.frequency * u.cycle
+        # Subtract the mixer phase.
+        # Note: CHIME has zero phi0_mixer and lo
+        phi -= self.phi0_mixer + dt * self.lo * u.cycle
         phi *= self.sideband
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
-        assert_allclose(data, expected, atol=self.atol, rtol=0)
+        if n is None:
+            assert_allclose(data, expected, atol=self.atol, rtol=0)
+        else:
+            data_ok = data[:, tel.frequency == np.abs(self.f_signal)]
+            if tel.ih.complex_data:
+                factor = n
+            else:
+                factor = n // 2
+            assert_allclose(data_ok.reshape(expected.shape),
+                            expected*factor,
+                            atol=self.atol_channelized*factor, rtol=0)
 
     @pytest.mark.parametrize('delay', (-13, -2, 1, 111))
-    def test_setup_delay(self, delay):
-        tel = self.get_tel(delay=delay)
+    @pytest.mark.parametrize('n', (None, 32))
+    def test_setup_delay(self, delay, n):
+        tel = self.get_tel(delay=delay, n=n)
         delay_time = delay / self.raw.sample_rate
         assert abs(tel.start_time - self.start_time + delay_time) < 1. * u.ns
-        assert tel.shape == ((self.raw.shape[0] // self.downsample,)
-                             + self.raw.sample_shape)
+
         data = tel.read()
         # Calculate expected phase using time at telescope, working relative
         # to the start time of the simulation.
@@ -357,10 +374,21 @@ class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
         # Calculate the signal phase, taking into account it was delayed.
         phi = self.phi0_signal + (dt + delay_time) * self.f_signal * u.cycle
         # Subtract the mixer phase, which was not delayed.
-        phi -= self.phi0_mixer + dt * self.frequency * u.cycle
+        # Note: CHIME has zero phi0_mixer and lo
+        phi -= self.phi0_mixer + dt * self.lo * u.cycle
         phi *= self.sideband
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
-        assert_allclose(data, expected, atol=self.atol, rtol=0)
+        if n is None:
+            assert_allclose(data, expected, atol=self.atol, rtol=0)
+        else:
+            data_ok = data[:, tel.frequency == np.abs(self.f_signal)]
+            if tel.ih.complex_data:
+                factor = n
+            else:
+                factor = n // 2
+            assert_allclose(data_ok.reshape(expected.shape),
+                            expected*factor,
+                            atol=self.atol_channelized*factor, rtol=0)
 
 
 class TestShiftAndResampleToneComplex(TestShiftAndResampleToneReal,
@@ -396,3 +424,70 @@ class TestShiftAndResampleNoiseComplex(TestShiftAndResampleNoiseReal,
     # In principle, a full band of noise is fine with complex sampling,
     # but easier to just keep it the same.
     pass
+
+
+class CHIMELike:
+    dtype = np.dtype('c8')
+    atol_channelized = 1e-4
+    lo = 0 * u.kHz  # no mixing at all.
+    phi0_mixer = 0 * u.cycle  # Ensure we don't get any mixer phases.
+    sideband = np.array(-1)
+    ns_chan = 32
+
+    def get_tel(self, delay=None, n=None):
+        """Get signal from CHIME-like telescope."""
+        if delay is None:
+            fh = self.raw
+        else:
+            delay_time = delay / self.raw.sample_rate
+            fh = SetAttribute(self.raw, start_time=self.start_time-delay_time)
+        if n is None:
+            n = self.ns_chan
+        # Observe the raw, possibly delayed samples, using channelizer
+        return Channelize(fh, n, frequency=self.full_sample_rate,
+                          sideband=self.sideband)
+
+    # Redefined to use delays that are multiple of self.ns_chan.
+    @pytest.mark.parametrize('delay', (-32, 64))
+    def test_time_shift(self, delay):
+        # Pure time shift delays must be in units of telescope samples.
+        super().test_time_shift(delay)
+
+    # Redefined to remove the parametrization in n.
+    @pytest.mark.parametrize('delay', (-1, 15.4321))
+    def test_time_shift_align(self, delay):
+        super().test_time_shift_align(delay, n=self.ns_chan)
+
+    # Redefined to remove the parametrization in n.
+    @pytest.mark.parametrize('delay', (-18.25, -np.pi, -8, 0.1, 65.4321))
+    def test_resample_shifted(self, delay):
+        """Create delayed and non-delayed versions; check we can undo delay."""
+        super().test_resample_shifted(delay, n=self.ns_chan)
+
+
+class TestShiftAndResampleToneCHIMELike(CHIMELike,
+                                        TestShiftAndResampleToneComplex):
+    signal_offset = -7/8  # w/ sideband, tone at full_sample_rate * 7/8
+
+    # Redefined to remove the parametrization in n.
+    def test_setup_no_delay(self):
+        super().test_setup_no_delay(self.ns_chan)
+
+    # Redefined to remove the parametrization in n.
+    @pytest.mark.parametrize('delay', (-13, -2, 1, 111))
+    def test_setup_delay(self, delay):
+        super().test_setup_delay(delay, n=self.ns_chan)
+
+
+class TestShiftAndResampleNoiseCHIMELike(CHIMELike,
+                                         TestShiftAndResampleNoiseComplex):
+    def setup(self):
+        self.noise = Noise(seed=12345)
+        super().setup()
+
+    def signal(self, ih):
+        # For CHIME data, lower part is filtered out.
+        data = self.noise(ih)
+        ft = np.fft.rfft(data, axis=0)
+        ft[:ft.shape[0]//2] = 0
+        return np.fft.irfft(ft, axis=0).astype(data.dtype)
