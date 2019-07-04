@@ -78,7 +78,7 @@ class ShiftAndResample(PaddedTaskBase):
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
     shift : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
-        Amount by which to shift all times.  Can be (float) samples, or a
+        Amount by which to shift samples in time, as (float) samples, or a
         quantity with units of time.  Should broadcast to the sample shape.
     offset : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
         Offset to ensure the output stream includes.  Can an absolute time,
@@ -106,16 +106,19 @@ class ShiftAndResample(PaddedTaskBase):
         from the underlying stream.  Assumed to be correct for the lo.
 
     """
-    def __init__(self, ih, shift, offset=0, whence='start', *,
+    def __init__(self, ih, shift, offset=None, whence='start', *,
                  samples_per_frame=None, **kwargs):
         if samples_per_frame is None:
             samples_per_frame = max(ih.samples_per_frame-1, 1023)
 
         ih_shift = float_offset(ih, shift)
         ih_offset = seek_float(ih, offset, whence)
-        fraction = ih_shift - ih_offset
-        pad_start = int(np.ceil(-np.min(fraction)))
-        pad_end = int(np.floor(np.max(fraction))) + 1
+        offset_fraction = ih_offset - np.around(ih_offset)
+        sample_shift = ih_shift - offset_fraction
+        rounded_mean_shift = np.mean(sample_shift).round()
+        sample_shift -= rounded_mean_shift
+        pad_start = int(np.ceil(np.max(sample_shift)))
+        pad_end = int(np.floor(-np.min(sample_shift))) + 1
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame, **kwargs)
 
@@ -124,17 +127,18 @@ class ShiftAndResample(PaddedTaskBase):
                               dtype=ih.dtype)
         self._ifft = self._fft.inverse()
 
-        self._fraction = fraction
-        self._start_time += offset / ih.sample_rate
+        self._sample_shift = sample_shift
+        self._start_time += (offset_fraction
+                             + rounded_mean_shift) / ih.sample_rate
         self._pad_slice = slice(self._pad_start,
                                 self._pad_start + self.samples_per_frame)
 
     @lazyproperty
     def phase_factor(self):
         """Phase offsets of the Fourier-transformed frame."""
-        phase_delay = (self._fraction / self.sample_rate * u.cycle
+        phase_delay = (self._sample_shift / self.sample_rate * u.cycle
                        * self._fft.frequency)
-        phase_factor = np.exp(phase_delay.to_value(u.rad) * 1j)
+        phase_factor = np.exp(-1j * phase_delay.to_value(u.rad))
         phase_factor = phase_factor.astype(self._fft.frequency_dtype,
                                            copy=False)
         return phase_factor
@@ -234,11 +238,9 @@ class Resample(ShiftAndResample):
         self._whence = whence
 
         ih_offset = seek_float(ih, offset, whence)
-        rounded_offset = np.around(ih_offset)
-        fraction = ih_offset - rounded_offset
-        super().__init__(ih, fraction, samples_per_frame=samples_per_frame)
-        self._start_time += self._fraction / ih.sample_rate
-        self.seek(int(rounded_offset) - self._pad_start)
+        super().__init__(ih, shift=0., offset=offset,
+                         samples_per_frame=samples_per_frame)
+        self.seek(ih.start_time + ih_offset / ih.sample_rate)
 
 
 class TimeDelay(TaskBase):
@@ -289,9 +291,9 @@ class TimeDelay(TaskBase):
         if lo is None:
             self._phase_factor = None
         else:
-            lo_phase_delay = -delay * lo * self.sideband * u.cycle
-            self._phase_factor = np.exp(lo_phase_delay.to_value(u.rad)
-                                        * 1j).astype(ih.dtype)
+            lo_phase_delay = delay * lo * self.sideband * u.cycle
+            self._phase_factor = np.exp(-1j * lo_phase_delay.to_value(u.rad)
+                                        ).astype(ih.dtype)
 
     def task(self, data):
         if self._phase_factor is not None:
@@ -350,23 +352,23 @@ class DelayAndResample(ShiftAndResample):
         ih_delay = float_offset(ih, delay)
         ih_offset = seek_float(ih, offset, whence)
         ih_offset -= ih_delay
-        fraction = ih_offset - round(ih_offset)
+        fraction = ih_offset - np.around(ih_offset)
 
-        super().__init__(ih, fraction, samples_per_frame=samples_per_frame,
+        super().__init__(ih, 0., fraction, samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband)
-        delay = ih_delay / ih.sample_rate
+        delay = float_offset(ih, delay) / ih.sample_rate
         self._start_time += delay
         if lo is None:
             self._lo_phase_delay = 0. * u.cycle
         else:
-            self._lo_phase_delay = -delay * lo * self.sideband * u.cycle
+            self._lo_phase_delay = delay * lo * self.sideband * u.cycle
 
     @lazyproperty
     def phase_factor(self):
         """Phase offsets of the Fourier-transformed frame."""
-        phase_delay = (self._fraction / self.sample_rate * u.cycle
+        phase_delay = (self._sample_shift / self.sample_rate * u.cycle
                        * self._fft.frequency) + self._lo_phase_delay
-        phase_factor = np.exp(phase_delay.to_value(u.rad) * 1j)
+        phase_factor = np.exp(-1j * phase_delay.to_value(u.rad))
         phase_factor = phase_factor.astype(self._fft.frequency_dtype,
                                            copy=False)
         return phase_factor
