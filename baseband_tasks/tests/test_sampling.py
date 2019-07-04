@@ -12,8 +12,9 @@ from baseband_tasks.base import Task, SetAttribute
 from baseband_tasks.channelize import Channelize
 from baseband_tasks.combining import Stack
 from baseband_tasks.sampling import (
-    Resample, float_offset, TimeShift, ShiftAndResample)
-from baseband_tasks.generators import StreamGenerator, Noise
+    Resample, float_offset, TimeDelay, DelayAndResample)
+from baseband_tasks.generators import (
+    EmptyStreamGenerator, StreamGenerator, Noise)
 
 
 class PureTone:
@@ -36,6 +37,39 @@ class PureTone:
         dt = dt.reshape((-1,) + (1,) * len(ih.sample_shape))
         phi = self.phi0 + self.frequency * dt * u.cycle
         return self.pure_tone(phi.to_value(u.rad), dtype or ih.dtype)
+
+
+class TestFloatOffset:
+    def setup(self):
+        self.ih = EmptyStreamGenerator(shape=(2048, 3, 2),
+                                       sample_rate=1.*u.kHz,
+                                       start_time=Time('2010-11-12T13:14:15'))
+
+    @pytest.mark.parametrize('offset',
+                             (0., 1., 10.5,
+                              10.*u.ms, 0.015*u.s,
+                              Time('2010-11-12T13:14:15.013'),
+                              [1.75, 10.5],
+                              np.linspace(1, 10, 6).reshape(3, 2) * u.ms,
+                              Time(['2010-11-12T13:14:15.013',
+                                    '2010-11-12T13:14:15.0135'])))
+    def test_float_offset(self, offset):
+        floats = float_offset(self.ih, offset)
+
+        if isinstance(offset, Time):
+            offset = (offset - self.ih.start_time).to(u.s)
+        if isinstance(offset, u.Quantity):
+            offset = (offset * self.ih.sample_rate).to_value(1)
+
+        assert_allclose(floats, offset)
+
+    def test_invalid_float_offset(self):
+        with pytest.raises(TypeError):
+            float_offset(self.ih, object())
+        with pytest.raises(u.UnitsError):
+            float_offset(self.ih, 1.*u.m)
+        with pytest.raises(ValueError):
+            float_offset(self.ih, [1, 2, 3]*u.s)
 
 
 class TestResampleReal:
@@ -108,6 +142,15 @@ class TestResampleReal:
         assert r.startswith('Resample(ih')
         assert 'offset=0.5' in r
 
+    @pytest.mark.parametrize('offset',
+                             ([0., 0.25], [1.75, 10.5],
+                              [10., 12.5]*u.ms,
+                              Time(['2010-11-12T13:14:15.013',
+                                    '2010-11-12T13:14:15.0135'])))
+    def test_resample_different_offset(self, offset):
+        # ih = Resample(self.part_fh, offset, samples_per_frame=512)
+        pass
+
 
 class TestResampleComplex(TestResampleReal):
 
@@ -155,8 +198,8 @@ class TestResampleNoise(TestResampleComplex):
             start_time=self.start_time, dtype=self.dtype)
 
 
-class BaseShiftAndResampleTestsReal:
-    """Base class for ShiftAndResample tests.
+class BaseDelayAndResampleTestsReal:
+    """Base class for DelayAndResample tests.
 
     Sub-classes need to have a ``setup()`` that defines ``self.raw``,
     which is a simulated voltage baseband stream that can will mixed,
@@ -256,7 +299,7 @@ class BaseShiftAndResampleTestsReal:
 
     @pytest.mark.parametrize('delay', (-18.25, -np.pi, -8, 0.1, 65.4321))
     @pytest.mark.parametrize('n', (None, 32))
-    def test_resample_shifted(self, delay, n):
+    def test_resample_delayed(self, delay, n):
         """Create delayed and non-delayed versions; check we can undo delay."""
         # delay is in units of raw samples.  We possibly channelize.
         tel1 = self.get_tel(delay=None, n=n)
@@ -264,60 +307,60 @@ class BaseShiftAndResampleTestsReal:
         # Undo the delay and ensure we resample such that we're on the same
         # time grid as the undelayed telescope.
         if n is None:
-            tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
+            tel2_rs = DelayAndResample(tel2, delay / self.full_sample_rate,
                                        tel1.start_time)
             self.assert_tel_same(tel1, tel2_rs)
         else:
             # For channelized data, we have to ensure we pass in an explicit
             # local oscillator frequency.
-            tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
+            tel2_rs = DelayAndResample(tel2, delay / self.full_sample_rate,
                                        tel1.start_time, lo=self.lo,
                                        samples_per_frame=1)
             self.assert_tel_same(tel1, tel2_rs, atol=self.atol_channelized)
 
 
-class BaseShiftAndResampleTestsComplex(BaseShiftAndResampleTestsReal):
+class BaseDelayAndResampleTestsComplex(BaseDelayAndResampleTestsReal):
     """Base tests for complex signals.
 
     These are like for the real ones, except that we can also test the
-    TimeShift class (which only works on complex data).
+    TimeDelay class (which only works on complex data).
     """
     dtype = np.dtype('c8')
 
     @pytest.mark.parametrize('delay', (-8, 16))
-    def test_time_shift(self, delay):
-        # Pure time shift delays must be in units of telescope samples,
+    def test_time_delay(self, delay):
+        # Pure time delays must be in units of telescope samples,
         # otherwise the start times no longer line up. This also means
         # it is useless to separately check channelized: phases line up
         # anyway.
         tel1 = self.get_tel(delay=None)
         tel2 = self.get_tel(delay=delay)
-        time_shift = TimeShift(tel2, delay / self.full_sample_rate)
-        self.assert_tel_same(tel1, time_shift)
+        time_delay = TimeDelay(tel2, delay / self.full_sample_rate)
+        self.assert_tel_same(tel1, time_delay)
 
     @pytest.mark.parametrize('delay', (-1, 15.4321))
     @pytest.mark.parametrize('n', (None, 32))
-    def test_time_shift_align(self, delay, n):
+    def test_time_delay_align(self, delay, n):
         tel1 = self.get_tel(delay=None, n=n)
         tel2 = self.get_tel(delay=delay, n=n)
-        time_shift = TimeShift(tel2, delay / self.full_sample_rate,
+        time_delay = TimeDelay(tel2, delay / self.full_sample_rate,
                                lo=self.lo)
         # Check aligned data now the same.
         if n is None:
-            aligned = Resample(time_shift, tel1.start_time)
+            aligned = Resample(time_delay, tel1.start_time)
             self.assert_tel_same(tel1, aligned)
         else:
-            aligned = Resample(time_shift, tel1.start_time,
+            aligned = Resample(time_delay, tel1.start_time,
                                samples_per_frame=1)
             self.assert_tel_same(tel1, aligned, atol=self.atol_channelized)
 
 
-class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
-    """Test ShiftAndResample using a signal with just a single frequency.
+class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
+    """Test DelayAndResample using a signal with just a single frequency.
 
     With this simple signal, we know exactly what is expected, so we
     add some explicit tests to those in the base, which only check
-    the shifting itself, not whether the simulation is correct.
+    the delaying itself, not whether the simulation is correct.
     """
     atol_channelized = 4e-4  # Channelization makes tone Resampling worse.
     signal_offset = 1/128    # Offset from lo in units of full_sample_rate.
@@ -391,12 +434,12 @@ class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
                             atol=self.atol_channelized*factor, rtol=0)
 
 
-class TestShiftAndResampleToneComplex(TestShiftAndResampleToneReal,
-                                      BaseShiftAndResampleTestsComplex):
+class TestDelayAndResampleToneComplex(TestDelayAndResampleToneReal,
+                                      BaseDelayAndResampleTestsComplex):
     pass
 
 
-class TestShiftAndResampleNoiseReal(BaseShiftAndResampleTestsReal):
+class TestDelayAndResampleNoiseReal(BaseDelayAndResampleTestsReal):
     atol_channelized = 1e-4
 
     def setup(self):
@@ -419,8 +462,8 @@ class TestShiftAndResampleNoiseReal(BaseShiftAndResampleTestsReal):
         return np.fft.irfft(ft, axis=0).astype(data.dtype)
 
 
-class TestShiftAndResampleNoiseComplex(TestShiftAndResampleNoiseReal,
-                                       BaseShiftAndResampleTestsComplex):
+class TestDelayAndResampleNoiseComplex(TestDelayAndResampleNoiseReal,
+                                       BaseDelayAndResampleTestsComplex):
     # In principle, a full band of noise is fine with complex sampling,
     # but easier to just keep it the same.
     pass
@@ -449,24 +492,24 @@ class CHIMELike:
 
     # Redefined to use delays that are multiple of self.ns_chan.
     @pytest.mark.parametrize('delay', (-32, 64))
-    def test_time_shift(self, delay):
-        # Pure time shift delays must be in units of telescope samples.
-        super().test_time_shift(delay)
+    def test_time_delay(self, delay):
+        # Pure time delays must be in units of telescope samples.
+        super().test_time_delay(delay)
 
     # Redefined to remove the parametrization in n.
     @pytest.mark.parametrize('delay', (-1, 15.4321))
-    def test_time_shift_align(self, delay):
-        super().test_time_shift_align(delay, n=self.ns_chan)
+    def test_time_delay_align(self, delay):
+        super().test_time_delay_align(delay, n=self.ns_chan)
 
     # Redefined to remove the parametrization in n.
     @pytest.mark.parametrize('delay', (-18.25, -np.pi, -8, 0.1, 65.4321))
-    def test_resample_shifted(self, delay):
+    def test_resample_delayed(self, delay):
         """Create delayed and non-delayed versions; check we can undo delay."""
-        super().test_resample_shifted(delay, n=self.ns_chan)
+        super().test_resample_delayed(delay, n=self.ns_chan)
 
 
-class TestShiftAndResampleToneCHIMELike(CHIMELike,
-                                        TestShiftAndResampleToneComplex):
+class TestDelayAndResampleToneCHIMELike(CHIMELike,
+                                        TestDelayAndResampleToneComplex):
     signal_offset = -7/8  # w/ sideband, tone at full_sample_rate * 7/8
 
     # Redefined to remove the parametrization in n.
@@ -479,8 +522,8 @@ class TestShiftAndResampleToneCHIMELike(CHIMELike,
         super().test_setup_delay(delay, n=self.ns_chan)
 
 
-class TestShiftAndResampleNoiseCHIMELike(CHIMELike,
-                                         TestShiftAndResampleNoiseComplex):
+class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
+                                         TestDelayAndResampleNoiseComplex):
     def setup(self):
         self.noise = Noise(seed=12345)
         super().setup()
