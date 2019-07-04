@@ -9,15 +9,18 @@ import astropy.units as u
 from astropy.time import Time
 
 from baseband_tasks.base import Task, SetAttribute
+from baseband_tasks.channelize import Channelize
 from baseband_tasks.combining import Stack
-from baseband_tasks.sampling import Resample, float_offset, TimeShift, ShiftAndResample
+from baseband_tasks.sampling import (
+    Resample, float_offset, TimeShift, ShiftAndResample)
 from baseband_tasks.generators import StreamGenerator, Noise
 
 
 class PureTone:
-    def __init__(self, frequency, start_time):
+    def __init__(self, frequency, start_time, phi0=0.):
         self.frequency = frequency
         self.start_time = start_time
+        self.phi0 = phi0
 
     @staticmethod
     def pure_tone(phi, dtype):
@@ -31,8 +34,8 @@ class PureTone:
         dt = ((ih.time - self.start_time).to(u.s)
               + np.arange(ih.samples_per_frame) / ih.sample_rate)
         dt = dt.reshape((-1,) + (1,) * len(ih.sample_shape))
-        phi = (self.frequency * dt * u.cycle).to_value(u.rad)
-        return self.pure_tone(phi, dtype or ih.dtype)
+        phi = self.phi0 + self.frequency * dt * u.cycle
+        return self.pure_tone(phi.to_value(u.rad), dtype or ih.dtype)
 
 
 class TestResampleReal:
@@ -164,19 +167,21 @@ class BaseShiftAndResampleTestsReal:
     it, and then detect.  The mixing can be with real or complex (quadrature).
     """
     dtype = np.dtype('f4')  # type of mixing and output data.
-    atol = 1.e-4  # tolerance per sample
+    atol = atol_channelized = 1.e-4  # tolerance per sample
     full_sample_rate = 204.8 * u.kHz  # For the real-valued input signal
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
     frequency = full_sample_rate * 7 / 16  # IF frequency.
-    sideband = np.array([-1, 1])           # IF sideband
+    sideband = np.array(1)           # IF sideband
     full_shape = (samples_per_frame * 16,) + sideband.shape
 
     def setup(self):
         self.downsample = (16 if self.dtype.kind == 'c' else 8)
         self.sample_rate = self.full_sample_rate / self.downsample
         # Create the IF (which can produce a complex tone for quadrature).
-        self.mixer = PureTone(self.frequency * self.sideband, self.start_time)
+        self.phi0_mixer = -12.3456789 * u.degree
+        self.mixer = PureTone(self.frequency, self.start_time,
+                              self.phi0_mixer)
         # Create a real-valued stream with a test-specific signal.
         self.raw = StreamGenerator(
             self.signal, shape=self.full_shape, start_time=self.start_time,
@@ -186,12 +191,22 @@ class BaseShiftAndResampleTestsReal:
     def mix_downsample(self, ih, data):
         """Mix, low-pass filter, and downsample."""
         if ih.complex_data:
-            # Get quadrature mix: data * cos, data * -sin
-            # (Note that data itself is always real.)
-            mixed = data * self.mixer(ih.ih, dtype=ih.dtype).conj()
+            # Get quadrature mix: data * cos, data * +/-sin
+            # (+/- for lower/upper sideband; note data are always real).
+            mixed = data * self.mixer(ih.ih, dtype=ih.dtype)
+            np.conjugate(mixed, out=mixed, where=(ih.sideband > 0))
             # Convert to real to simulate mixing more properly.
             mixed = mixed.view(data.dtype).reshape(data.shape + (2,))
         else:
+            # For real data, need to filter out the wrong sideband first.
+            ft = np.fft.rfft(data, axis=0)
+            i_frequency = int(round((ft.shape[0] * ih.frequency
+                                     / (ih.ih.sample_rate / 2)).to_value(1)))
+            # for lower/upper sideband, keep only lower/upper part
+            ft[:i_frequency] *= (ih.sideband < 0)
+            ft[i_frequency:] *= (ih.sideband > 0)
+            data = np.fft.irfft(ft, axis=0)
+            # And then mix.
             mixed = data * self.mixer(ih.ih)
 
         # The mixer produces signals at (f+fmix) and (f-fmix).
@@ -210,7 +225,7 @@ class BaseShiftAndResampleTestsReal:
         else:
             return filtered
 
-    def get_tel(self, delay=None):
+    def get_tel(self, delay=None, n=None):
         """Get signal as observed at a telescope with the given delay."""
         if delay is None:
             fh = self.raw
@@ -218,30 +233,45 @@ class BaseShiftAndResampleTestsReal:
             delay_time = delay / self.raw.sample_rate
             fh = SetAttribute(self.raw, start_time=self.start_time-delay_time)
         # Observe the raw, possibly delayed samples, using mix_downsample.
-        return Task(fh, self.mix_downsample, dtype=self.dtype,
-                    sample_rate=self.sample_rate,
-                    frequency=self.frequency, sideband=self.sideband)
+        obs = Task(fh, self.mix_downsample, dtype=self.dtype,
+                   sample_rate=self.sample_rate,
+                   frequency=self.frequency, sideband=self.sideband)
+        if n is None:
+            return obs
+        else:
+            return Channelize(obs, n)
 
-    def assert_tel_same(self, tel1, tel2):
+    def assert_tel_same(self, tel1, tel2, atol=None):
+        if atol is None:
+            atol = self.atol
         # Read both telescopes together.
         both_tel = Stack((tel1, tel2), axis=1)
         # Sanity check that we are actually comparing anything
-        assert both_tel.shape[0] > 500
+        assert both_tel.size > 500
         # Compare the data.
         data = both_tel.read()
-        assert_allclose(data[:, 0], data[:, 1], atol=self.atol, rtol=0)
+        assert_allclose(data[:, 0], data[:, 1], atol=atol, rtol=0)
 
-    @pytest.mark.parametrize('delay', (-18.25, -np.pi, -1, 0.1, 65.4321))
-    def test_resample_shifted(self, delay):
+    @pytest.mark.parametrize('delay', (-18.25, -np.pi, -8, 0.1, 65.4321))
+    @pytest.mark.parametrize('n', (None, 32))
+    def test_resample_shifted(self, delay, n):
         """Create delayed and non-delayed versions; check we can undo delay."""
-        # delay is in units of raw samples.
-        tel1 = self.get_tel(delay=None)
-        tel2 = self.get_tel(delay=delay)
+        # delay is in units of raw samples.  We possibly channelize.
+        tel1 = self.get_tel(delay=None, n=n)
+        tel2 = self.get_tel(delay=delay, n=n)
         # Undo the delay and ensure we resample such that we're on the same
         # time grid as the undelayed telescope.
-        tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
-                                   tel1.start_time)
-        self.assert_tel_same(tel1, tel2_rs)
+        if n is None:
+            tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
+                                       tel1.start_time)
+            self.assert_tel_same(tel1, tel2_rs)
+        else:
+            # For channelized data, we have to ensure we pass in an explicit
+            # sky frequency.
+            tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
+                                       tel1.start_time, lo=self.frequency,
+                                       samples_per_frame=1)
+            self.assert_tel_same(tel1, tel2_rs, atol=self.atol_channelized)
 
 
 class BaseShiftAndResampleTestsComplex(BaseShiftAndResampleTestsReal):
@@ -252,26 +282,32 @@ class BaseShiftAndResampleTestsComplex(BaseShiftAndResampleTestsReal):
     """
     dtype = np.dtype('c8')
 
-    @pytest.mark.parametrize('delay', (-8, 8, 64))
+    @pytest.mark.parametrize('delay', (-8, 16))
     def test_time_shift(self, delay):
         # Pure time shift delays must be in units of telescope samples,
-        # otherwise the start times no longer line up.
+        # otherwise the start times no longer line up. This also means
+        # it is useless to separately check channelized: phases line up
+        # anyway.
         tel1 = self.get_tel(delay=None)
         tel2 = self.get_tel(delay=delay)
         time_shift = TimeShift(tel2, delay / self.full_sample_rate)
-        # Check aligned data now the same.
         self.assert_tel_same(tel1, time_shift)
 
-    @pytest.mark.parametrize('delay', (-1, 63))
-    def test_time_shift_align(self, delay):
-        # Pure time shift delays must be in units of telescope samples,
-        # otherwise the start times no longer line up.
-        tel1 = self.get_tel(delay=None)
-        tel2 = self.get_tel(delay=delay)
-        time_shift = TimeShift(tel2, delay / self.full_sample_rate)
-        aligned = Resample(time_shift, tel1.start_time)
+    @pytest.mark.parametrize('delay', (-1, 15.4321))
+    @pytest.mark.parametrize('n', (None, 32))
+    def test_time_shift_align(self, delay, n):
+        tel1 = self.get_tel(delay=None, n=n)
+        tel2 = self.get_tel(delay=delay, n=n)
+        time_shift = TimeShift(tel2, delay / self.full_sample_rate,
+                               lo=self.frequency)
         # Check aligned data now the same.
-        self.assert_tel_same(tel1, aligned)
+        if n is None:
+            aligned = Resample(time_shift, tel1.start_time)
+            self.assert_tel_same(tel1, aligned)
+        else:
+            aligned = Resample(time_shift, tel1.start_time,
+                               samples_per_frame=1)
+            self.assert_tel_same(tel1, aligned, atol=self.atol_channelized)
 
 
 class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
@@ -281,10 +317,14 @@ class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
     add some explicit tests to those in the base, which only check
     the shifting itself, not whether the simulation is correct.
     """
+    atol_channelized = 4e-4  # Channelization makes tone Resampling worse.
+
     def setup(self):
         self.f_signal = (self.frequency
                          + self.full_sample_rate / 256 * self.sideband)
-        self.signal = PureTone(self.f_signal, self.start_time)
+        self.phi0_signal = 98.7654321 * u.degree
+        self.signal = PureTone(self.f_signal, self.start_time,
+                               self.phi0_signal)
         super().setup()
 
     def test_setup_no_delay(self):
@@ -293,10 +333,12 @@ class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
         data = tel.read()
         # Calculate expected phase using time at telescope, relative
         # to start of the simulated signal.
-        dt = np.arange(tel.shape[0]) / tel.sample_rate
-        dt.shape = (-1,) + (1,) * len(tel.sample_shape)
+        i = np.arange(data.shape[0]).reshape((-1,)+(1,)*(data.ndim-1))
+        dt = i / tel.sample_rate
         # Phase of the signal is that of the sine wave, minus mixer phase.
-        phi = dt * (self.f_signal - self.frequency) * self.sideband * u.cycle
+        phi = self.phi0_signal + dt * self.f_signal * u.cycle
+        phi -= self.phi0_mixer + dt * self.frequency * u.cycle
+        phi *= self.sideband
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
         assert_allclose(data, expected, atol=self.atol, rtol=0)
 
@@ -306,18 +348,16 @@ class TestShiftAndResampleToneReal(BaseShiftAndResampleTestsReal):
         delay_time = delay / self.raw.sample_rate
         assert abs(tel.start_time - self.start_time + delay_time) < 1. * u.ns
         assert tel.shape == ((self.raw.shape[0] // self.downsample,)
-                             + self.raw.shape[1:])
+                             + self.raw.sample_shape)
         data = tel.read()
         # Calculate expected phase using time at telescope, working relative
         # to the start time of the simulation.
-        dt = ((tel.start_time - self.start_time)
-              + np.arange(tel.shape[0]) / tel.sample_rate)
-        dt.shape = (-1,) + (1,) * len(tel.sample_shape)
+        i = np.arange(data.shape[0]).reshape((-1,)+(1,)*(data.ndim-1))
+        dt = (tel.start_time - self.start_time) + i / tel.sample_rate
         # Calculate the signal phase, taking into account it was delayed.
-        phi = (dt + delay_time) * self.f_signal * u.cycle
+        phi = self.phi0_signal + (dt + delay_time) * self.f_signal * u.cycle
         # Subtract the mixer phase, which was not delayed.
-        phi -= dt * self.frequency * u.cycle
-        # And correct for the sideband
+        phi -= self.phi0_mixer + dt * self.frequency * u.cycle
         phi *= self.sideband
         expected = PureTone.pure_tone(phi.to_value(u.radian), data.dtype)
         assert_allclose(data, expected, atol=self.atol, rtol=0)
@@ -329,6 +369,8 @@ class TestShiftAndResampleToneComplex(TestShiftAndResampleToneReal,
 
 
 class TestShiftAndResampleNoiseReal(BaseShiftAndResampleTestsReal):
+    atol_channelized = 1e-4
+
     def setup(self):
         self.noise = Noise(seed=12345)
         super().setup()

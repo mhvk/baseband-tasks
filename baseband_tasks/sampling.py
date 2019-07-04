@@ -173,11 +173,14 @@ class Resample(ResampleBase):
 
 
 class TimeShift(TaskBase):
-    def __init__(self, ih, shift, *, frequency=None, sideband=None):
+    def __init__(self, ih, shift, *, lo=None,
+                 frequency=None, sideband=None):
         assert ih.complex_data, "Time shift only works on complex data."
         super().__init__(ih, frequency=frequency, sideband=sideband)
+        if lo is None:
+            lo = self.frequency
         self._start_time += shift
-        phase_delay = -shift * self.frequency * self.sideband * u.cycle
+        phase_delay = -shift * lo * self.sideband * u.cycle
         self._phase_factor = (np.exp(phase_delay.to_value(u.rad) * 1j)
                               .astype(ih.dtype))
 
@@ -187,7 +190,7 @@ class TimeShift(TaskBase):
 
 
 class ShiftAndResample(ResampleBase):
-    def __init__(self, ih, shift, offset=None, *,
+    def __init__(self, ih, shift, offset=None, *, lo=None,
                  samples_per_frame=None, frequency=None, sideband=None):
         if offset is None:
             offset = ih.start_time
@@ -198,10 +201,11 @@ class ShiftAndResample(ResampleBase):
 
         super().__init__(ih, fraction, samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband)
+        if lo is None:
+            lo = self.frequency
 
         self._start_time += shift
-        self._shift_phase_delay = (-shift * self.frequency * self.sideband
-                                   * u.cycle)
+        self._shift_phase_delay = -shift * lo * self.sideband * u.cycle
 
     @lazyproperty
     def phase_factor(self):
