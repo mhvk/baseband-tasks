@@ -12,6 +12,8 @@ from .fourier import fft_maker
 __all__ = ['float_offset', 'seek_float',
            'ShiftAndResample', 'Resample', 'TimeDelay', 'DelayAndResample']
 
+# The tests do not strictly require pyfftw to run, but they do require it
+# to give numbers that are equal to within +FLOAT_CMP precision.
 __doctest_requires__ = {'Resample*': ['pyfftw']}
 
 
@@ -83,8 +85,10 @@ class ShiftAndResample(PaddedTaskBase):
     offset : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
         Offset to ensure the output stream includes.  Can an absolute time,
         or a (float) number of samples or time offset relative to the start
-        of the underlying stream.  The default of ``0`` implies that the
-        output stream will be on the same grid as the input one.
+        of the underlying stream.  The default of `None` implies that the
+        output stream is free to adjust.  Hence, if a single shift is
+        given, all that will happen is a change in ``start_time``. To
+        ensure the grid stays fixed, pass in ``0``.
     whence : {0, 1, 2, 'start', 'current', or 'end'}, optional
         Like regular seek, the offset is taken to be from the start if
         ``whence=0`` (default), from the current position if 1,
@@ -96,6 +100,20 @@ class ShiftAndResample(PaddedTaskBase):
         ``if.frequency``.  But for channelized data, the actual
         frequency needs to be passed in.  If data were recorded without
         mixing (like for CHIME), pass in `None`.
+    pad : int, optional
+        Extra padding to apply on each side before shifting data (in
+        addition to that needed to avoid samples from wrapping around the
+        edges), to avoid the influence of further-away wrapped samples
+        (recall that resampling requires interpolation, which is done by
+        shifting phases in the fourier domain, corresponding to convolution
+        with a sync function in the time domain).  The default of 32 ensures
+        any points from the other side of a frame have weights of less than
+        1/32π ~ 0.01.
+    samples_per_frame : int, optional
+        Number of samples which should be resampled in one go. The number of
+        output samples per frame will be ``2*pad+1`` less than this.  If not
+        given, the larger of the sampler per frame in the underlying stream
+        or 16 times the padding (to ensure ~87.5% efficiency).
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  By default, taken from the underlying stream.
@@ -107,31 +125,48 @@ class ShiftAndResample(PaddedTaskBase):
 
     """
     def __init__(self, ih, shift, offset=None, whence='start', *,
-                 samples_per_frame=None, **kwargs):
-        if samples_per_frame is None:
-            samples_per_frame = max(ih.samples_per_frame-1, 1023)
-
+                 pad=32, samples_per_frame=None, **kwargs):
         ih_shift = float_offset(ih, shift)
-        ih_offset = seek_float(ih, offset, whence)
-        offset_fraction = ih_offset - np.around(ih_offset)
-        sample_shift = ih_shift - offset_fraction
-        rounded_mean_shift = np.mean(sample_shift).round()
-        sample_shift -= rounded_mean_shift
-        pad_start = int(np.ceil(np.max(sample_shift)))
-        pad_end = int(np.floor(-np.min(sample_shift))) + 1
+        ih_shift_mean = np.mean(ih_shift)
+
+        if offset is None:
+            # Just use the average shift as a time shift, and do
+            # the individual shifts relative to it.
+            d_time = ih_shift_mean
+        else:
+            # Ensure the time shift lands on the grid given by offset,
+            # but remove as many integer cycles as possible, such that
+            # individual shifts are as symmetric around 0 as possible.
+            ih_offset = seek_float(ih, offset, whence)
+            d_time = ih_offset + np.around(ih_shift_mean - ih_offset)
+
+        # The remainder we actually need to shift.
+        sample_shift = ih_shift - d_time
+        # Special case where no work is to be done: no shifts left
+        # and no offset given (so no regridding requested).
+        do_shift = offset is not None or np.any(sample_shift != 0)
+        if do_shift:
+            pad_start = pad + int(np.ceil(np.max(sample_shift)))
+            pad_end = pad + int(np.floor(-np.min(sample_shift))) + 1
+            if samples_per_frame is None:
+                samples_per_frame = max(ih.samples_per_frame, pad * 14)
+        else:
+            pad_start = pad_end = 0
+
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame, **kwargs)
 
-        self._fft = fft_maker(shape=(self._ih_samples_per_frame,)
-                              + ih.sample_shape, sample_rate=ih.sample_rate,
-                              dtype=ih.dtype)
-        self._ifft = self._fft.inverse()
-
-        self._sample_shift = sample_shift
-        self._start_time += (offset_fraction
-                             + rounded_mean_shift) / ih.sample_rate
-        self._pad_slice = slice(self._pad_start,
-                                self._pad_start + self.samples_per_frame)
+        self._start_time += d_time / ih.sample_rate
+        if do_shift:
+            self._fft = fft_maker(
+                shape=(self._ih_samples_per_frame,) + ih.sample_shape,
+                sample_rate=ih.sample_rate, dtype=ih.dtype)
+            self._ifft = self._fft.inverse()
+            self._pad_slice = slice(pad_start,
+                                    pad_start + self.samples_per_frame)
+            self._sample_shift = sample_shift
+        else:
+            self._sample_shift = None
 
     @lazyproperty
     def phase_factor(self):
@@ -144,6 +179,9 @@ class ShiftAndResample(PaddedTaskBase):
         return phase_factor
 
     def task(self, data):
+        if self._sample_shift is None:
+            return data
+
         ft = self._fft(data)
         ft *= self.phase_factor
         result = self._ifft(ft)
@@ -186,11 +224,21 @@ class Resample(ShiftAndResample):
         and from the end if 2.  One can alternativey use 'start',
         'current', or 'end' for 0, 1, or 2, respectively.  Ignored if
         ``offset`` is a time.
+    pad : int, optional
+        Extra padding to apply on each side before shifting data (in
+        addition to that needed to avoid samples from wrapping around the
+        edges), to avoid the influence of further-away wrapped samples
+        (recall that resampling requires interpolation, which is done by
+        shifting phases in the fourier domain, corresponding to convolution
+        with a sync function in the time domain).  The default of 32 ensures
+        any points from the other side of a frame have weights of less than
+        1/32π ~ 0.01.
     samples_per_frame : int, optional
         Number of resampled samples which should be produced in one go.
-        The number of input samples used will be larger to avoid wrapping.
+        The number of input samples used will be larger by ``2*pad+1``.
         If not given, works on the larger of the samples per frame from
-        the underlying stream or 1024.
+        If not given, the larger of the sampler per frame in the underlying
+        stream or 14 times the padding (to ensure ~87.5% efficiency).
 
     Examples
     --------
@@ -208,7 +256,7 @@ class Resample(ShiftAndResample):
       >>> rh.time.isot
       '2014-06-16T05:56:07.000123456'
       >>> rh.seek(-4, 1)
-      3946
+      3914
       >>> data = rh.read(8)
       >>> data[4]  # doctest: +SKIP
       array([-1.6905369 ,  0.52486056, -2.00316   ,  0.9242443 , -0.0470082 ,
@@ -232,14 +280,14 @@ class Resample(ShiftAndResample):
     """
 
     def __init__(self, ih, offset, whence='start', *,
-                 samples_per_frame=None):
+                 pad=32, samples_per_frame=None):
 
         self._offset = offset
         self._whence = whence
 
         ih_offset = seek_float(ih, offset, whence)
         super().__init__(ih, shift=0., offset=offset,
-                         samples_per_frame=samples_per_frame)
+                         pad=pad, samples_per_frame=samples_per_frame)
         self.seek(ih.start_time + ih_offset / ih.sample_rate)
 
 
@@ -337,6 +385,20 @@ class DelayAndResample(ShiftAndResample):
         ``if.frequency``.  But for channelized data, the actual
         frequency needs to be passed in.  If data were recorded without
         mixing (like for CHIME), pass in `None`.
+    pad : int, optional
+        Extra padding to apply on each side before shifting data (in
+        addition to that needed to avoid samples from wrapping around the
+        edges), to avoid the influence of further-away wrapped samples
+        (recall that resampling requires interpolation, which is done by
+        shifting phases in the fourier domain, corresponding to convolution
+        with a sync function in the time domain).  The default of 32 ensures
+        any points from the other side of a frame have weights of less than
+        1/32π ~ 0.01.
+    samples_per_frame : int, optional
+        Number of samples which should be resampled in one go. The number of
+        output samples per frame will be ``2*pad+1`` less than this.  If not
+        given, the larger of the sampler per frame in the underlying stream
+        or 16 times the padding (to ensure ~87.5% efficiency).
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  By default, taken from the underlying stream.
@@ -347,14 +409,15 @@ class DelayAndResample(ShiftAndResample):
         from the underlying stream.  Assumed to be correct for the lo.
 
     """
-    def __init__(self, ih, delay, offset=0, whence='start', *, lo,
+    def __init__(self, ih, delay, offset=0, whence='start', *, lo, pad=32,
                  samples_per_frame=None, frequency=None, sideband=None):
         ih_delay = float_offset(ih, delay)
         ih_offset = seek_float(ih, offset, whence)
         ih_offset -= ih_delay
         fraction = ih_offset - np.around(ih_offset)
 
-        super().__init__(ih, 0., fraction, samples_per_frame=samples_per_frame,
+        super().__init__(ih, 0., fraction, pad=pad,
+                         samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband)
         delay = float_offset(ih, delay) / ih.sample_rate
         self._start_time += delay

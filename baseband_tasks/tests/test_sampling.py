@@ -75,16 +75,20 @@ class TestFloatOffset:
 class TestResampleReal:
 
     dtype = np.dtype('f4')
+    # Note: the tolerance is reasonable only for signals that fit exactly
+    # in input samples.
     atol = 1e-4
     sample_rate = 1 * u.kHz
-    samples_per_frame = 1024
+    samples_per_frame = 4096
     start_time = Time('2010-11-12T13:14:15')
     frequency = 400. * u.kHz
     sideband = np.array([-1, 1])
-    shape = (2048,) + sideband.shape
+    n_frames = 3
+    pad = 64
+    shape = (n_frames*samples_per_frame,) + sideband.shape
 
     def setup(self):
-        f_signal = self.sample_rate / 32 * np.ones(self.shape[1:])
+        f_signal = self.sample_rate / 2048 * np.array([31, 65])
         cosine = PureTone(f_signal, self.start_time)
 
         self.full_fh = StreamGenerator(
@@ -107,11 +111,14 @@ class TestResampleReal:
         assert np.all(part == full[::4])
 
     @pytest.mark.parametrize('offset',
-                             (0., 0.25, 0.5, 1., 1.75, 10.5,
-                              10.*u.ms, 0.015*u.s,
-                              Time('2010-11-12T13:14:15.013')))
+                             (34, 34.5, 35.75,
+                              50.*u.ms, 0.065*u.s,
+                              Time('2010-11-12T13:14:15.073')))
     def test_resample(self, offset):
-        ih = Resample(self.part_fh, offset, samples_per_frame=511)
+        ih = Resample(self.part_fh, offset, pad=self.pad)
+        # Always lose 1 sample + 2 * pad per frame.
+        assert ih.shape[0] == self.part_fh.shape[0] - (1+self.pad*2)
+        assert ih.sample_shape == self.part_fh.sample_shape
         # Check we are at the given offset.
         if isinstance(offset, Time):
             expected_time = offset
@@ -123,13 +130,17 @@ class TestResampleReal:
         assert abs(ih.time - expected_time) < 1. * u.ns
 
         ioffset, fraction = divmod(seek_float(self.part_fh, offset), 1)
-        assert ih.offset == ioffset
+        assert ih.offset + self.pad == ioffset
         expected_start_time = (self.part_fh.start_time
-                               + fraction / self.part_fh.sample_rate)
+                               + ((self.pad + fraction)
+                                  / self.part_fh.sample_rate))
         assert abs(ih.start_time - expected_start_time) < 1. * u.ns
         ih.seek(0)
         data = ih.read()
-        expected = self.full_fh.read()[int(fraction*4):-(4-int(fraction*4)):4]
+        self.full_fh.seek(ih.start_time)
+        # Should be exact.
+        assert np.abs(self.full_fh.time - ih.start_time) < 1. * u.ns
+        expected = self.full_fh.read(data.shape[0]*4)[::4]
         assert_allclose(data, expected, atol=self.atol, rtol=0)
 
     def test_repr(self):
@@ -139,26 +150,25 @@ class TestResampleReal:
         assert 'offset=0.5' in r
 
     @pytest.mark.parametrize('shift',
-                             (0., 0.25, -5.25, [1.75, 10.5],
-                              [-2., 13]*u.ms))
-    def test_shift_and_resample(self, shift):
+                             (0., 0.25, -5.25, [1.75, 10.25],
+                              [-1., 13]*u.ms))
+    @pytest.mark.parametrize('offset', (None, 0, 0.25))
+    def test_shift_and_resample(self, shift, offset):
         # Offsets equal to quarter samples to allow check with full_fh.
         # Idiotic calculation to ensure I get 512 input samples;
         # seems fish that this would be needed at all.
-        shift_ptp = np.ptp(shift)
-        if isinstance(shift_ptp, u.Quantity):
-            shift_ptp = (shift_ptp*self.part_fh.sample_rate).to_value(1)
-        samples_per_frame = 512-int(round(1+shift_ptp))
-        ih = ShiftAndResample(self.part_fh, shift, offset=0,
-                              samples_per_frame=samples_per_frame)
-        # start_time should be on old grid
-        ioff = ((ih.start_time - self.start_time)
-                * ih.sample_rate).to_value(u.one)
-        assert abs(ioff - round(ioff)) < u.ns * ih.sample_rate
-        try:
-            iter(shift)
-        except TypeError:
-            shift = [shift, shift]
+        ih = ShiftAndResample(self.part_fh, shift, offset=offset,
+                              pad=self.pad)
+        # start_time should be at expected offset from old grid.
+        expected_offset = seek_float(self.part_fh,
+                                     offset if offset is not None else
+                                     np.mean(shift))
+        d_off = ((ih.start_time - self.start_time) * ih.sample_rate
+                 - expected_offset).to_value(u.one)
+        assert abs(d_off - np.around(d_off)) < u.ns * ih.sample_rate
+
+        # Data should be shifted by the expected amounts.
+        shift = np.atleast_1d(shift)
         for i, s in enumerate(shift):
             time_shift = seek_float(self.part_fh, s) / ih.sample_rate
             ih.seek(0)
@@ -172,7 +182,10 @@ class TestResampleReal:
             data = ih.read()
             expected = self.full_fh.read()[::4]
             min_len = min(len(data), len(expected))
-            assert_allclose(data[:min_len, i], expected[:min_len, i],
+            assert min_len >= ((self.n_frames - 0.5)
+                               * self.part_fh.samples_per_frame)
+            sel = i if shift.size > 1 else slice(None)
+            assert_allclose(data[:min_len, sel], expected[:min_len, sel],
                             atol=self.atol, rtol=0)
 
 
@@ -185,41 +198,53 @@ class TestResampleComplex(TestResampleReal):
 class StreamArray(StreamGenerator):
     def __init__(self, data, *args, **kwargs):
         def from_data(handle):
-            return data[handle.offset:
-                        handle.offset+handle.samples_per_frame]
+            result = data[handle.offset:
+                          handle.offset+handle.samples_per_frame]
+            assert result.shape[0] == handle.samples_per_frame
+            return result
         super().__init__(from_data, *args, **kwargs)
 
 
 class TestResampleNoise(TestResampleComplex):
 
     dtype = np.dtype('c8')
-    atol = 1e-4
+    atol = 0.04
 
     def setup(self):
         # Make noise with only frequencies covered by part.
-        part_ft_noise = (np.random.normal(size=512*2*2)
-                         .view('c16').reshape(-1, 2))
+        n = self.samples_per_frame // 4 * self.n_frames
+        self.part_data = (np.random.normal(size=n*2*2).view('c16')
+                          .reshape(-1, 2))
+        part_ft = np.fft.fft(self.part_data, axis=0)
+        # Set high frequencies to zero; resampling doesn't work well with
+        # noise there, as the FT mixes it from positive to negative and
+        # vice versa, thus messing up the phases.
+        part_ft[n//2-self.pad:n//2+self.pad] = 0
         # Make corresponding FT for full frame.
-        full_ft_noise = np.concatenate((part_ft_noise[:256],
-                                        np.zeros((512*3, 2), 'c16'),
-                                        part_ft_noise[-256:]), axis=0)
-        part_data = np.fft.ifft(part_ft_noise, axis=0)
-        # Factor 2048/512 to ensure data have same power.
-        full_data = np.fft.ifft(full_ft_noise * 2048 / 512, axis=0)
-
+        full_ft = np.concatenate((part_ft[:n//2],
+                                  np.zeros((n*3, 2), 'c16'),
+                                  part_ft[-n//2:]), axis=0)
+        # Factor 4 to ensure data have same power.
+        self.full_data = np.fft.ifft(full_ft * 4, axis=0)
+        self.part_data = np.fft.ifft(part_ft, axis=0)
         self.full_fh = StreamArray(
-            full_data, shape=self.shape,
+            self.full_data, shape=self.full_data.shape,
             sample_rate=self.sample_rate,
             samples_per_frame=self.samples_per_frame,
             frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
 
         self.part_fh = StreamArray(
-            part_data, shape=(self.shape[0] // 4,) + self.shape[1:],
+            self.part_data, shape=self.part_data.shape,
             sample_rate=self.sample_rate / 4,
             samples_per_frame=self.samples_per_frame // 4,
             frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
+
+    def test_setup(self):
+        full = self.full_fh.read()
+        part = self.part_fh.read()
+        assert_allclose(part, full[::4], atol=1e-8, rtol=0)
 
 
 class BaseDelayAndResampleTestsReal:
@@ -338,7 +363,7 @@ class BaseDelayAndResampleTestsReal:
             # local oscillator frequency.
             tel2_rs = DelayAndResample(tel2, delay / self.full_sample_rate,
                                        tel1.start_time, lo=self.lo,
-                                       samples_per_frame=1)
+                                       samples_per_frame=32, pad=6)
             self.assert_tel_same(tel1, tel2_rs, atol=self.atol_channelized)
 
 
@@ -375,7 +400,7 @@ class BaseDelayAndResampleTestsComplex(BaseDelayAndResampleTestsReal):
             self.assert_tel_same(tel1, aligned)
         else:
             aligned = Resample(time_delay, tel1.start_time,
-                               samples_per_frame=1)
+                               samples_per_frame=32, pad=6)
             self.assert_tel_same(tel1, aligned, atol=self.atol_channelized)
 
 
@@ -407,7 +432,7 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
         # Calculate expected phase using time at telescope, relative
         # to start of the simulated signal.
         i = np.arange(data.shape[0]).reshape(
-            (-1,)+(1,)*len(self.raw.sample_shape))
+            (-1,) + (1,)*len(self.raw.sample_shape))
         dt = i / tel.sample_rate
         # Phase of the signal is that of the sine wave.
         phi = self.phi0_signal + dt * self.f_signal * u.cycle
