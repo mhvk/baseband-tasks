@@ -161,8 +161,8 @@ class TestDispersion:
         phases *= self.gp.sideband
         ft *= np.exp(-1j * phases.to_value(u.rad))
         gp_exp = ifft(ft)
-        offset = self.gp_sample + int(np.round(
-            (time_delay * self.sample_rate).to_value(u.one)))
+        offset = self.gp_sample + int(
+            (time_delay * self.sample_rate).to(u.one).round())
         assert np.all(np.abs(gp_exp[offset-1024:offset+1024] - dd_gp) < 1e-3)
 
     def test_disperse_negative_dm(self):
