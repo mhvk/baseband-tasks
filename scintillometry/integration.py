@@ -196,8 +196,8 @@ class Integrate(BaseTaskBase):
         Phase is assumed to increase monotonously with time.
         """
         if self._phase is None:
-            return (np.round(samples / self._mean_offset_size +
-                             self._ih_start).astype(int))
+            return (np.around(samples / self._mean_offset_size +
+                              self._ih_start).astype(int))
 
         # Requested phases relative to start (we work relative to the start
         # to avoid rounding errors for large cycle counts).  Also, we want

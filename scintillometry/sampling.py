@@ -104,7 +104,7 @@ class Resample(PaddedTaskBase):
                  samples_per_frame=None):
 
         ih_offset = float_offset(ih, offset, whence)
-        rounded_offset = round(ih_offset)
+        rounded_offset = np.around(ih_offset)
         fraction = ih_offset - rounded_offset
         if fraction < 0:
             pad_start, pad_end = 1, 0
@@ -126,7 +126,7 @@ class Resample(PaddedTaskBase):
         self._start_time += fraction / ih.sample_rate
         self._pad_slice = slice(self._pad_start,
                                 self._padded_samples_per_frame - self._pad_end)
-        self.seek(rounded_offset - self._pad_start)
+        self.seek(int(rounded_offset) - self._pad_start)
 
     @lazyproperty
     def phase_factor(self):

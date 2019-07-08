@@ -72,11 +72,11 @@ def day_frac(val1, val2, factor=None, divisor=None):
         sum12, err12 = two_sum(q1, q2)
 
     # get integer fraction
-    day = np.round(sum12)
+    day = np.around(sum12)
     extra, frac = two_sum(sum12, -day)
     frac += extra + err12
     # This part was missed in astropy...
-    excess = np.round(frac)
+    excess = np.around(frac)
     day += excess
     extra, frac = two_sum(sum12, -day)
     frac += extra + err12
