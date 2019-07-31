@@ -7,10 +7,12 @@ from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord, EarthLocation
 from astropy.coordinates import Angle, Latitude, Longitude
 from astropy.io import fits
+from astropy.io.fits.column import FITS2NUMPY
+from astropy.io.fits.fitsrec import FITS_rec
 from astropy.utils import lazyproperty
 import numpy as np
 import operator
-from .psrfits_htm_parser import hdu_templates
+from .psrfits_htm_parser import hdu_templates, column_map
 
 
 __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
@@ -20,11 +22,14 @@ __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
 class HDUWrapper:
     def __init__(self, hdu=None, verify=True, hdu_type=None):
         if hdu is None:
-            hdu = self.init_hdu(hdu_type)
+            hdu, self.hdu_column = self.init_hdu(hdu_type)
             verify = False
         self.hdu = hdu
         if verify:
             self.verify()
+        # This is for selecting the dimension for different mode (i.e., folding
+        # or searching)
+        self._dim_opt = 0
 
     def verify(self):
         assert isinstance(self.header, fits.Header)
@@ -35,15 +40,58 @@ class HDUWrapper:
         # Add header card.
         # HDU part should always have cards.
         for card in hdu_parts['card']:
-            hdu.header.set(card['name'], value=card['value'], comment=card['comment'])
+            hdu.header.set(card['name'], value=card['value'],
+                           comment=card['comment'])
         # add comment cards
         # TODO comment need a little bit tuning
         if hdu_parts['comment'] != []:
-            for ce in hdu_parts['comment']:
-                hdu.header.set(ce['name'], value=' '.join(ce['value'].split()),
-                               after=ce['after'])
-        # TODO add column
-        return hdu
+            for cmt in hdu_parts['comment']:
+                hdu.header.set(cmt['name'], value=' '.join(cmt['value'].split()),
+                               after=cmt['after'])
+        return hdu, hdu_parts['column']
+
+    def init_columns(self):
+        cols = []
+        for col in self.hdu_column:
+            # init array
+            # Translate dimensions.
+            init_dim = tuple()
+            for dim in col['col_dim'][self._dim_opt]:
+                try:
+                    init_dim += (int(dim),)
+                except ValueError:
+                    # TODO this will broken when handling something like
+                    # (NCHAN,NPOL,NSBLK*NBITS/8)
+                    init_dim += (getattr(self, dim.lower()),)
+
+            np_dtype = FITS2NUMPY[col['dtype']]
+            new_format = str(np.prod(init_dim)) + col['dtype']
+            init_array = np.zeros(init_dim, dtype=np_dtype).reshape((1,) +
+                                                                    init_dim)
+            # TODO maybe we can use **kwarg to pass the parameters
+            if col['dim'] is None:
+                input_dim = None
+            else:
+                # Do we need reverse the order here?
+                input_dim = str(init_dim)
+            print(col['name'][0], new_format, init_dim)
+            fits_col = fits.Column(name=col['name'][0], format=new_format,
+                                   unit=col['unit'][0], dim=input_dim,
+                                   array=init_array)
+            cols.append(fits_col)
+        self.hdu.data = FITS_rec.from_columns(cols)
+        # add description on header
+        for ii, col in enumerate(self.hdu_column):
+            ttype_key = "TTYPE{}".format(ii + 1)
+            # Check if the column cards are in the same order as the input.
+            assert self.header[ttype_key] == col['name'][0], \
+                "Card TTYPE{} is not for column {}.".format(ii + 1,
+                                                            col['name'][0])
+            for key_pattern, col_key in column_map.items():
+                key = key_pattern + str(ii + 1)
+                value = self.header.get(key, None)
+                if value is not None and len(col[col_key]) >= 2:
+                    self.header[key] = (value, col[col_key][1])
 
     @property
     def header(self):
@@ -440,10 +488,10 @@ class PSRSubintHDU(SubintHDU):
         ----
         this sets the start time of the HDU, not the file start time.
         """
-        dt = (time - self.header_hdu.start_time)
+        dt = (time - self.primary_hdu.start_time)
 
         center_off0 = dt + 1.0 / self.sample_rate / 2
-        self.hdu.data['OFFS_SUB'][0] = center_off0.to_value(u.s)
+        self.hdu.data['OFFS_SUB'][0] = (center_off0.to(u.s)).value
 
     @property
     def samples_per_frame(self):
