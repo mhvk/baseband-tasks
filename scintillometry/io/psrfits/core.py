@@ -200,16 +200,15 @@ class PSRFITSWriter:
                                  " argument".format(data_hdu.sample_shape))
         # init columns.
         self.data_hdu = data_hdu.init_columns()
+        # set sample rate
+        data_hdu.sample_rate = self.ih.sample_rate
         # set start time
         data_start_time = self.ih.tell(unit='time')
         data_hdu.start_time = data_start_time
-        # Set other necessary properties
-        for ppt in ['frequency', 'sample_rate']:
-            setattr(data_hdu, ppt, getattr(self.ih, ppt))
         # Set optional prpoerties
-        for oppt in ['sideband', 'polarization']:
+        for oppt in ['sideband', 'polarization', 'freqeuency']:
             try:
-                setattr(data_hdu, ppt, getattr(self.ih, ppt))
+                setattr(data_hdu, oppt, getattr(self.ih, oppt))
             except AttributeError:
                 pass
 

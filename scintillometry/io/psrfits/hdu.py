@@ -74,7 +74,6 @@ class HDUWrapper:
             else:
                 # Do we need reverse the order here?
                 input_dim = str(init_dim)
-            print(col['name'][0], new_format, init_dim)
             fits_col = fits.Column(name=col['name'][0], format=new_format,
                                    unit=col['unit'][0], dim=input_dim,
                                    array=init_array)
