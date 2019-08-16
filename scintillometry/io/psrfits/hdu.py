@@ -150,9 +150,10 @@ class PSRFITSPrimaryHDU(HDUWrapper):
 
     @property
     def start_time(self):
-        return (Time(self.header['STT_IMJD'], format='mjd', precision=9,
+        return (Time(float(self.header['STT_IMJD']), format='mjd', precision=9,
                      location=self.location) +
-                TimeDelta(self.header['STT_SMJD'], self.header['STT_OFFS'],
+                TimeDelta(float(self.header['STT_SMJD']),
+                          float(self.header['STT_OFFS']),
                           format='sec', scale='tai'))
 
     @start_time.setter
@@ -162,7 +163,7 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         if time.location is not None:
             self.location = time.location
         mjd_int = int(time.mjd)
-        mjd_frac = (time - Time(mjd_int, scale=time.scale, format=time.format))
+        mjd_frac = (time - Time(mjd_int, scale=time.scale, format='mjd'))
         frac_sec, int_sec = np.modf(mjd_frac.to(u.s).value)
         self.hdu.header['STT_IMJD'] = '{0:05d}'.format(mjd_int)
         self.hdu.header['STT_SMJD'] = '{}'.format(int(int_sec))
@@ -342,6 +343,12 @@ class SubintHDU(HDUWrapper):
     def sample_shape(self):
         return self._sample_shape_maker(self.nbin, self.nchan, self.npol)
 
+    @sample_shape.setter
+    def sample_shape(self, shape):
+        self.nbin = shape[0]
+        self.nchan = shape[1]
+        self.npol = shape[2]
+
     @property
     def shape(self):
         return self._shape_maker(self.nrow * self.samples_per_frame,
@@ -454,9 +461,11 @@ class PSRSubintHDU(SubintHDU):
             assert np.array_equiv(freqs[0], freqs), \
                 "Frequencies are not all the same for different rows."
 
-        tsubint = self.data['TSUBINT']
-        assert all(np.isclose(tsubint[0], tsubint, atol=1e-1)), \
-            "TSUBINT differ by large amounts in different rows."
+        # NOTE some files has large amount of TSUBING differ. comment this part
+        # for right now.
+        # tsubint = self.data['TSUBINT']
+        # assert all(np.isclose(tsubint[0], tsubint, atol=1e-1)), \
+        #     "TSUBINT differ by large amounts in different rows."
 
         d_shape_raw = self.data['DATA'].shape
         d_shape_header = (self.nbin, self.nchan, self.npol)
@@ -488,6 +497,10 @@ class PSRSubintHDU(SubintHDU):
         ----
         this sets the start time of the HDU, not the file start time.
         """
+        try:
+            _ = self.primary_hdu.start_time
+        except ValueError:
+            self.primary_hdu.start_time = time
         dt = (time - self.primary_hdu.start_time)
 
         center_off0 = dt + 1.0 / self.sample_rate / 2
@@ -519,3 +532,7 @@ HDU_map = {'PRIMARY': PSRFITSPrimaryHDU,
            'SUBINT': SubintHDU}
 
 subint_map = {'PSR': PSRSubintHDU}
+
+hdu_list_template = {'PSR': [PSRFITSPrimaryHDU, PSRSubintHDU],
+                     'SEARCH': [PSRFITSPrimaryHDU,] # Need to add search HDU
+                    }

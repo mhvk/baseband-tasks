@@ -1,6 +1,8 @@
 # Licensed under the GPLv3 - see LICENSE
 """Interfaces for dealing with PSRFITS fold-mode data."""
 
+import numpy as np
+
 from ...base import BaseTaskBase
 from astropy.io import fits
 from .hdu import HDU_map
@@ -160,18 +162,67 @@ class PSRFITSWriter:
         Output file name.
     ih : input file handle
         The file handle for input data.
-    hdus: str, optional
-
+    hdus: list
+        A list of HDUS
 
 
     Notes
     -----
     Currently it only support write the PSRFITS primary HDU and Subint HDU.
     """
-    def __init__(self, filename, ih, hdus=None):
+    def __init__(self, filename, ih):
         self.filename = filename
         self.ih = ih
-        self.hdus = hdus
+        self.data_hdu = None
+
+    def init_data(self, data_hdu, hdu_sample_shape=tuple(), total_samples=None):
+        """Initialize columns in data hdu.
+
+        Parameters
+        ----------
+        data_hdu: `PSRFITS HDU` object.
+            The PSRFITS data hdu (e.g., PSRFISTS Subint HDU)
+        hdu_sample_shape: tuple
+            The sample shape of the HDU.
+        """
+        if total_samples is None:
+            total_samples = self.ih.shape[0]
+        data_hdu.nrow = int(np.ceil((total_samples / self.ih.samples_per_frame)))
+        # set data shape.
+        if len(hdu_sample_shape) != 0:
+            data_hdu.sample_shape = hdu_sample_shape
+        else:
+            try:
+                _ = np.sum(data_hdu.sample_shape)
+            except:
+                raise ValueError("Sample shape of Data HDU '{}' is not setup "
+                                 "correctly. Please use 'hdu_sample_shape'"
+                                 " argument".format(data_hdu.sample_shape))
+        # init columns.
+        self.data_hdu = data_hdu.init_columns()
+        # set start time
+        data_start_time = self.ih.tell(unit='time')
+        data_hdu.start_time = data_start_time
+        # Set other necessary properties
+        for ppt in ['frequency', 'sample_rate']:
+            setattr(data_hdu, ppt, getattr(self.ih, ppt))
+        # Set optional prpoerties
+        for oppt in ['sideband', 'polarization']:
+            try:
+                setattr(data_hdu, ppt, getattr(self.ih, ppt))
+            except AttributeError:
+                pass
+
+        self.data_hdu = data_hdu
+
+    @property
+    def data(self):
+        return self.data_hdu.data
+
+    # @data.setter
+    # def data(self, value):
+    #     if isinstance(value, np.ndarray):
+
 
     def close(self):
         pass
