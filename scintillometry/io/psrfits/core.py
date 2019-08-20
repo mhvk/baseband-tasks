@@ -175,6 +175,12 @@ class PSRFITSWriter:
         self.ih = ih
         self.data_hdu = None
 
+    def __getitem__(self, index):
+        return self.data_hdu.data['DATA'][index]
+
+    def __setitem__(self, index, value):
+        self.data_hdu.data['DATA'][index] = value
+
     def init_data(self, data_hdu, hdu_sample_shape=tuple(), total_samples=None):
         """Initialize columns in data hdu.
 
@@ -206,22 +212,20 @@ class PSRFITSWriter:
         data_start_time = self.ih.tell(unit='time')
         data_hdu.start_time = data_start_time
         # Set optional prpoerties
-        for oppt in ['sideband', 'polarization', 'freqeuency']:
-            try:
+        for oppt in ['frequency', 'polarization', 'sideband']:
+            if hasattr(self.ih, oppt) and hasattr(data_hdu, oppt):
                 setattr(data_hdu, oppt, getattr(self.ih, oppt))
-            except AttributeError:
-                pass
-
+            else:
+                print("{} not in ih or hdu".format(oppt) )
         self.data_hdu = data_hdu
 
     @property
     def data(self):
         return self.data_hdu.data
 
-    # @data.setter
-    # def data(self, value):
-    #     if isinstance(value, np.ndarray):
-
+    @property
+    def shape(self):
+        return self.data_hdu.shape
 
     def close(self):
         pass

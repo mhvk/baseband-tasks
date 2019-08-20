@@ -180,10 +180,10 @@ class PSRFITSPrimaryHDU(HDUWrapper):
     @property
     def frequency(self):
         try:
-            n_chan = self.header['OBSNCHAN']
-            c_freq = self.header['OBSFREQ']
-            bw = self.header['OBSBW']
-        except KeyError:
+            n_chan = int(self.header['OBSNCHAN'])
+            c_freq = float(self.header['OBSFREQ'])
+            bw = float(self.header['OBSBW'])
+        except (KeyError, ValueError):
             return None
 
         chan_bw = bw / n_chan
@@ -390,9 +390,13 @@ class SubintHDU(HDUWrapper):
 
     @frequency.setter
     def frequency(self, freqs):
-        freqs = freqs.to_value(u.MHz)
-        self.hdu.data['DAT_FREQ'] = np.broadcast_to(freqs, (self.nrow,
-                                                            self.nchan))
+        freqs_value = freqs.to_value(u.MHz)
+        self.hdu.data['DAT_FREQ'] = np.broadcast_to(freqs_value, (self.nrow,
+                                                                  self.nchan))
+        # TODO I am not sure if this is the best way to get the channel bandwidth
+        self.hdu.header['CHAN_BW'] = freqs_value[1] - freqs_value[0]
+        if self.primary_hdu.frequency is None:
+            self.primary_hdu.frequency = freqs
 
     @property
     def sideband(self):
@@ -401,7 +405,7 @@ class SubintHDU(HDUWrapper):
     @sideband.setter
     def sideband(self, sideband):
         assert np.all(np.abs(sideband) == 1), "sideband should be +/- 1"
-        self['CHAN_BW'] = sideband * abs(self['CHAN_BW'])
+        self.header['CHAN_BW'] = sideband * abs(self.header['CHAN_BW'])
 
     @lazyproperty
     def dtype(self):
