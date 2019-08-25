@@ -5,6 +5,7 @@ import operator
 import warnings
 
 import numpy as np
+import scipy.sparse.csr_matrix
 import astropy.units as u
 from astropy.utils import ShapedLikeNDArray, lazyproperty
 
@@ -397,10 +398,12 @@ class Fold(Integrate):
         phases = self.phase(self._raw_time + raw_items / self.ih.sample_rate)
         phase_index = ((phases % (1. * u.cycle)).to_value(u.cycle) *
                        self.n_phase).astype(int)
+        
+
         # Do the actual folding, adding the data to the sums and counts.
         # TODO: np.add.at is not very efficient; replace?
-        np.add.at(self._frame['data'], (sample_index, phase_index), raw)
-        np.add.at(self._frame['count'], (sample_index, phase_index), 1)
+        # np.add.at(self._frame['data'], (sample_index, phase_index), raw)
+        # np.add.at(self._frame['count'], (sample_index, phase_index), 1)
 
 
 class Stack(BaseTaskBase):
