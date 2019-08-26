@@ -179,7 +179,9 @@ class PSRFITSWriter:
         return self.data_hdu.data['DATA'][index]
 
     def __setitem__(self, index, value):
-        self.data_hdu.data['DATA'][index] = value
+        # need to convert to fortran order
+        data_shape = self.data_hdu.data['DATA'][index].shape
+        self.data_hdu.data['DATA'][index] = value.reshape(data_shape)
 
     def init_data(self, data_hdu, hdu_sample_shape=tuple(), total_samples=None):
         """Initialize columns in data hdu.
@@ -219,6 +221,13 @@ class PSRFITSWriter:
                 print("{} not in ih or hdu".format(oppt) )
         self.data_hdu = data_hdu
 
+    # def check_shape(self):
+    #     """This function checks the sample shape between the input stream and
+    #     PSRFITS hdu shape.
+    #     """
+    #     ih_sample_shape = self.ih.sample_shape
+    #     hdu_sample_shape = se
+
     @property
     def data(self):
         return self.data_hdu.data
@@ -226,6 +235,10 @@ class PSRFITSWriter:
     @property
     def shape(self):
         return self.data_hdu.shape
+
+    @property
+    def sample_shape(self):
+        return self.data_hdu.sample_shape
 
     def close(self):
         pass

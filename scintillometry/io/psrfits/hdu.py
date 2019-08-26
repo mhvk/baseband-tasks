@@ -37,7 +37,9 @@ class HDUWrapper:
     def init_hdu(self, hdu_name):
         target_hdu, hdu_parts = hdu_templates[hdu_name]
         hdu = target_hdu()
-        # Add header card.
+        hdu, hdu_parts = self._pre_process_hdu(hdu, hdu_parts)
+        print(hdu_parts)
+        # Init header
         # HDU part should always have cards.
         for card in hdu_parts['card']:
             hdu.header.set(card['name'], value=card['value'],
@@ -49,6 +51,9 @@ class HDUWrapper:
                 hdu.header.set(cmt['name'], value=' '.join(cmt['value'].split()),
                                after=cmt['after'])
         return hdu, hdu_parts['column']
+
+    def _pre_process_hdu(self, hdu, hdu_parts):
+        return hdu, hdu_parts
 
     def init_columns(self):
         cols = []
@@ -129,6 +134,19 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         assert self.header['SIMPLE'], "The HDU is not a FITS primary HDU."
         assert self.header['FITSTYPE'] == "PSRFITS", \
             "The header is not from a PSRFITS file."
+
+    def _pre_process_hdu(self, hdu, hdu_parts):
+        # Preprocess the header parts
+        for card_name in ['SIMPLE', 'EXTEND']:
+            # Those two fields need value to be bool
+            for card in hdu_parts['card']:
+                if card['name'] == card_name:
+                    # value can only be True or False
+                    if 'T' in card['value']:
+                        card['value'] = True
+                    else:
+                        card['value'] = False
+        return hdu, hdu_parts
 
     @property
     def location(self):
@@ -290,12 +308,23 @@ class SubintHDU(HDUWrapper):
         self.primary_hdu = primary_hdu
         self.offset = 0
         super().__init__(hdu, verify=verify, hdu_type='SUBINT')
+        self.sample_label = ('nbin', 'nchan', 'npol')
 
     def verify(self):
         assert self.header['EXTNAME'].strip() == "SUBINT", \
             "Input HDU is not a SUBINT type."
         assert isinstance(self.primary_hdu, PSRFITSPrimaryHDU), \
             "Primary HDU needs to be a PSRFITSPrimaryHDU instance."
+
+    def _pre_process_hdu(self, hdu, hdu_parts):
+        #S UBINT need preprocess of the hdu cards value
+        # HDU part should always have cards.
+        for card in hdu_parts['card']:
+            try:
+                card['value'] = int(card['value'])
+            except:
+                pass
+        return hdu, hdu_parts
 
     @property
     def mode(self):
@@ -472,6 +501,7 @@ class PSRSubintHDU(SubintHDU):
 
         d_shape_raw = self.data['DATA'].shape
         d_shape_header = (self.nbin, self.nchan, self.npol)
+        # The shape has to be inversed since FITS is in the Fortran order.
         assert d_shape_raw == (self.nrow,) + d_shape_header[::-1], \
             "Data shape does not match with the header information."
 
