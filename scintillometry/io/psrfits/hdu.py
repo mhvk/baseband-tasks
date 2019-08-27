@@ -505,6 +505,18 @@ class PSRSubintHDU(SubintHDU):
         assert d_shape_raw == (self.nrow,) + d_shape_header[::-1], \
             "Data shape does not match with the header information."
 
+    def _pre_process_hdu(self, hdu, hdu_parts):
+        #S UBINT need preprocess of the hdu cards value
+        # HDU part should always have cards.
+        # TODO, should this part lives here
+        search_mode_cards = {'NBITS': 1, 'SIGNINT': 0, 'NSBLK':, 1, 'NSTOT': 1}
+        for k, v in search_mode_cards.items():
+            for card in hdu_parts['card']:
+                if card['name'] == k:
+                    card['value'] = v
+        hdu, hdu_parts = super()._preprocess_hdu(hdu, hdu_parts)
+        return hdu, hdu_parts
+
     @property
     def start_time(self):
         """Start time of the first sub-integration.
@@ -566,6 +578,7 @@ HDU_map = {'PRIMARY': PSRFITSPrimaryHDU,
 
 subint_map = {'PSR': PSRSubintHDU}
 
-hdu_list_template = {'PSR': [PSRFITSPrimaryHDU, PSRSubintHDU],
+hdu_list_template = {'PSR': {'primary': PSRFITSPrimaryHDU,
+                             'data': PSRSubintHDU},
                      'SEARCH': [PSRFITSPrimaryHDU,] # Need to add search HDU
                     }

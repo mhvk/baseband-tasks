@@ -5,7 +5,7 @@ import numpy as np
 
 from ...base import BaseTaskBase
 from astropy.io import fits
-from .hdu import HDU_map
+from .hdu import HDU_map, fits_hdu_template
 from astropy import log
 from collections import defaultdict
 
@@ -153,6 +153,18 @@ class PSRFITSReader(BaseTaskBase):
         file.close()
 
 
+def get_writter(filename, ih, data_hdu=None, hdu_mode='PSR', **kwargs):
+    writer = PSRFITSWriter(filename, ih)
+    if data_hdu is None:
+        hdus = fits_hdu_template[hdu_mode]
+        primary_hdu = hdus['primary']
+        primary_hdu.obs_mode = hdu_mode
+        data_hdu = hdus['data'](primary_hdu=PHDU)
+
+    writer.init_data(data_hdu)
+
+
+
 class PSRFITSWriter:
     """Interface class for writing the PSRFITS HDUs
 
@@ -183,6 +195,12 @@ class PSRFITSWriter:
         data_shape = self.data_hdu.data['DATA'][index].shape
         self.data_hdu.data['DATA'][index] = value.reshape(data_shape)
 
+    def update_file_header(self, info):
+        """Update the fileheader information
+        """
+        for k, v in info.items:
+            self.data_hda.primary_hdu.header[k] = v
+
     def init_data(self, data_hdu, hdu_sample_shape=tuple(), total_samples=None):
         """Initialize columns in data hdu.
 
@@ -200,6 +218,7 @@ class PSRFITSWriter:
         if len(hdu_sample_shape) != 0:
             data_hdu.sample_shape = hdu_sample_shape
         else:
+            #Check if the existing HDU has column initized.
             try:
                 _ = np.sum(data_hdu.sample_shape)
             except:
@@ -221,16 +240,17 @@ class PSRFITSWriter:
                 print("{} not in ih or hdu".format(oppt) )
         self.data_hdu = data_hdu
 
-    # def check_shape(self):
-    #     """This function checks the sample shape between the input stream and
-    #     PSRFITS hdu shape.
-    #     """
-    #     ih_sample_shape = self.ih.sample_shape
-    #     hdu_sample_shape = se
-
     @property
     def data(self):
         return self.data_hdu.data
+
+    @property
+    def file_header(self):
+        return self.data_hdu.primary_hdu.header
+
+    @property
+    def data_header(self):
+        return self.data_hdu.header
 
     @property
     def shape(self):
