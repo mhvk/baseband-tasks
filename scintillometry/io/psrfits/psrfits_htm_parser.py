@@ -10,7 +10,11 @@ from astropy.utils.data import get_pkg_data_filename
 psrfits_doc_path = get_pkg_data_filename('../../data/PsrfitsDocumentation.html')
 fits_table_map = {'BINTABLE': fits.BinTableHDU,
                   'PRIMARY': fits.PrimaryHDU}
+column_map = {'TTYPE': 'name', 'TFORM': 'format', 'TUNIT': 'unit',
+              'TDIM': 'dim'}
 unit_rex = re.compile(r'\[(.+)\]')
+dim_rex = re.compile(r'N[A-Z]+')
+tdim_rex = re.compile(r'\((.*?)\)')
 
 
 class MyHTMLParser(HTMLParser):
@@ -107,11 +111,52 @@ def parse_line(line):
     return line_type, key, value, comment, unit
 
 
+def get_dtype(col_entry):
+    """ Get the dimension from the column format field.
+    """
+    # Get dim from the format value
+    # TODO, this split alway has an empty array
+    dim = None
+    dtype = None
+    if col_entry['dim'] is not None:
+        dim_strs = re.findall(tdim_rex, col_entry['dim'][1])
+        # there could be options for dim
+        dim = []
+        for dim_str in dim_strs:
+            dim.append(tuple(dim_str.split(',')))
+    # parse data type
+    format_fields = re.split(r'(\d+)', col_entry['format'][0])
+    if len(format_fields) == 3:
+        format_fields.remove("")
+    if len(format_fields) == 2:
+        # If the TDIM does not exist
+        if dim is None:
+            dim = [(format_fields[0], ), ]
+        dtype = format_fields[1]
+    elif len(format_fields) == 1:
+        if dim is None:
+            # parse dim from the description
+            dim = [tuple(re.findall(dim_rex, col_entry['format'][1])), ]
+        dtype = format_fields[0]
+    return dim, dtype
+
+
+def process_entry(entry):
+    """Process the entry before saving it to HDU templates.
+
+       NOTE
+       ----
+       Right now this only handles the column entry. In the future, we can
+       add other type of entry handling.
+    """
+    if entry['type'] == 'column':
+        entry['col_dim'], entry['dtype'] = get_dtype(entry)
+    return entry
+
+
 def ext2hdu(extension):
     hdu_parts = {'card': [], 'column': [], 'comment': []}
     hdu = None
-    column_map = {'TTYPE': 'name', 'TFORM': 'format', 'TUNIT': 'unit',
-                  'TDIM': 'dim'}
     cur_entry = {}
     last_entry = cur_entry
     # parse extension lines
@@ -131,6 +176,7 @@ def ext2hdu(extension):
                 cur_entry['value'] += value
             else:
                 # record the current entry and init new entry
+                process_entry(cur_entry)
                 hdu_parts[cur_entry['type']].append(cur_entry)
                 last_entry = cur_entry
                 cur_entry = {'name': key, 'value': value, 'type': line_type,
@@ -140,17 +186,23 @@ def ext2hdu(extension):
             if cur_type == 'column' and key != 'TTYPE':
                 if entry_key is not None:
                     cur_entry[entry_key] = (value, comment)
+                # if entry_key == 'format':
+                #     cur_entry['col_dim'], cur_entry['dtype'] = get_dtype(cur_entry['format'][0],
+                #                                                      cur_entry['format'][1])
             else:
                 # Record the last entry and open a new entry for column
+                process_entry(cur_entry)
                 hdu_parts[cur_entry['type']].append(cur_entry)
                 last_entry = cur_entry
-                cur_entry = {'name': None, 'format': None, 'unit': None,
-                             'dim': None, 'description': '', 'type': line_type}
+                cur_entry = {'name': None, 'format': None, 'unit': (None, None),
+                             'dim': None, 'col_dim': None, 'dtype': None,
+                             'description': '', 'type': line_type}
                 if entry_key is not None:
                     cur_entry[entry_key] = (value, comment)
 
         elif line_type == 'card':
             if cur_entry != {}:
+                process_entry(cur_entry)
                 hdu_parts[cur_entry['type']].append(cur_entry)
             last_entry = cur_entry
             cur_entry = {'name': key, 'value': value, 'unit': unit,
@@ -170,6 +222,9 @@ def ext2hdu(extension):
         else:
             raise ValueError("Can not parse line '{}'".format(lines[ii]))
         ii += 1
+    # Record the last entry
+    process_entry(cur_entry)
+    hdu_parts[cur_entry['type']].append(cur_entry)
     return (hdu, hdu_parts)
 
 
