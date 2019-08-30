@@ -15,12 +15,7 @@ from ..io import psrfits
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
-temp_dir = os.path.join('.', 'tmp')
-# Clean the old temp directory
-if os.path.exists(temp_dir):
-    shutil.rmtree(temp_dir)
-# make a brand new one.
-os.mkdir(temp_dir)
+
 
 class TestWriter:
     def setup(self):
@@ -136,9 +131,10 @@ class TestPSRHDUWriter(TestWriter):
         self.psr_hdu.frequency = self.reader.frequency
         assert self.psr_hdu.data['DAT_FREQ'] == self.reader.ih.data['DAT_FREQ']
 
-    def test_data_column_writing(self):
+    def test_data_column_writing(self, tmpdir):
         # Only test setting array here. no real scaling and offseting
         # calculation.
+        test_fits = str(tmpdir.join('test_column_writing.fits'))
         test_data = self.reader.read(1)
         # PSRFITS do not truncate data, it arounds them
         in_data = np.around(((test_data - self.reader.ih.data['DAT_OFFS']) /
@@ -148,14 +144,9 @@ class TestPSRHDUWriter(TestWriter):
         self.psr_hdu.data['DAT_OFFS'] = self.reader.ih.data['DAT_OFFS']
         # Write
         hdul = self.psr_hdu.get_hdu_list()
-        test_fits = os.path.join(temp_dir, 'test_column_writing.fits')
         hdul.writeto(test_fits)
         column_reader = psrfits.open(test_fits, weighted=False)
         assert np.all(np.isclose(self.reader.ih.data['DATA'],
                                  column_reader.ih.data['DATA']))
         new_in_data = column_reader.read(1)
         assert np.array_equal(test_data, new_in_data)
-
-
-if os.path.exists(temp_dir):
-    shutil.rmtree(temp_dir)
