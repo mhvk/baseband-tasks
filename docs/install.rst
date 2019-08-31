@@ -10,7 +10,7 @@ Scintillometry requires:
     - `Python <https://www.python.org/>`_ v3.5 or later
     - `Astropy`_ v3.1 or later
     - `Numpy <http://www.numpy.org/>`_ v1.14 or later
-    - `Baseband <https://pypi.org/project/baseband/>`_ v1.1 or later
+    - `Baseband <https://pypi.org/project/baseband/>`_ v2.0 or later
 
 In addition, you may want to install:
 
