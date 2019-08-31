@@ -153,7 +153,7 @@ class Noise:
     Parameters
     ----------
     seed : int
-       Initial seed for `~numpy.random.RandomState`.
+       Initial seed for `~numpy.random.mtrand.RandomState`.
 
     Notes
     -----
@@ -161,6 +161,7 @@ class Noise:
     read in the same order.
     """
     def __init__(self, seed=None):
+        # TODO: replace with new Generator class for numpy >=1.17.
         self._random_state = np.random.RandomState(seed)
         self._states = {}
 
