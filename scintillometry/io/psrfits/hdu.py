@@ -552,9 +552,9 @@ class PSRSubintHDU(SubintHDU):
         """
         start_time = super().start_time
         if "OFFS_SUB" in self.data.names:
-            offset0 = (u.Quantity(self.data['OFFS_SUB'][0], u.s, copy=False) -
-                       self.samples_per_frame / 2 / self.sample_rate)
-            start_time += offset0
+            offset0 = (self.data['OFFS_SUB'][0] -
+                       self.data['TSUBINT'][0] * self.samples_per_frame / 2)
+            start_time += u.Quantity(offset0, u.s, copy=False)
 
         return start_time
 
@@ -569,10 +569,11 @@ class PSRSubintHDU(SubintHDU):
             _ = self.primary_hdu.start_time
         except ValueError:
             self.primary_hdu.start_time = time
-        dt = (time - self.primary_hdu.start_time)
+            dt = 0
+        else:
+            dt = (time - self.primary_hdu.start_time).to(u.s).value
 
-        center_off0 = dt + 1.0 / self.sample_rate / 2
-        self.hdu.data['OFFS_SUB'][0] = (center_off0.to(u.s)).value
+        self.hdu.data['OFFS_SUB'][0] = dt + self.hdu.data['TSUBINT'] / 2
 
     @property
     def samples_per_frame(self):
