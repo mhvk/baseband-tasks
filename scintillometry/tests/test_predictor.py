@@ -24,6 +24,15 @@ class TestPredictor:
         for l in self.polyco:
             assert len(l['coeff']) == l['ncoeff']
 
+    def test_polyco_writing_tempo1(self, tmpdir):
+        name = str(tmpdir.join('polyco.dat'))
+        self.polyco.to_polyco(name, tempo1=True)
+        with open(name, 'r') as fh:
+            text = fh.readlines()
+        with open(self.polyco_file) as fh:
+            ref = fh.readlines()
+        assert text == ref
+
     def test_polyco_interpolation(self):
         # Test astropy time object input
         time = self.start_time + np.linspace(0, 30) * 5. * u.min

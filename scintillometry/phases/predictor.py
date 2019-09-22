@@ -77,10 +77,37 @@ __all__ = ['Polyco']
 
 
 class Polyco(QTable):
-    def __init__(self, name):
+    def __init__(self, *args, **kwargs):
         """Read in polyco file as Table, and set up class."""
-        rows = parse_polyco(name)
-        super().__init__(rows)
+        if len(args):
+            data = args[0]
+            args = args[1:]
+        else:
+            data = kwargs.pop('data', None)
+
+        if isinstance(data, str):
+            data = parse_polyco(data)
+
+        super().__init__(data, *args, **kwargs)
+
+    def to_polyco(self, name='polyco.dat', tempo1=False):
+        header_fmt = ('{:<10s} {:9s}{:11.2f}{:20.11f}{:21.6f} {:6.3f}{:7.3f}\n'
+                      '{:20.6f}{:18.12f}{:>5s}{:5d}{:5d}{:10.3f}\n')
+        if 'binphase' in self.keys():
+            header_fmt = header_fmt[:-1] + '{:7.4f}\n'
+            if 'forb' in self.keys():
+                header_fmt = header_fmt[:-1] + '{:9.4f}\n'
+
+        coeff_fmt = fortran_fmt if tempo1 else '{:24.17e}'.format
+        with open(name, 'w') as fh:
+            for row in self:
+                fh.write(header_fmt.format(*(
+                    row[k] for k in converters if k in self.keys())))
+
+                coeff = row['coeff']
+                for i in range(0, len(coeff), 3):
+                    fh.write(' ' + ' '.join([coeff_fmt(c)
+                                             for c in coeff[i:i+3]]) + '\n')
 
     def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=None):
         """Predict phase or frequency (derivatives) for given mjd (array)
@@ -256,19 +283,20 @@ class Polyco(QTable):
 
 converters = OrderedDict(
     (('psr', str),
-     ('date', str),
-     ('utc_mid', str),
+     ('date', lambda x: x.rjust(9)),
+     ('utc_mid', float),
      ('mjd_mid', float),
      ('dm', float),
      ('vbyc_earth', float),
      ('lgrms', float),
      ('rphase', float),
      ('f0', float),
-     ('obs', int),
+     ('obs', str),
      ('span', int),
      ('ncoeff', int),
      ('freq', float),
-     ('binphase', float)))
+     ('binphase', float),
+     ('forb', float)))
 
 
 def parse_polyco(name):
@@ -309,3 +337,11 @@ def parse_polyco(name):
             line = polyco.readline()
 
     return t
+
+
+def fortran_fmt(x, width=23, precision=16):
+    base_fmt = '{:' + str(width) + '.' + str(precision) + 'e}'
+    s = base_fmt.format(x)
+    pre, dot, post = s.partition('.')
+    mant, e, exp = post.partition('e')
+    return pre[:-1] + '0' + dot + pre[-1] + mant + 'D{:+03d}'.format(int(exp) + 1)
