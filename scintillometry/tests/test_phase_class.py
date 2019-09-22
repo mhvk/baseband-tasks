@@ -584,7 +584,7 @@ class TestPhase(PhaseSetup):
         assert np.isnan(trial)
 
 
-class TestPhaseToString(PhaseSetup):
+class TestPhaseString(PhaseSetup):
     def test_to_string_basic(self):
         s = self.phase.to_string()
         assert np.all(s == [
@@ -613,6 +613,53 @@ class TestPhaseToString(PhaseSetup):
         s = ph.to_string(alwayssign=True)
         assert np.all(s == [['-10.4', '-9.6'],
                             ['+19.6', '+20.4']])
+
+    def test_from_string_basic(self):
+        p = Phase.from_string('9876543210.0123456789')
+        assert p == Phase(9876543210, .0123456789)
+        p = Phase.from_string('9876543210.0123456789j')
+        assert p == Phase(9876543210j, .0123456789j)
+
+    def test_from_string_with_exponents(self):
+        p = Phase.from_string('9876543210.0123456789e-01')
+        assert p == Phase(987654321, .00123456789)
+        p = Phase.from_string('9876543210.0123456789D-01')
+        assert p == Phase(987654321, .00123456789)
+        # Check that we avoid round-off errors (in fractional phase).
+        assert p != Phase(9876543210 * 1e-1, .0123456789 * 1e-1)
+        p = Phase.from_string('9876543210.0123456789e-01j')
+        assert p == Phase(987654321j, .00123456789j)
+        p = Phase.from_string('9876543210.0123456789e1j')
+        assert p == Phase(98765432100j, .123456789j)
+        p = Phase.from_string('9876543210.0123456789e-12j')
+        assert p == Phase(0j, .0098765432100123456789j)
+        # Really not suited for large exponents...
+        p = Phase.from_string('9876543210.0123456789e12j')
+        assert p == Phase(9876543210012345678900j, 0j)
+
+    @pytest.mark.parametrize('imag', (True, False))
+    @pytest.mark.parametrize('alwayssign', (True, False))
+    @pytest.mark.parametrize('precision', (None, 16))
+    def test_to_from_string_roundtrip(self, precision, alwayssign, imag):
+        p_in = self.phase * 1j if imag else self.phase
+        s = p_in.to_string(precision=precision, alwayssign=alwayssign)
+        p = Phase.from_string(s)
+        # We cannot get exact round-tripping, since treat fractional
+        # near 0 as if it is near 0.1.
+        assert np.allclose((p - p_in).value, 0, atol=2**-53, rtol=0)
+
+    def test_to_from_string_alwayssign(self):
+        ph = Phase([[-10], [20]], [-0.4, 0.4])
+        s = ph.to_string(alwayssign=True)
+        ph2 = Phase.from_string(s)
+        # No worries about round-off, since fractions relatively large.
+        assert np.all(ph == ph2)
+
+    @pytest.mark.parametrize('item', (123456789., '12.34.56', '12.34e5.',
+                                      '12.34e5e1', '12.34je-1', '10+11j'))
+    def test_from_string_invalid(self, item):
+        with pytest.raises(ValueError):
+            Phase.from_string(item)
 
 
 class TestFractionalPhase(PhaseSetup):

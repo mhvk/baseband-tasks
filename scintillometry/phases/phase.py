@@ -83,6 +83,49 @@ def day_frac(val1, val2, factor=None, divisor=None):
     return day, frac
 
 
+def _parse_string(s):
+    # Just test string is basically OK.
+    s = s.strip().lower().translate(s.maketrans('d', 'e'))
+    if s[-1] == 'j':
+        s = s[:-1]
+        factor = 1j
+    else:
+        factor = 1
+
+    test = float(s) * factor
+    if s[0] == '+':
+        s = s[1:]
+    elif s[0] == '-':
+        s = s[1:]
+        factor *= -1
+
+    s_float, exp, s_exp = s.partition('e')
+    s_count, sep, s_frac = s_float.rpartition('.')
+    if exp:
+        exponent = int(s_exp)
+        if exponent < 0:
+            n = min(len(s_count), -exponent)
+            s_frac = s_count[-n:] + s_frac
+            s_count = s_count[:-n]
+            exponent += n
+        elif exponent > 0:
+            n = min(len(s_frac), exponent)
+            s_count = s_count + s_frac[:n]
+            s_frac = s_frac[n:]
+            exponent -= n
+        factor *= 10**exponent
+
+    frac = float('0.' + s_frac) * factor
+    count = float('0' + s_count) * factor
+
+    assert count + frac == test
+
+    return count, frac
+
+
+_parse_strings = np.vectorize(_parse_string, otypes=[complex, complex])
+
+
 class FractionalPhase(Longitude):
     """Phase without the cycle count, i.e., with a range of 1 cycle.
 
@@ -172,9 +215,6 @@ class Phase(Angle):
     The phase can either be purely real or purely imaginary, not mixed.  If
     imaginary, using it in `~numpy.exp` will again preserve precision.
 
-    Note that the machinery to keep precision is not complete; in particular,
-    reductions such as summing along an axis will currently loose precision.
-
     Parameters
     ----------
     phase1, phase2 : array or `~astropy.units.Quantity`
@@ -186,6 +226,15 @@ class Phase(Angle):
         If `False` (default), the returned array will be forced to be a
         `Phase`.  Otherwise, `Phase` subclasses will be passed through.
         Only relevant if ``phase1`` or ``phase2`` is a `Phase` subclass.
+
+    Notes
+    -----
+    The machinery to keep precision is not complete; in particular, reductions
+    such as summing along an axis will currently loose precision.
+
+    Strings passed in to ``phase1`` or ``phase2`` are first converted to
+    standard doubles, which may lead to loss of precision.  For long strings,
+    use the `~scintillometry.phases.Phase.from_string` class method instead.
 
     """
     _equivalent_unit = _unit = _default_unit = u.cycle
@@ -315,8 +364,9 @@ class Phase(Angle):
                   fields=3, format=None):
         """ A string representation of the Phase.
 
-        By default, uses a decimal representation that does not loose
-        precision.  Otherwise, uses `~astropy.coordinates.Angle.to_string`.
+        By default, uses a decimal representation that is guaranteed to
+        preserve precision to within 1e-16 cycles.  Otherwise, uses
+        `astropy.coordinates.Angle.to_string`.
         """
         if not decimal or (unit is not None and unit != u.cycle):
             return self.cycle.to_string(
@@ -371,6 +421,19 @@ class Phase(Angle):
         if result.ndim == 0:
             result = result[()]
         return result
+
+    @classmethod
+    def from_string(cls, string):
+        """Create Phase instance from a long string.
+
+        The string has to be a standard decimal string, i.e., no attempt is
+        made to parse an angle.
+        """
+        string = np.asanyarray(string)
+        if string.dtype.kind not in 'SU':
+            raise ValueError('require string input.')
+        count, frac = _parse_strings(string)
+        return cls(count, frac)
 
     @property
     def int(self):
@@ -457,8 +520,8 @@ class Phase(Angle):
 
     def argsort(self, axis=-1):
         """Returns the indices that would sort the phase array."""
-        phase_approx = self.value
-        phase_remainder = (self - self.__class__(phase_approx)).value
+        phase_approx = self.cycle
+        phase_remainder = (self - phase_approx).cycle
         if axis is None:
             return np.lexsort((phase_remainder.ravel(), phase_approx.ravel()))
         else:
@@ -713,7 +776,7 @@ class Phase(Angle):
     def astype(self, dtype, order='K', casting='unsafe', subok=True, copy=True):
         """Copy of the array, cast to a specified type.
 
-        As `~numpy.ndarray.astype`, but using knowledge of format to cast to
+        As `numpy.ndarray.astype`, but using knowledge of format to cast to
         floats.
         """
         dtype = np.dtype(dtype)
