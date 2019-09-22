@@ -109,8 +109,7 @@ class PolycoPhase:
             the integer cycle and the fractional phase.  The latter is
             between -0.5 and 0.5.
         """
-        # TODO: use Phase internally in Polyco.
-        return Phase(self.polyco(t))
+        return self.polyco(t)
 
     def apparent_spin_freq(self, t):
         """Compute the apparent spin frequency at one or more times.

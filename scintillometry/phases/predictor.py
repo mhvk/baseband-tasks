@@ -127,10 +127,14 @@ class Polyco(QTable):
             up the evaluation).  If not an index or `None`, it will be used to
             find the index. Hence if one has a large array if closely spaced
             times, one can pass in a single element to speed matters up.
-        rphase : None, 'fraction' or float (array)
-            phase zero points for relevant polyco's; if None, use those
-            stored in polyco.  (Those are typically large, so one looses
-            some precision.)  Can also set 'fraction' or give the zero point.
+        rphase : None, 'fraction', 'ignore', or float (array)
+            Phase zero point; if None, use the one stored in polyco
+            (those are typically large, so we ensure we preserve precision by
+            using the `~scintillometry.phases.Phase` class for the result.)
+            Can also set 'fraction' to use the stored one modulo 1, which is
+            fine for folding, but breaks cycle count continuity between sets,
+            'ignore' for just keeping the value stored in the coefficients,
+            or a value that should replace the zero point.
         deriv : int
             Derivative to return (Default=0=phase, 1=frequency, etc.)
         time_unit : Unit
@@ -138,8 +142,9 @@ class Polyco(QTable):
 
         Returns
         -------
-        phase / time**deriv : `~astropy.units.Quantity`
-            with appropriate units given ``deriv`` and ``time_unit``.
+        result : `~scintillometry.phases.Phase` or `~astropy.units.Quantity`
+            A phase if ``deriv=0`` and ``rphase=None`` to preserve precision;
+            otherwise, a quantity with units of ``cycle / time_unit**deriv``.
         """
         time_unit = time_unit or u.s
         if not hasattr(time, 'mjd'):
@@ -154,22 +159,27 @@ class Polyco(QTable):
         if np.any(np.abs(time.mjd - mjd_mid)*1440 > self['span'][index]/2):
             raise ValueError('(some) MJD outside of polyco range')
 
-        if time.isscalar:
+        result = np.zeros(time.shape) * u.cycle / time_unit**deriv
+        do_phase = (deriv == 0 and rphase is None)
+        if do_phase:
+            result = Phase(result)
+            rphase = 'ignore'
+
+        def do_part(sel, index):
+            if do_phase:
+                result[sel] += self['rphase'][index]
             polynomial = self.polynomial(index, rphase, deriv)
-            dt = (time - Time(self['mjd_mid'][index],
-                              format='mjd', scale='utc'))
-            return (polynomial(dt.to(u.min).value) *
-                    u.cycle / u.min**deriv).to(u.cycle / time_unit**deriv)
+            dt = (time[sel] - Time(self['mjd_mid'][index], format='mjd', scale='utc'))
+            result[sel] += (polynomial(dt.to(u.min).value) * u.cycle / u.min**deriv)
+
+        if time.isscalar:
+            do_part(Ellipsis, index)
+
         else:
-            results = np.zeros(len(time)) * u.cycle / time_unit**deriv
             for j in set(index):
-                in_set = index == j
-                polynomial = self.polynomial(j, rphase, deriv)
-                dt = (time[in_set] - Time(self['mjd_mid'][j],
-                                          format='mjd', scale='utc'))
-                results[in_set] = (polynomial(dt.to(u.min).value) *
-                                   u.cycle / u.min**deriv)
-            return results
+                do_part(index == j, j)
+
+        return result
 
     def polynomial(self, index, rphase=None, deriv=0,
                    t0=None, time_unit=u.min, out_unit=None,
@@ -180,11 +190,13 @@ class Polyco(QTable):
         ----------
         index : int or float
             index into the polyco table (or MJD for finding closest)
-        rphase : None or 'fraction' or float
-            phase zero point; if None, use the one stored in polyco.
+        rphase : None or 'fraction' or 'ignore' or float
+            Phase zero point; if None, use the one stored in polyco.
             (Those are typically large, so one looses some precision.)
             Can also set 'fraction' to use the stored one modulo 1, which is
-            fine for folding, but breaks cycle count continuity between sets.
+            fine for folding, but breaks cycle count continuity between sets,
+            'ignore' for just keeping the value stored in the coefficients,
+            or a value that should replace the zero point.
         deriv : int
             derivative of phase to take (1=frequency, 2=fdot, etc.); default 0
 
@@ -217,7 +229,7 @@ class Polyco(QTable):
                 polynomial.coef[0] += self['rphase'][index].value
             elif rphase == 'fraction':
                 polynomial.coef[0] += self['rphase']['frac'][index].value % 1
-            else:
+            elif rphase != 'ignore':
                 polynomial.coef[0] = rphase
         else:
             polynomial = polynomial.deriv(deriv)
