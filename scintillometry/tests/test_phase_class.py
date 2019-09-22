@@ -589,15 +589,20 @@ class TestPhaseString(PhaseSetup):
         s = self.phase.to_string()
         assert np.all(s == [
             ['999.5000000000000001', '999.9999999999999999',
-             '1000.00000000000000012', '1000.4999999999999999'],
+             '1000.0000000000000001', '1000.4999999999999999'],
             ['1000.5000000000000001', '1000.9999999999999999',
-             '1001.00000000000000012', '1001.4999999999999999'],
+             '1001.0000000000000001', '1001.4999999999999999'],
             ['998.5000000000000001', '998.9999999999999999',
-             '999.00000000000000012', '999.4999999999999999'],
+             '999.0000000000000001', '999.4999999999999999'],
             ['1004.5000000000000001', '1004.9999999999999999',
-             '1005.00000000000000012', '1005.4999999999999999'],
+             '1005.0000000000000001', '1005.4999999999999999'],
             ['1005.5000000000000001', '1005.9999999999999999',
-             '1006.00000000000000012', '1006.4999999999999999']],)
+             '1006.0000000000000001', '1006.4999999999999999']],)
+
+    def test_format_string_basic(self):
+        s = self.phase.to_string()
+        for ph, expected in zip(self.phase.ravel(), s.ravel()):
+            assert '{:.16f}'.format(ph) == expected
 
     def test_to_string_precision(self):
         s = self.phase.to_string(precision=5)
@@ -607,12 +612,16 @@ class TestPhaseString(PhaseSetup):
             ['998.50000', '999.00000', '999.00000', '999.50000'],
             ['1004.50000', '1005.00000', '1005.00000', '1005.50000'],
             ['1005.50000', '1006.00000', '1006.00000', '1006.50000']])
+        for ph, expected in zip(self.phase.ravel(), s.ravel()):
+            assert '{:.5f}'.format(ph) == expected
 
     def test_to_string_alwayssign(self):
         ph = Phase([[-10], [20]], [-0.4, 0.4])
         s = ph.to_string(alwayssign=True)
         assert np.all(s == [['-10.4', '-9.6'],
                             ['+19.6', '+20.4']])
+        for ph, expected in zip(ph.ravel(), s.ravel()):
+            assert '{:+.1f}'.format(ph) == expected
 
     def test_from_string_basic(self):
         p = Phase.from_string('9876543210.0123456789')
@@ -644,8 +653,8 @@ class TestPhaseString(PhaseSetup):
         p_in = self.phase * 1j if imag else self.phase
         s = p_in.to_string(precision=precision, alwayssign=alwayssign)
         p = Phase.from_string(s)
-        # We cannot get exact round-tripping, since treat fractional
-        # near 0 as if it is near 0.1.
+        # We cannot get exact round-tripping, since we treat fractional
+        # near 0 as if it is near 0.25.
         assert np.allclose((p - p_in).value, 0, atol=2**-53, rtol=0)
 
     def test_to_from_string_alwayssign(self):

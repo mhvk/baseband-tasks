@@ -340,6 +340,19 @@ class Phase(Angle):
 
         return result
 
+    def __iter__(self):
+        if self.isscalar:
+            raise TypeError(
+                "'{cls}' object with a scalar value is not iterable"
+                .format(cls=self.__class__.__name__))
+
+        # Override Quantity.__iter__ since it iterates over self.value.
+        def phase_iter():
+            for i in range(len(self)):
+                yield self[i]
+
+        return phase_iter()
+
     def _set_unit(self, unit):
         if unit is None or unit != self._unit:
             raise u.UnitTypeError(
@@ -358,6 +371,23 @@ class Phase(Angle):
 
     def __str__(self):
         return self.to_string()
+
+    def __format__(self, format_spec):
+        if format_spec.endswith('f'):
+            try:
+                # Check that formatting works at all...
+                test = format(self.value, format_spec)
+                pre, dot, post = test.partition('.')
+                if post:
+                    precise = self.to_string(precision=len(post))
+                    pre, _, post = precise.partition('.')
+                    # Just to ensure no bad rounding happened
+                    pre = format(float(pre), format_spec).partition('.')[0]
+                    return pre + dot + post
+
+            except Exception:
+                raise
+        return self.cycle.__format__(format_spec)
 
     def to_string(self, unit=None, decimal=True, sep='fromunit',
                   precision=None, alwayssign=False, pad=False,
@@ -394,11 +424,11 @@ class Phase(Angle):
                 frac += 1
                 count -= 1
 
-            if frac < 0.1:
+            if frac < 0.25:
                 # Ensure that we do not get 1e-16, etc., yet can use numpy's
                 # guarantee that the right number of digits is shown.
-                frac_str = func(frac+0.1)
-                frac_str = frac_str[:2] + str(int(frac_str[2])-1) + frac_str[3:]
+                frac_str = func(frac+0.25)
+                frac_str = frac_str[:2] + '{:02d}'.format(int(frac_str[2:4])-25) + frac_str[4:]
             else:
                 frac_str = func(frac)
                 if frac_str[0] == '1':
