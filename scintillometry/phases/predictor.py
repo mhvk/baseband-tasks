@@ -71,6 +71,8 @@ from astropy.table import QTable
 import astropy.units as u
 from astropy.time import Time
 
+from .phase import Phase
+
 
 __doctest_skip__ = ['*']
 __all__ = ['Polyco']
@@ -87,8 +89,10 @@ class Polyco(QTable):
 
         if isinstance(data, str):
             data = parse_polyco(data)
-
-        super().__init__(data, *args, **kwargs)
+            super().__init__(data, *args, **kwargs)
+            self['rphase'] = Phase.from_string(self['rphase'])
+        else:
+            super().__init__(data, *args, **kwargs)
 
     def to_polyco(self, name='polyco.dat', tempo1=False):
         header_fmt = ('{:<10s} {:9s}{:11.2f}{:20.11f}{:21.6f} {:6.3f}{:7.3f}\n'
@@ -210,9 +214,9 @@ class Polyco(QTable):
 
         if deriv == 0:
             if rphase is None:
-                polynomial.coef[0] += self['rphase'][index]
+                polynomial.coef[0] += self['rphase'][index].value
             elif rphase == 'fraction':
-                polynomial.coef[0] += self['rphase'][index] % 1
+                polynomial.coef[0] += self['rphase']['frac'][index].value % 1
             else:
                 polynomial.coef[0] = rphase
         else:
@@ -269,7 +273,7 @@ class Polyco(QTable):
         freqpol : Polynomial
             set up for MJDs between mjd_mid +/- span
         """
-        return self.polynomial(index, deriv=1.,
+        return self.polynomial(index, deriv=1,
                                t0=t0, time_unit=time_unit, out_unit=u.s,
                                convert=convert)
 
@@ -289,7 +293,7 @@ converters = OrderedDict(
      ('dm', float),
      ('vbyc_earth', float),
      ('lgrms', float),
-     ('rphase', float),
+     ('rphase', str),
      ('f0', float),
      ('obs', str),
      ('span', int),

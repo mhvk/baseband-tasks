@@ -24,12 +24,23 @@ class TestPredictor:
         for l in self.polyco:
             assert len(l['coeff']) == l['ncoeff']
 
-    def test_polyco_writing_tempo1(self, tmpdir):
+    def test_polyco_writing_roundtrip_tempo1(self, tmpdir):
         name = str(tmpdir.join('polyco.dat'))
         self.polyco.to_polyco(name, tempo1=True)
         with open(name, 'r') as fh:
             text = fh.readlines()
         with open(self.polyco_file) as fh:
+            ref = fh.readlines()
+        assert text == ref
+
+    def test_polyco_writing_roundtrip_tempo2(self, tmpdir):
+        name = str(tmpdir.join('polyco.dat'))
+        polyco_file2 = os.path.join(test_data, 'B1957_polyco.dat')
+        polyco2 = Polyco(polyco_file2)
+        polyco2.to_polyco(name)
+        with open(name, 'r') as fh:
+            text = fh.readlines()
+        with open(polyco_file2) as fh:
             ref = fh.readlines()
         assert text == ref
 
@@ -39,7 +50,7 @@ class TestPredictor:
         # Test scalar input
         p = self.polyco(time[0])
         assert p.shape == ()
-        assert p > self.polyco['rphase'][0] * u.cy
+        assert p > self.polyco['rphase'][0]
         # Test array input
         pa = self.polyco(time)
         assert len(pa) == len(time)
@@ -54,7 +65,8 @@ class TestPredictor:
         pr0 = self.polyco(self.polyco[0]['mjd_mid'], rphase=0)
         assert pr0 == 0.0 * u.cycle, "`reference phase` is not setup right."
         pf = self.polyco(self.polyco['mjd_mid'], rphase='fraction')
-        assert np.all(pf.value - self.polyco['rphase'] % 1.0 < 2e-5), \
+        fraction = self.polyco['rphase'] % (1 * u.cy)
+        assert np.all(np.abs(pf - fraction) < 2e-5 * u.cy), \
             "`reference phase` is not setup right."
 
         pr = self.polyco(time, rphase='fraction')
