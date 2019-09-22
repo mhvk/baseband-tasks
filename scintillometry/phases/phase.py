@@ -308,11 +308,69 @@ class Phase(Angle):
             " * 1j" if self.imaginary else '')
 
     def __str__(self):
-        if self.imaginary:
-            return (str(self.cycle.view(np.ndarray).imag) +
-                    ' * 1j {}'.format(self.unit))
+        return self.to_string()
+
+    def to_string(self, unit=None, decimal=True, sep='fromunit',
+                  precision=None, alwayssign=False, pad=False,
+                  fields=3, format=None):
+        """ A string representation of the Phase.
+
+        By default, uses a decimal representation that does not loose
+        precision.  Otherwise, uses `~astropy.coordinates.Angle.to_string`.
+        """
+        if not decimal or (unit is not None and unit != u.cycle):
+            return self.cycle.to_string(
+                unit=unit, decimal=decimal, sep=sep, precision=precision,
+                alwayssign=alwayssign, pad=pad, fields=fields,
+                format=format)
+
+        if precision is None:
+            func = str
         else:
-            return str(self.cycle.view(u.Quantity))
+            func = ("{0:1." + str(precision) + "f}").format
+
+        def do_format(count, frac):
+            neg = (count + frac) < 0
+            if neg:
+                count = -count
+                frac = -frac
+                sign = '-'
+            elif alwayssign:
+                sign = '+'
+            else:
+                sign = ''
+
+            if frac < 0:
+                frac += 1
+                count -= 1
+
+            if frac < 0.1:
+                # Ensure that we do not get 1e-16, etc., yet can use numpy's
+                # guarantee that the right number of digits is shown.
+                frac_str = func(frac+0.1)
+                frac_str = frac_str[:2] + str(int(frac_str[2])-1) + frac_str[3:]
+            else:
+                frac_str = func(frac)
+                if frac_str[0] == '1':
+                    count += 1
+            s = sign + str(int(count)) + frac_str[1:]
+            if self.imaginary:
+                s += 'j'
+            if format == 'latex':
+                s = '$' + s + '$'
+            return s
+
+        format_ufunc = np.vectorize(do_format, otypes=['U'])
+        if self.imaginary:
+            count, frac = self['int'].value.imag, self['frac'].value.imag
+        else:
+            count, frac = self['int'].value, self['frac'].value
+
+        result = format_ufunc(count, frac)
+
+        if result.ndim == 0:
+            result = result[()]
+        return result
 
     @property
     def int(self):
