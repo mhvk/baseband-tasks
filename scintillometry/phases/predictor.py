@@ -64,9 +64,10 @@ Example tempo2 call to produce one:
 from __future__ import division, print_function
 
 from collections import OrderedDict
+
 import numpy as np
 from numpy.polynomial import Polynomial
-from astropy.table import Table
+from astropy.table import QTable
 import astropy.units as u
 from astropy.time import Time
 
@@ -75,11 +76,11 @@ __doctest_skip__ = ['*']
 __all__ = ['Polyco']
 
 
-class Polyco(Table):
+class Polyco(QTable):
     def __init__(self, name):
         """Read in polyco file as Table, and set up class."""
-        table = polyco2table(name)
-        super().__init__(table)
+        rows = parse_polyco(name)
+        super().__init__(rows)
 
     def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=None):
         """Predict phase or frequency (derivatives) for given mjd (array)
@@ -253,19 +254,25 @@ class Polyco(Table):
         return i
 
 
-def str_2_float(number_str):
-    """Convert a number string to float. This function handles the fortun float
-       format
-    """
-    try:
-        return float(number_str)
-    except ValueError:
-        number_str = number_str.replace('D', 'e')
-        return float(number_str)
+converters = OrderedDict(
+    (('psr', str),
+     ('date', str),
+     ('utc_mid', str),
+     ('mjd_mid', float),
+     ('dm', float),
+     ('vbyc_earth', float),
+     ('lgrms', float),
+     ('rphase', float),
+     ('f0', float),
+     ('obs', int),
+     ('span', int),
+     ('ncoeff', int),
+     ('freq', float),
+     ('binphase', float)))
 
 
-def polyco2table(name):
-    """Read in a tempo1,2 polyco file and convert it to a Table
+def parse_polyco(name):
+    """Parse a tempo1,2 polyco file.
 
     Parameters
     ----------
@@ -274,40 +281,30 @@ def polyco2table(name):
 
     Returns
     -------
-    t : Table
-        each entry in the polyco file corresponds to one row, with columns
-        psr, date, utc_mid, mjd_mid, dm, vbyc_earth, lgrms,
-        rphase, f0, obs, span, ncoeff, freq, binphase, coeff[ncoeff]
+    t : list of dict
+        each entry in the polyco file corresponds to one row, with a dict
+        holding psr, date, utc_mid, mjd_mid, dm, vbyc_earth, lgrms,
+        rphase, f0, obs, span, ncoeff, freq, binphase (optional), and
+        coeff[ncoeff].
     """
 
     with open(name, 'r') as polyco:
         line = polyco.readline()
-        t = None
+        t = []
         while line != '':
-            d = OrderedDict(zip(['psr', 'date', 'utc_mid', 'mjd_mid',
-                                 'dm', 'vbyc_earth', 'lgrms'],
-                                line.split()))
-            d.update(dict(zip(['rphase', 'f0', 'obs', 'span', 'ncoeff',
-                               'freq', 'binphase'],
-                              polyco.readline().split()[:7])))
-            for key in d:
-                try:
-                    d[key] = int(d[key])
-                except ValueError:
-                    try:
-                        d[key] = float(d[key])
-                    except ValueError:
-                        pass
+            header = line.split() + polyco.readline().split()
+            d = OrderedDict(((key, converter(piece))
+                             for (key, converter), piece in
+                             zip(converters.items(), header)))
+
             d['coeff'] = []
             while len(d['coeff']) < d['ncoeff']:
                 d['coeff'] += polyco.readline().split()
 
-            d['coeff'] = np.array([str_2_float(item) for item in d['coeff']])
+            d['coeff'] = np.array([float(item.translate(item.maketrans('Dd', 'ee')))
+                                   for item in d['coeff']])
 
-            if t is None:
-                t = Table([[v] for v in d.values()], names=d.keys())
-            else:
-                t.add_row(d.values())
+            t.append(d)
 
             line = polyco.readline()
 
