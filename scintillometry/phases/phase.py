@@ -83,6 +83,54 @@ def day_frac(val1, val2, factor=None, divisor=None):
     return day, frac
 
 
+def _parse_string(s):
+    """Parse a string into two doubles.
+
+    Generally, first part before the decimal dot, second after,
+    but takes account of possible exponents.
+    """
+    s = s.strip().lower().translate(s.maketrans('d', 'e'))
+    if s[-1] == 'j':
+        s = s[:-1]
+        factor = 1j
+    else:
+        factor = 1
+    if s[0] == '+':
+        s = s[1:]
+    elif s[0] == '-':
+        s = s[1:]
+        factor *= -1
+
+    # Just test string is basically OK (and reference value below).
+    test = float(s) * factor
+
+    s_float, exp, s_exp = s.partition('e')
+    s_count, sep, s_frac = s_float.rpartition('.')
+    if exp:
+        exponent = int(s_exp)
+        if exponent < 0:
+            n = min(len(s_count), -exponent)
+            s_frac = s_count[-n:] + s_frac
+            s_count = s_count[:-n]
+            exponent += n
+        elif exponent > 0:
+            n = min(len(s_frac), exponent)
+            s_count = s_count + s_frac[:n]
+            s_frac = s_frac[n:]
+            exponent -= n
+        factor *= 10**exponent
+
+    frac = float('0.' + s_frac) * factor
+    count = float('0' + s_count) * factor
+
+    assert count + frac == test
+
+    return count, frac
+
+
+_parse_strings = np.vectorize(_parse_string, otypes=[complex, complex])
+
+
 class FractionalPhase(Longitude):
     """Phase without the cycle count, i.e., with a range of 1 cycle.
 
@@ -172,9 +220,6 @@ class Phase(Angle):
     The phase can either be purely real or purely imaginary, not mixed.  If
     imaginary, using it in `~numpy.exp` will again preserve precision.
 
-    Note that the machinery to keep precision is not complete; in particular,
-    reductions such as summing along an axis will currently loose precision.
-
     Parameters
     ----------
     phase1, phase2 : array or `~astropy.units.Quantity`
@@ -187,7 +232,16 @@ class Phase(Angle):
         `Phase`.  Otherwise, `Phase` subclasses will be passed through.
         Only relevant if ``phase1`` or ``phase2`` is a `Phase` subclass.
 
+    Notes
+    -----
+    The machinery to keep precision is not complete; in particular, reductions
+    such as summing along an axis will currently lose precision.
+
+    Strings passed in to ``phase1`` or ``phase2`` are first converted to
+    standard doubles, which may lead to loss of precision.  For long strings,
+    use the `~scintillometry.phases.Phase.from_string` class method instead.
     """
+
     _equivalent_unit = _unit = _default_unit = u.cycle
     _phase_dtype = np.dtype({'names': ['int', 'frac'],
                              'formats': ['f8']*2})
@@ -291,6 +345,19 @@ class Phase(Angle):
 
         return result
 
+    def __iter__(self):
+        if self.isscalar:
+            raise TypeError(
+                "'{cls}' object with a scalar value is not iterable"
+                .format(cls=self.__class__.__name__))
+
+        # Override Quantity.__iter__ since that iterates over self.value.
+        def phase_iter():
+            for i in range(len(self)):
+                yield self[i]
+
+        return phase_iter()
+
     def _set_unit(self, unit):
         if unit is None or unit != self._unit:
             raise u.UnitTypeError(
@@ -308,11 +375,111 @@ class Phase(Angle):
             " * 1j" if self.imaginary else '')
 
     def __str__(self):
-        if self.imaginary:
-            return (str(self.cycle.view(np.ndarray).imag) +
-                    ' * 1j {}'.format(self.unit))
+        return self.to_string()
+
+    def __format__(self, format_spec):
+        """Format a phase, special-casing the float format.
+
+        For the 'f' format, precision is kept, and the unit is suppressed.
+        For everything else, the Quantity formatter is used.
+        """
+        if format_spec.endswith('f'):
+            # Check that formatting works at all...
+            test = format(self.value, format_spec)
+            pre, dot, post = test.partition('.')
+            if post:
+                precise = self.to_string(precision=len(post))
+                pre, _, post = precise.partition('.')
+                # Just to ensure no bad rounding happened
+                pre = format(float(pre), format_spec).partition('.')[0]
+                return pre + dot + post
+
+        return self.cycle.__format__(format_spec)
+
+    def to_string(self, unit=None, decimal=True, sep='fromunit',
+                  precision=None, alwayssign=False, pad=False,
+                  fields=3, format=None):
+        """ A string representation of the Phase.
+
+        By default, uses a decimal representation that is guaranteed to
+        preserve precision to within 1e-16 cycles.  Otherwise, uses
+        `astropy.coordinates.Angle.to_string`.
+        """
+        if not decimal or (unit is not None and unit != u.cycle):
+            return self.cycle.to_string(
+                unit=unit, decimal=decimal, sep=sep, precision=precision,
+                alwayssign=alwayssign, pad=pad, fields=fields,
+                format=format)
+
+        if precision is None:
+            func = str
         else:
-            return str(self.cycle.view(u.Quantity))
+            func = ("{0:1." + str(precision) + "f}").format
+
+        def do_format(count, frac):
+            neg = (count + frac) < 0
+            if neg:
+                count = -count
+                frac = -frac
+                sign = '-'
+            elif alwayssign:
+                sign = '+'
+            else:
+                sign = ''
+
+            if frac < 0:
+                frac += 1
+                count -= 1
+
+            if frac < 0.25:
+                # Ensure that we do not get 1e-16, etc., yet can use numpy's
+                # guarantee that the right number of digits is shown.
+                frac_str = func(frac+0.25)
+                f24 = int(frac_str[2:4])
+                if func is str and (len(frac_str) == 3 or
+                                    len(frac_str) == 4 and frac_str[3] == '5'):
+                    if len(frac_str) == 3:
+                        f24 = '{:02d}'.format(f24 * 10 - 25)
+                    else:
+                        f24 = '{:1d}'.format((f24 - 5) // 10 - 2)
+                else:
+                    f24 = '{:02d}'.format(f24 - 25)
+                frac_str = frac_str[:2] + f24 + frac_str[4:]
+            else:
+                frac_str = func(frac)
+                if frac_str[0] == '1':
+                    count += 1
+            s = sign + str(int(count)) + frac_str[1:]
+            if self.imaginary:
+                s += 'j'
+            if format == 'latex':
+                s = '$' + s + '$'
+            return s
+
+        format_ufunc = np.vectorize(do_format, otypes=['U'])
+        if self.imaginary:
+            count, frac = self['int'].value.imag, self['frac'].value.imag
+        else:
+            count, frac = self['int'].value, self['frac'].value
+
+        result = format_ufunc(count, frac)
+
+        if result.ndim == 0:
+            result = result[()]
+        return result
+
+    @classmethod
+    def from_string(cls, string):
+        """Create Phase instance from a long string.
+
+        The string has to be a standard decimal string, i.e., no attempt is
+        made to parse an angle.
+        """
+        string = np.asanyarray(string)
+        if string.dtype.kind not in 'SU':
+            raise ValueError('require string input.')
+        count, frac = _parse_strings(string)
+        return cls(count, frac)
 
     @property
     def int(self):
@@ -399,8 +566,8 @@ class Phase(Angle):
 
     def argsort(self, axis=-1):
         """Returns the indices that would sort the phase array."""
-        phase_approx = self.value
-        phase_remainder = (self - self.__class__(phase_approx)).value
+        phase_approx = self.cycle
+        phase_remainder = (self - phase_approx).cycle
         if axis is None:
             return np.lexsort((phase_remainder.ravel(), phase_approx.ravel()))
         else:
@@ -655,7 +822,7 @@ class Phase(Angle):
     def astype(self, dtype, order='K', casting='unsafe', subok=True, copy=True):
         """Copy of the array, cast to a specified type.
 
-        As `~numpy.ndarray.astype`, but using knowledge of format to cast to
+        As `numpy.ndarray.astype`, but using knowledge of format to cast to
         floats.
         """
         dtype = np.dtype(dtype)
