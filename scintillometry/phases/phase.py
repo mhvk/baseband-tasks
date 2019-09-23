@@ -84,20 +84,25 @@ def day_frac(val1, val2, factor=None, divisor=None):
 
 
 def _parse_string(s):
-    # Just test string is basically OK.
+    """Parse a string into two doubles.
+
+    Generally, first part before the decimal dot, second after,
+    but takes account of possible exponents.
+    """
     s = s.strip().lower().translate(s.maketrans('d', 'e'))
     if s[-1] == 'j':
         s = s[:-1]
         factor = 1j
     else:
         factor = 1
-
-    test = float(s) * factor
     if s[0] == '+':
         s = s[1:]
     elif s[0] == '-':
         s = s[1:]
         factor *= -1
+
+    # Just test string is basically OK (and reference value below).
+    test = float(s) * factor
 
     s_float, exp, s_exp = s.partition('e')
     s_count, sep, s_frac = s_float.rpartition('.')
@@ -230,13 +235,13 @@ class Phase(Angle):
     Notes
     -----
     The machinery to keep precision is not complete; in particular, reductions
-    such as summing along an axis will currently loose precision.
+    such as summing along an axis will currently lose precision.
 
     Strings passed in to ``phase1`` or ``phase2`` are first converted to
     standard doubles, which may lead to loss of precision.  For long strings,
     use the `~scintillometry.phases.Phase.from_string` class method instead.
-
     """
+
     _equivalent_unit = _unit = _default_unit = u.cycle
     _phase_dtype = np.dtype({'names': ['int', 'frac'],
                              'formats': ['f8']*2})
@@ -346,7 +351,7 @@ class Phase(Angle):
                 "'{cls}' object with a scalar value is not iterable"
                 .format(cls=self.__class__.__name__))
 
-        # Override Quantity.__iter__ since it iterates over self.value.
+        # Override Quantity.__iter__ since that iterates over self.value.
         def phase_iter():
             for i in range(len(self)):
                 yield self[i]
@@ -373,20 +378,22 @@ class Phase(Angle):
         return self.to_string()
 
     def __format__(self, format_spec):
-        if format_spec.endswith('f'):
-            try:
-                # Check that formatting works at all...
-                test = format(self.value, format_spec)
-                pre, dot, post = test.partition('.')
-                if post:
-                    precise = self.to_string(precision=len(post))
-                    pre, _, post = precise.partition('.')
-                    # Just to ensure no bad rounding happened
-                    pre = format(float(pre), format_spec).partition('.')[0]
-                    return pre + dot + post
+        """Format a phase, special-casing the float format.
 
-            except Exception:
-                raise
+        For the 'f' format, precision is kept, and the unit is suppressed.
+        For everything else, the Quantity formatter is used.
+        """
+        if format_spec.endswith('f'):
+            # Check that formatting works at all...
+            test = format(self.value, format_spec)
+            pre, dot, post = test.partition('.')
+            if post:
+                precise = self.to_string(precision=len(post))
+                pre, _, post = precise.partition('.')
+                # Just to ensure no bad rounding happened
+                pre = format(float(pre), format_spec).partition('.')[0]
+                return pre + dot + post
+
         return self.cycle.__format__(format_spec)
 
     def to_string(self, unit=None, decimal=True, sep='fromunit',
@@ -428,7 +435,16 @@ class Phase(Angle):
                 # Ensure that we do not get 1e-16, etc., yet can use numpy's
                 # guarantee that the right number of digits is shown.
                 frac_str = func(frac+0.25)
-                frac_str = frac_str[:2] + '{:02d}'.format(int(frac_str[2:4])-25) + frac_str[4:]
+                f24 = int(frac_str[2:4])
+                if func is str and (len(frac_str) == 3 or
+                                    len(frac_str) == 4 and frac_str[3] == '5'):
+                    if len(frac_str) == 3:
+                        f24 = '{:02d}'.format(f24 * 10 - 25)
+                    else:
+                        f24 = '{:1d}'.format((f24 - 5) // 10 - 2)
+                else:
+                    f24 = '{:02d}'.format(f24 - 25)
+                frac_str = frac_str[:2] + f24 + frac_str[4:]
             else:
                 frac_str = func(frac)
                 if frac_str[0] == '1':

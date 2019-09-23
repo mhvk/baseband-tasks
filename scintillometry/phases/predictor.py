@@ -94,13 +94,22 @@ class Polyco(QTable):
 
         super().__init__(data, *args, **kwargs)
 
-    def to_polyco(self, name='polyco.dat', tempo1=False):
+    def to_polyco(self, name='polyco.dat', style='tempo2'):
+        """Write the polyco table to a polyco file.
+
+        Parameters
+        ----------
+        name : str
+            Filename
+        style : {'tempo1'|'tempo2'}, optional
+            Package which the writer should emulate.  Default: 'tempo2'
+        """
         header_fmt = ''.join(
-            [('{' + key + conv[2] + ('}\n' if key == 'lgrms' else '}'))
-             for key, conv in converters.items()
+            [('{' + key + converter['fmt'] + ('}\n' if key == 'lgrms' else '}'))
+             for key, converter in converters.items()
              if key in self.keys() or key in ('date', 'utc_mid')])
 
-        coeff_fmt = fortran_fmt if tempo1 else '{:24.17e}'.format
+        coeff_fmt = fortran_fmt if style == 'tempo1' else '{:24.17e}'.format
 
         with open(name, 'w') as fh:
             for row in self:
@@ -110,7 +119,7 @@ class Polyco(QTable):
                 # Hack: unlike Time, Phase can format its int/frac as {:..f}.
                 items['mjd_mid'] = Phase(mjd_mid.jd1-2400000.5, mjd_mid.jd2)
                 item = mjd_mid.datetime.strftime('%d-%b-%y')
-                if tempo1:
+                if style == 'tempo1':
                     item = item.upper()
                 items['date'] = item if item[0] != '0' else ' '+item[1:]
                 mjd_mid.precision = 2
@@ -165,9 +174,9 @@ class Polyco(QTable):
         except (AttributeError, TypeError):
             index = self.searchclosest(time)
 
-        mjd_mid = self['mjd_mid'][index]
-
-        if np.any(abs(time - mjd_mid) > self['span'][index]/2):
+        # Convert offsets to minutes for later use in polynomial evaluation.
+        dt = (time - self['mjd_mid'][index]).to(u.min)
+        if np.any(dt > self['span'][index]/2):
             raise ValueError('(some) MJD outside of polyco range')
 
         # Check whether we need to add the reference phase at the end.
@@ -176,15 +185,13 @@ class Polyco(QTable):
             # If so, do not add it inside the polynomials.
             rphase = 'ignore'
 
-        dt_minute = (time - self['mjd_mid'][index]).to(u.min).value
         if time.isscalar:
-            result = self.polynomial(index, rphase, deriv)(dt_minute)
-
+            result = self.polynomial(index, rphase, deriv)(dt.value)
         else:
             result = np.zeros(time.shape)
             for j in set(index):
                 sel = index == j
-                result[sel] = self.polynomial(j, rphase, deriv)(dt_minute[sel])
+                result[sel] = self.polynomial(j, rphase, deriv)(dt[sel].value)
 
         # Apply units from the polynomials.
         result = result << u.cycle/u.min**deriv
@@ -247,13 +254,9 @@ class Polyco(QTable):
             polynomial = polynomial.deriv(deriv)
             polynomial.coef /= u.min.to(out_unit)**deriv
 
-        if t0 is None:
-            dt = 0. * time_unit
-        else:
-            t0 = Time(t0, format='mjd')
-            dt = (t0 - self['mjd_mid']).to(time_unit)
-
-        polynomial.domain = (window.to(time_unit) - dt).value
+        if t0 is not None:
+            dt = Time(t0, format='mjd') - self['mjd_mid'][index]
+            polynomial.domain = (window - dt).to(time_unit).value
 
         if convert:
             return polynomial.convert()
@@ -309,8 +312,8 @@ class Polyco(QTable):
 
 
 def int_frac(s):
-    mjd_int, _, frac = s.partition('.')
-    return np.array((float(mjd_int), float('0.' + frac)),
+    mjd_int, _, frac = s.strip().partition('.')
+    return np.array((int('0' + mjd_int), float('0.' + frac)),
                     dtype=[('int', int), ('frac', float)])
 
 
@@ -326,25 +329,34 @@ def change_type(cls, **kwargs):
 
 
 converters = OrderedDict(
-    (('psr', (str, None, ':<10s')),
-     ('date', (None, None, ':>10s')),  # inferred from mjd_mid
-     ('utc_mid', (None, None, ':11.2f')),  # inferred from mjd_mid
-     ('mjd_mid', (int_frac, change_type(Time, format='mjd'), ':20.11f')),
-     ('dm', (float, change_type(DispersionMeasure), '.value:21.6f')),
-     ('vbyc_earth', (float, change_type(u.Quantity, unit=1e-4), '.value:7.3f')),
-     ('lgrms', (float, None, ':7.3f')),
-     ('rphase', (int_frac, change_type(Phase), ':20.6f')),
-     ('f0', (float, change_type(u.Quantity, unit=u.cycle/u.s), '.value:18.12f')),
-     ('obs', (str, None, ':>5s')),
-     ('span', (int, change_type(u.Quantity, unit=u.minute), '.value:5.0f')),
-     ('ncoeff', (int, None, ':5d')),
-     ('freq', (float, change_type(u.Quantity, unit=u.MHz), '.value:10.3f')),
-     ('binphase', (float, change_type(Angle, unit=u.cy), '.value:7.4f')),
-     ('forb', (float, change_type(u.Quantity, unit=u.cy/u.day), '.value:9.4f'))))
+    (('psr', dict(parse=str, fmt=':<10s')),
+     ('date', dict(fmt=':>10s')),  # inferred from mjd_mid
+     ('utc_mid', dict(fmt=':11.2f')),  # inferred from mjd_mid
+     ('mjd_mid', dict(parse=int_frac, fmt=':20.11f',
+                      convert=change_type(Time, format='mjd'))),
+     ('dm', dict(parse=float, fmt='.value:21.6f',
+                 convert=change_type(DispersionMeasure))),
+     ('vbyc_earth', dict(parse=float, fmt='.value:7.3f',
+                         convert=change_type(u.Quantity, unit=1e-4))),
+     ('lgrms', dict(parse=float, fmt=':7.3f')),
+     ('rphase', dict(parse=int_frac, fmt=':20.6f',
+                     convert=change_type(Phase))),
+     ('f0', dict(parse=float, fmt='.value:18.12f',
+                 convert=change_type(u.Quantity, unit=u.cycle/u.s))),
+     ('obs', dict(parse=str, fmt=':>5s')),
+     ('span', dict(parse=int, fmt='.value:5.0f',
+                   convert=change_type(u.Quantity, unit=u.minute))),
+     ('ncoeff', dict(parse=int, fmt=':5d')),
+     ('freq', dict(parse=float, fmt='.value:10.3f',
+                   convert=change_type(u.Quantity, unit=u.MHz))),
+     ('binphase', dict(parse=float, fmt='.value:7.4f',
+                       convert=change_type(Angle, unit=u.cy))),
+     ('forb', dict(parse=float, fmt='.value:9.4f',
+                   convert=change_type(u.Quantity, unit=u.cy/u.day)))))
 
 
 def polyco2table(name):
-    """Parse a tempo1,2 polyco file.
+    """Parse a tempo1,2 polyco file and convert it to a QTable.
 
     Parameters
     ----------
@@ -353,11 +365,11 @@ def polyco2table(name):
 
     Returns
     -------
-    t : list of dict
-        each entry in the polyco file corresponds to one row, with a dict
-        holding psr, date, utc_mid, mjd_mid, dm, vbyc_earth, lgrms,
-        rphase, f0, obs, span, ncoeff, freq, binphase (optional), and
-        coeff[ncoeff].
+    t : `~astropy.table.QTable`
+        Each entry in the polyco file corresponds to one row; columns
+        hold psr, date, utc_mid, mjd_mid, dm, vbyc_earth, lgrms,
+        rphase, f0, obs, span, ncoeff, freq, binphase & forb (optional),
+        and coeff[ncoeff].
     """
     d2e = ''.maketrans('Dd', 'ee')
 
@@ -365,36 +377,35 @@ def polyco2table(name):
     with open(name, 'r') as polyco:
         line = polyco.readline()
         while line != '':
-            header = line.split() + polyco.readline().split()
-            d = OrderedDict(((key, conversion[0](piece))
-                             for (key, conversion), piece in
-                             zip(converters.items(), header)
-                             if conversion[0] is not None))
-
+            # Parse Header.
+            pieces = line.split() + polyco.readline().split()
+            d = OrderedDict(((key, converter['parse'](piece))
+                             for (key, converter), piece in
+                             zip(converters.items(), pieces)
+                             if 'parse' in converter))
+            # Parse coefficients.
             d['coeff'] = []
             while len(d['coeff']) < d['ncoeff']:
                 d['coeff'] += polyco.readline().split()
 
-            d['coeff'] = np.array([float(item.translate(d2e))
-                                   for item in d['coeff']])
+            d['coeff'] = np.array([float(c.translate(d2e))
+                                   for c in d['coeff']])
 
             t.append(d)
-
             line = polyco.readline()
 
     t = QTable(t)
     for key in t.colnames:
-        if key in converters:
-            converter = converters[key][1]
-            if converter:
-                t[key] = converter(t[key])
+        try:
+            t[key] = converters[key]['convert'](t[key])
+        except KeyError:
+            pass
 
     return t
 
 
-def fortran_fmt(x, width=23, precision=16):
-    base_fmt = '{:' + str(width) + '.' + str(precision) + 'e}'
-    s = base_fmt.format(x)
-    pre, dot, post = s.partition('.')
-    mant, e, exp = post.partition('e')
-    return pre[:-1] + '0' + dot + pre[-1] + mant + 'D{:+03d}'.format(int(exp) + 1)
+def fortran_fmt(x, base_fmt='23.16e'):
+    s = format(x, base_fmt)
+    pre, _, post = s.partition('.')
+    mant, _, exp = post.partition('e')
+    return pre[:-1] + '0.' + pre[-1] + mant + 'D{:+03d}'.format(int(exp) + 1)

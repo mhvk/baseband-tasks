@@ -623,6 +623,16 @@ class TestPhaseString(PhaseSetup):
         for ph, expected in zip(ph.ravel(), s.ravel()):
             assert '{:+.1f}'.format(ph) == expected
 
+    @pytest.mark.parametrize('count,frac,expected', (
+        (1., 0., '1.0'), (1., 0.1, '1.1'), (-10, 0.05, '-9.95'),
+        (-10, -0.05, '-10.05'), (-10., -0.025, '-10.025'),
+        (10, 0.05, '10.05'), (1000., 0., '1000.0'),
+        (-10., 0.4, '-9.6')))
+    def test_to_string_corner_cases(self, count, frac, expected):
+        ph = Phase(count, frac)
+        s = ph.to_string()
+        assert s == expected
+
     def test_from_string_basic(self):
         p = Phase.from_string('9876543210.0123456789')
         assert p == Phase(9876543210, .0123456789)

@@ -26,7 +26,7 @@ class TestPredictor:
 
     def test_polyco_writing_roundtrip_tempo1(self, tmpdir):
         name = str(tmpdir.join('polyco.dat'))
-        self.polyco.to_polyco(name, tempo1=True)
+        self.polyco.to_polyco(name, style='tempo1')
         with open(name, 'r') as fh:
             text = fh.readlines()
         with open(self.polyco_file) as fh:
@@ -37,7 +37,7 @@ class TestPredictor:
         name = str(tmpdir.join('polyco.dat'))
         polyco_file2 = os.path.join(test_data, 'B1957_polyco.dat')
         polyco2 = Polyco(polyco_file2)
-        polyco2.to_polyco(name)
+        polyco2.to_polyco(name, style='tempo2')
         with open(name, 'r') as fh:
             text = fh.readlines()
         with open(polyco_file2) as fh:
