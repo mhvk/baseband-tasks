@@ -15,6 +15,11 @@ __all__ = ['PintToas']
 class PintToas:
     """Convert time samples to PINT TOAs using given ephemeris, etc.
 
+    The class is initialized with parameters common to all arrival times.
+    When the instances is called on a list of times, it uses
+    `pint.toa.get_TOAs_list` to create a `pint.toa.TOAs` instance
+    (for which in turn phases can be calculated).
+
     Parameters
     ----------
     observatory : str
@@ -40,7 +45,7 @@ class PintToas:
         The method to compute the TDB time scale. Default is using astropy
         time objects' method.
     **kwargs
-        Any further arguments to be passed on to ``pint.toa.get_TOAs_list``.
+        Any further arguments to be passed on to `pint.toa.get_TOAs_list`.
 
     Notes
     -----
@@ -70,6 +75,11 @@ class PintToas:
         ----------
         time : `~astropy.time.Time`
             Input time stamps.
+
+        Returns
+        -------
+        toas : `~pint.toa.TOAs`
+            Combining all TOAs.
         """
         # local import since we cannot count on PINT being present,
         # and doing it globally messes up sphinx.
