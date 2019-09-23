@@ -95,48 +95,29 @@ class Polyco(QTable):
         super().__init__(data, *args, **kwargs)
 
     def to_polyco(self, name='polyco.dat', tempo1=False):
-        header_fmt = ''
-        for key, conv in converters.items():
-            item = key
-            if key in ('date', 'utc_mid'):
-                item = key
-            elif key not in self.keys():
-                continue
-            elif (isinstance(self[key], u.Quantity) and
-                  not isinstance(self[key], Phase)):
-                item = key + '.value'
-            else:
-                item = key
-
-            header_fmt += '{' + item + ':' + conv[2] + '}'
-
-            if key == 'lgrms':
-                header_fmt += '\n'
-
-        header_fmt += '\n'
+        header_fmt = ''.join(
+            [('{' + key + conv[2] + ('}\n' if key == 'lgrms' else '}'))
+             for key, conv in converters.items()
+             if key in self.keys() or key in ('date', 'utc_mid')])
 
         coeff_fmt = fortran_fmt if tempo1 else '{:24.17e}'.format
+
         with open(name, 'w') as fh:
             for row in self:
-                items = {}
-                mjd_mid = row['mjd_mid']
-                for k in converters:
-                    if k == 'mjd_mid':
-                        # Phase knows how to format int/frac as {:..f}.
-                        items[k] = Phase(mjd_mid.jd1-2400000.5, mjd_mid.jd2)
-                    elif k == 'date':
-                        item = mjd_mid.datetime.strftime('%d-%b-%y')
-                        if tempo1:
-                            item = item.upper()
-                        items[k] = item if item[0] != '0' else ' '+item[1:]
-                    elif k == 'utc_mid':
-                        mjd_mid.precision = 2
-                        item = float(mjd_mid.isot.split('T')[1].replace(':', ''))
-                        items[k] = item
-                    elif k in self.keys():
-                        items[k] = row[k]
+                items = {k: row[k] for k in converters if k in self.keys()}
+                # Special treatment for mjd_mid, date, and utc_mid.
+                mjd_mid = items['mjd_mid']
+                # Hack: unlike Time, Phase can format its int/frac as {:..f}.
+                items['mjd_mid'] = Phase(mjd_mid.jd1-2400000.5, mjd_mid.jd2)
+                item = mjd_mid.datetime.strftime('%d-%b-%y')
+                if tempo1:
+                    item = item.upper()
+                items['date'] = item if item[0] != '0' else ' '+item[1:]
+                mjd_mid.precision = 2
+                items['utc_mid'] = float(mjd_mid.isot.split('T')[1]
+                                         .replace(':', ''))
 
-                fh.write(header_fmt.format(**items))
+                fh.write(header_fmt.format(**items) + '\n')
 
                 coeff = row['coeff']
                 for i in range(0, len(coeff), 3):
@@ -189,27 +170,28 @@ class Polyco(QTable):
         if np.any(abs(time - mjd_mid) > self['span'][index]/2):
             raise ValueError('(some) MJD outside of polyco range')
 
-        result = np.zeros(time.shape) * u.cycle / time_unit**deriv
+        # Check whether we need to add the reference phase at the end.
         do_phase = (deriv == 0 and rphase is None)
         if do_phase:
-            result = Phase(result)
+            # If so, do not add it inside the polynomials.
             rphase = 'ignore'
 
-        def do_part(sel, index):
-            if do_phase:
-                result[sel] += self['rphase'][index]
-            polynomial = self.polynomial(index, rphase, deriv)
-            dt = time[sel] - self['mjd_mid'][index]
-            result[sel] += (polynomial(dt.to(u.min).value) * u.cycle / u.min**deriv)
-
+        dt_minute = (time - self['mjd_mid'][index]).to(u.min).value
         if time.isscalar:
-            do_part(Ellipsis, index)
+            result = self.polynomial(index, rphase, deriv)(dt_minute)
 
         else:
+            result = np.zeros(time.shape)
             for j in set(index):
-                do_part(index == j, j)
+                sel = index == j
+                result[sel] = self.polynomial(j, rphase, deriv)(dt_minute[sel])
 
-        return result
+        # Apply units from the polynomials.
+        result = result << u.cycle/u.min**deriv
+        # Convert to requested unit in-place.
+        result <<= u.cycle/time_unit**deriv
+        # Add reference phase to it if needed.
+        return result + self['rphase'][index] if do_phase else result
 
     def polynomial(self, index, rphase=None, deriv=0,
                    t0=None, time_unit=u.min, out_unit=None,
@@ -344,21 +326,21 @@ def change_type(cls, **kwargs):
 
 
 converters = OrderedDict(
-    (('psr', (str, None, '<10s')),
-     ('date', (None, None, '>10s')),  # inferred from mjd_mid
-     ('utc_mid', (None, None, '11.2f')),  # inferred from mjd_mid
-     ('mjd_mid', (int_frac, change_type(Time, format='mjd'), '20.11f')),
-     ('dm', (float, change_type(DispersionMeasure), '21.6f')),
-     ('vbyc_earth', (float, change_type(u.Quantity, unit=1e-4), '7.3f')),
-     ('lgrms', (float, None, '7.3f')),
-     ('rphase', (int_frac, change_type(Phase), '20.6f')),
-     ('f0', (float, change_type(u.Quantity, unit=u.cycle/u.s), '18.12f')),
-     ('obs', (str, None, '>5s')),
-     ('span', (int, change_type(u.Quantity, unit=u.minute), '5.0f')),
-     ('ncoeff', (int, None, '5d')),
-     ('freq', (float, change_type(u.Quantity, unit=u.MHz), '10.3f')),
-     ('binphase', (float, change_type(Angle, unit=u.cycle), '7.4f')),
-     ('forb', (float, change_type(u.Quantity, unit=u.cycle/u.day), '9.4f'))))
+    (('psr', (str, None, ':<10s')),
+     ('date', (None, None, ':>10s')),  # inferred from mjd_mid
+     ('utc_mid', (None, None, ':11.2f')),  # inferred from mjd_mid
+     ('mjd_mid', (int_frac, change_type(Time, format='mjd'), ':20.11f')),
+     ('dm', (float, change_type(DispersionMeasure), '.value:21.6f')),
+     ('vbyc_earth', (float, change_type(u.Quantity, unit=1e-4), '.value:7.3f')),
+     ('lgrms', (float, None, ':7.3f')),
+     ('rphase', (int_frac, change_type(Phase), ':20.6f')),
+     ('f0', (float, change_type(u.Quantity, unit=u.cycle/u.s), '.value:18.12f')),
+     ('obs', (str, None, ':>5s')),
+     ('span', (int, change_type(u.Quantity, unit=u.minute), '.value:5.0f')),
+     ('ncoeff', (int, None, ':5d')),
+     ('freq', (float, change_type(u.Quantity, unit=u.MHz), '.value:10.3f')),
+     ('binphase', (float, change_type(Angle, unit=u.cy), '.value:7.4f')),
+     ('forb', (float, change_type(u.Quantity, unit=u.cy/u.day), '.value:9.4f'))))
 
 
 def polyco2table(name):
