@@ -37,7 +37,6 @@ class HDUWrapper:
     def _init_hdu(self, hdu_name):
         target_hdu, hdu_parts = hdu_templates[hdu_name]
         hdu = target_hdu()
-        hdu, hdu_parts = self._preprocess_hdu(hdu, hdu_parts)
         # Init header
         # HDU part should always have cards.
         for card in hdu_parts['card']:
@@ -148,20 +147,6 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         assert self.header['SIMPLE'], "The HDU is not a FITS primary HDU."
         assert self.header['FITSTYPE'] == "PSRFITS", \
             "The header is not from a PSRFITS file."
-
-    def _preprocess_hdu(self, hdu, hdu_parts):
-        # Preprocess the header parts
-        for card_name in ['SIMPLE', 'EXTEND']:
-            # Those two fields need value to be bool
-            for card in hdu_parts['card']:
-                if card['name'] == card_name:
-                    # value can only be True or False
-                    if not isinstance(card['value'], bool):
-                        if 'T' in card['value']:
-                            card['value'] = True
-                        else:
-                            card['value'] = False
-        return hdu, hdu_parts
 
     @property
     def location(self):
@@ -330,16 +315,6 @@ class SubintHDU(HDUWrapper):
             "Input HDU is not a SUBINT type."
         assert isinstance(self.primary_hdu, PSRFITSPrimaryHDU), \
             "Primary HDU needs to be a PSRFITSPrimaryHDU instance."
-
-    def _preprocess_hdu(self, hdu, hdu_parts):
-        # SUBINT need preprocess of the hdu cards value
-        # HDU part should always have cards.
-        for card in hdu_parts['card']:
-            try:
-                card['value'] = int(card['value'])
-            except ValueError:
-                pass
-        return hdu, hdu_parts
 
     @property
     def mode(self):
