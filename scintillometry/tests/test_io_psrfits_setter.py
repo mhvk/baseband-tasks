@@ -89,8 +89,8 @@ class TestPSRHDUWriter(TestWriter):
         # Create SUBINT using primary header.
         self.psr_hdu_no_shape = psrfits.SubintHDU(primary_hdu=self.input_p_hdu)
         self.psr_hdu = psrfits.SubintHDU(primary_hdu=self.input_p_hdu)
+        self.psr_hdu.nrow = 1
         self.psr_hdu.sample_shape = self.reader.sample_shape
-        self.psr_hdu._init_columns()
         # Since this test only have one channel, we will not test this setting
         # here.
         self.psr_hdu.header['CHAN_BW'] = self.reader.ih.header['CHAN_BW']
@@ -99,13 +99,17 @@ class TestPSRHDUWriter(TestWriter):
         assert (self.psr_hdu.mode == 'PSR')
         assert isinstance(self.psr_hdu, psrfits.PSRSubintHDU)
 
-    def test_init_columns(self):
-        # The columns are initialied in the setup
+    def test_init_data(self):
+        # The data should be initialied in the setup.
         assert self.psr_hdu.data['DATA'].shape == ((self.reader.shape[0],) +
                                                    (self.reader.shape[1:][::-1]))
+
+    def test_no_sample_init(self):
         # Test no sample shape excpetion
-        with pytest.raises(ValueError):
-            self.psr_hdu_no_shape._init_columns()
+        with pytest.raises(AttributeError):
+            self.psr_hdu_no_shape.nbin
+        with pytest.raises(AttributeError):
+            self.psr_hdu_no_shape.shape
 
     def test_set_nrow(self):
         assert self.psr_hdu.nbin == self.reader.ih.nbin

@@ -12,7 +12,7 @@ from astropy.io.fits.fitsrec import FITS_rec
 from astropy.utils import lazyproperty
 import numpy as np
 import operator
-from .psrfits_htm_parser import hdu_templates, column_map
+from .psrfits_htm_parser import hdu_templates
 
 
 __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
@@ -22,83 +22,17 @@ __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
 class HDUWrapper:
     def __init__(self, hdu=None, verify=True, hdu_type=None):
         if hdu is None:
-            hdu, self.hdu_column = self._init_hdu(hdu_type)
-            verify = False
-        self.hdu = hdu
-        if verify:
-            self.verify()
+            self.hdu = hdu_templates[hdu_type].copy()
+        else:
+            self.hdu = hdu
+            if verify:
+                self.verify()
         # This is for selecting the dimension for different mode (i.e., folding
         # or searching)
         self._dim_opt = 0
 
     def verify(self):
         assert isinstance(self.header, fits.Header)
-
-    def _init_hdu(self, hdu_name):
-        target_hdu, hdu_parts = hdu_templates[hdu_name]
-        hdu = target_hdu()
-        # Init header
-        # HDU part should always have cards.
-        for card in hdu_parts['card']:
-            hdu.header.set(card['name'], value=card['value'],
-                           comment=card['comment'])
-        # add comment cards
-        # TODO comment need a little bit tuning
-        if hdu_parts['comment'] != []:
-            for cmt in hdu_parts['comment']:
-                hdu.header.set(cmt['name'], value=' '.join(cmt['value'].split()),
-                               after=cmt['after'])
-        return hdu, hdu_parts['column']
-
-    def _preprocess_hdu(self, hdu, hdu_parts):
-        return hdu, hdu_parts
-
-    def _init_columns(self):
-        try:
-            _ = np.sum(self.sample_shape)
-        except TypeError:
-            raise ValueError('Data sample shape has to be set correctly.'
-                             'Sample shape: {}'.format(self.sample_shape))
-        cols = []
-        for col in self.hdu_column:
-            # init array
-            # Translate dimensions.
-            init_dim = tuple()
-            for dim in col['col_dim'][self._dim_opt]:
-                try:
-                    init_dim += (int(dim),)
-                except ValueError:
-                    # TODO this will broken when handling something like
-                    # (NCHAN,NPOL,NSBLK*NBITS/8)
-                    init_dim += (getattr(self, dim.lower()),)
-
-            np_dtype = FITS2NUMPY[col['dtype']]
-            new_format = str(np.prod(init_dim)) + col['dtype']
-            init_array = np.zeros(init_dim, dtype=np_dtype).reshape((1,) +
-                                                                    init_dim)
-            # TODO maybe we can use **kwarg to pass the parameters
-            if col['dim'] is None:
-                input_dim = None
-            else:
-                # Do we need reverse the order here?
-                input_dim = str(init_dim)
-            fits_col = fits.Column(name=col['name'][0], format=new_format,
-                                   unit=col['unit'][0], dim=input_dim,
-                                   array=init_array)
-            cols.append(fits_col)
-        self.hdu.data = FITS_rec.from_columns(cols)
-        # add description on header
-        for ii, col in enumerate(self.hdu_column):
-            ttype_key = "TTYPE{}".format(ii + 1)
-            # Check if the column cards are in the same order as the input.
-            assert self.header[ttype_key] == col['name'][0], \
-                "Card TTYPE{} is not for column {}.".format(ii + 1,
-                                                            col['name'][0])
-            for key_pattern, col_key in column_map.items():
-                key = key_pattern + str(ii + 1)
-                value = self.header.get(key, None)
-                if value is not None and len(col[col_key]) >= 2:
-                    self.header[key] = (value, col[col_key][1])
 
     @property
     def header(self):
@@ -332,30 +266,56 @@ class SubintHDU(HDUWrapper):
     @nrow.setter
     def nrow(self, value):
         self.hdu.header['NAXIS2'] = operator.index(value)
+        self._update_data_dim()
 
     @property
     def nchan(self):
-        return self.header['NCHAN']
+        nchan = self.header['NCHAN']
+        if nchan == '*':
+            raise AttributeError('nchan has not yet been set.')
+        return nchan
 
     @nchan.setter
     def nchan(self, value):
         self.hdu.header['NCHAN'] = operator.index(value)
+        self._update_data_dim()
 
     @property
     def npol(self):
-        return self.header['NPOL']
+        npol = self.header['NPOL']
+        if npol == '*':
+            raise AttributeError('npol has not yet been set.')
+        return npol
 
     @npol.setter
     def npol(self, value):
         self.hdu.header['NPOL'] = operator.index(value)
+        self._update_data_dim()
 
     @property
     def nbin(self):
-        return self.header['NBIN']
+        nbin = self.header['NBIN']
+        if nbin == '*':
+            raise AttributeError('nbin has not yet been set.')
+        return nbin
 
     @nbin.setter
     def nbin(self, value):
         self.hdu.header['NBIN'] = operator.index(value)
+        self._update_data_dim()
+
+    def _update_data_dim(self):
+        try:
+            dims = tuple(self.sample_shape)[::-1]
+        except AttributeError:
+            return
+
+        self.hdu.columns.change_attrib('DATA', '_dims', dims)
+        self.hdu.columns.change_attrib('DATA', 'dim', f"'{dims}'")
+        self.hdu.header['TDIM20'] = f"{dims}"
+        del self.hdu.columns._dims
+        del self.hdu.columns.dtype
+        self.hdu.data = np.empty(self.nrow, self.hdu.columns.dtype)
 
     @property
     def sample_shape(self):
@@ -502,18 +462,6 @@ class PSRSubintHDU(SubintHDU):
         # The shape has to be inversed since FITS is in the Fortran order.
         assert d_shape_raw == (self.nrow,) + d_shape_header[::-1], \
             "Data shape does not match with the header information."
-
-    def _preprocess_hdu(self, hdu, hdu_parts):
-        # SUBINT need preprocess of the hdu cards value
-        # HDU part should always have cards.
-        # TODO, should this part lives here
-        search_mode_cards = {'NBITS': 1, 'SIGNINT': 0, 'NSBLK': 1, 'NSTOT': 1}
-        for k, v in search_mode_cards.items():
-            for card in hdu_parts['card']:
-                if card['name'] == k:
-                    card['value'] = v
-        hdu, hdu_parts = super()._preprocess_hdu(hdu, hdu_parts)
-        return hdu, hdu_parts
 
     @property
     def start_time(self):
