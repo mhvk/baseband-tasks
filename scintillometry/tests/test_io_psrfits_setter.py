@@ -79,3 +79,46 @@ class TestSetter:
                 Longitude(self.input_p_hdu.header['RA'], unit=u.hourangle))
         assert (Latitude(self.p_hdu.header['DEC'], unit=u.deg) ==
                 Latitude(self.input_p_hdu.header['DEC'], unit=u.deg))
+
+
+class TestPSRHDUSetter(TestSetter):
+    def setup(self):
+        super().setup()
+        # init Primary
+        self.psr_hdu = psrfits.SubintHDU(primary_hdu=self.input_p_hdu)
+        # The lines below will be tested in their test functions.
+        # Since they are needed for other tests, so we put them here.
+        #self.psr_hdu.sample_rate = self.reader.ih.sample_rate
+        self.psr_hdu.nrow = self.reader.ih.nrow
+        self.psr_hdu.nchan = self.reader.ih.nchan
+        self.psr_hdu.npol = self.reader.ih.npol
+        self.psr_hdu.nbin = self.reader.ih.nbin
+        self.psr_hdu.init_columns()
+
+    def test_mode(self):
+        assert (self.psr_hdu.mode == 'PSR')
+        assert (type(self.psr_hdu) ==
+                type(psrfits.PSRSubintHDU(primary_hdu=self.input_p_hdu)))
+
+    # def test_set_sample_rate(self):
+    #     assert self.psr_hdu.sample_rate == self.reader.ih.sample_rate
+
+    def test_set_nrow(self):
+        assert self.psr_hdu.nbin == self.reader.ih.nbin
+
+    def test_set_nchan(self):
+        assert self.psr_hdu.nchan == self.reader.ih.nchan
+
+    def test_set_npol(self):
+        assert self.psr_hdu.npol == self.reader.ih.npol
+
+    def test_set_nbin(self):
+        assert self.psr_hdu.nbin == self.reader.ih.nbin
+
+    def test_shape(self):
+        assert self.psr_hdu.shape == self.reader.ih.shape
+
+    def test_set_start_time(self):
+        self.psr_hdu.start_time = self.reader.start_time
+        dt = self.psr_hdu.start_time - self.reader.start_time
+        assert dt < 1 * u.ns

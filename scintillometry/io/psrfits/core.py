@@ -1,9 +1,11 @@
 # Licensed under the GPLv3 - see LICENSE
 """Interfaces for dealing with PSRFITS fold-mode data."""
 
+import numpy as np
+
 from ...base import BaseTaskBase
 from astropy.io import fits
-from .hdu import HDU_map
+from .hdu import HDU_map, fits_hdu_template
 from astropy import log
 from collections import defaultdict
 
@@ -151,6 +153,18 @@ class PSRFITSReader(BaseTaskBase):
         file.close()
 
 
+def get_writter(filename, ih, data_hdu=None, hdu_mode='PSR', **kwargs):
+    writer = PSRFITSWriter(filename, ih)
+    if data_hdu is None:
+        hdus = fits_hdu_template[hdu_mode]
+        primary_hdu = hdus['primary']
+        primary_hdu.obs_mode = hdu_mode
+        data_hdu = hdus['data'](primary_hdu=PHDU)
+
+    writer.init_data(data_hdu)
+
+
+
 class PSRFITSWriter:
     """Interface class for writing the PSRFITS HDUs
 
@@ -160,18 +174,91 @@ class PSRFITSWriter:
         Output file name.
     ih : input file handle
         The file handle for input data.
-    hdus: str, optional
-
+    hdus: list
+        A list of HDUS
 
 
     Notes
     -----
     Currently it only support write the PSRFITS primary HDU and Subint HDU.
     """
-    def __init__(self, filename, ih, hdus=None):
+    def __init__(self, filename, ih):
         self.filename = filename
         self.ih = ih
-        self.hdus = hdus
+        self.data_hdu = None
+
+    def __getitem__(self, index):
+        return self.data_hdu.data['DATA'][index]
+
+    def __setitem__(self, index, value):
+        # need to convert to fortran order
+        data_shape = self.data_hdu.data['DATA'][index].shape
+        self.data_hdu.data['DATA'][index] = value.reshape(data_shape)
+
+    def update_file_header(self, info):
+        """Update the fileheader information
+        """
+        for k, v in info.items:
+            self.data_hda.primary_hdu.header[k] = v
+
+    def init_data(self, data_hdu, hdu_sample_shape=tuple(), total_samples=None):
+        """Initialize columns in data hdu.
+
+        Parameters
+        ----------
+        data_hdu: `PSRFITS HDU` object.
+            The PSRFITS data hdu (e.g., PSRFISTS Subint HDU)
+        hdu_sample_shape: tuple
+            The sample shape of the HDU.
+        """
+        if total_samples is None:
+            total_samples = self.ih.shape[0]
+        data_hdu.nrow = int(np.ceil((total_samples / self.ih.samples_per_frame)))
+        # set data shape.
+        if len(hdu_sample_shape) != 0:
+            data_hdu.sample_shape = hdu_sample_shape
+        else:
+            #Check if the existing HDU has column initized.
+            try:
+                _ = np.sum(data_hdu.sample_shape)
+            except:
+                raise ValueError("Sample shape of Data HDU '{}' is not setup "
+                                 "correctly. Please use 'hdu_sample_shape'"
+                                 " argument".format(data_hdu.sample_shape))
+        # init columns.
+        self.data_hdu = data_hdu.init_columns()
+        # set sample rate
+        data_hdu.sample_rate = self.ih.sample_rate
+        # set start time
+        data_start_time = self.ih.tell(unit='time')
+        data_hdu.start_time = data_start_time
+        # Set optional prpoerties
+        for oppt in ['frequency', 'polarization', 'sideband']:
+            if hasattr(self.ih, oppt) and hasattr(data_hdu, oppt):
+                setattr(data_hdu, oppt, getattr(self.ih, oppt))
+            else:
+                print("{} not in ih or hdu".format(oppt) )
+        self.data_hdu = data_hdu
+
+    @property
+    def data(self):
+        return self.data_hdu.data
+
+    @property
+    def file_header(self):
+        return self.data_hdu.primary_hdu.header
+
+    @property
+    def data_header(self):
+        return self.data_hdu.header
+
+    @property
+    def shape(self):
+        return self.data_hdu.shape
+
+    @property
+    def sample_shape(self):
+        return self.data_hdu.sample_shape
 
     def close(self):
         pass
