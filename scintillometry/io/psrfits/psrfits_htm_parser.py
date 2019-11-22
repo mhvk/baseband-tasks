@@ -65,50 +65,95 @@ class MyHTMLParser(HTMLParser):
         self.extensions[self.extname] = '\n'.join(self.headers)
 
 
-def parse_line(line):
-    """parse_line indentifies the type of line and breaks lines to information
-    segments.
+def ext2hdu(extension):
+    """Turn extension information from htm file into a FITS HDU.
 
-    Retrun
-    ------
-    type of line, key word, value of the key, and comment about the key.
+    The extension will have a header and columns set as appropriate.
+    The original cards, including possible descriptions are stored
+    as hdu.header_cards and hdu.column_cards, respectively.
     """
-    line_type = None
-    key = ""
-    value = ""
-    comment = ""
-    unit = None
-    if line.strip() == "":
-        line_type = "empty"
-    elif line.startswith("#"):
-        line_type = "description"
-        value = line.replace("#", '').strip()
-    elif line.startswith("COMMENT"):
-        line_type = "comment"
-        key = "COMMENT"
-        value = line.replace("COMMENT", "")
-    else:
-        l_fields = re.split('= |/ ', line)
-        if len(l_fields) <= 1:
-            line_type = "empty"
-        key = l_fields[0].strip()
-        if key in ['TTYPE#', 'TFORM#', 'TUNIT#', 'TDIM#']:
-            line_type = "column"
-            key = key.replace("#", "")
-            value = l_fields[1].strip()
-        else:
-            line_type = "card"
-            value = l_fields[1].strip().replace("'", "")
-        if len(l_fields) > 2:
-            comment = l_fields[2].replace('#', '').strip()
-            if comment.startswith('['):
-                m = re.search(unit_rex, comment).groups()[0]
-                try:
-                    unit = u.Unit(m)
-                except Exception:
-                    pass
+    header_cards = []
+    column_cards = []
+    # parse extension lines
+    lines = extension.splitlines()
+    icol = 0
+    card = None
 
-    return line_type, key, value, comment, unit
+    for line in lines:
+        line = line.strip()
+        if line == "" or line == "END":
+            continue
+
+        if line.startswith("#"):
+            # Description for previous card.
+            assert not hasattr(card, 'description')
+            card.description = line[1:].strip()
+            continue
+
+        is_col = '#' in line[1:8]
+        if is_col:
+            if line[0:5] == 'TTYPE':
+                icol += 1
+                colinfo = []
+                column_cards.append(colinfo)
+            # This is a column.  Put in the number
+            line = line.replace('#', ' ')
+
+        if (is_col or line.startswith('XTENSION') or
+                line.startswith('EXTNAME')):
+            # Value should be a string but isn't in the .html file.
+            line = line[:10] + "'" + line[10:27] + "'" + line[29:]
+        elif "* /" in line:
+            # A plain * cannot be parsed; it needs to be a string.
+            line = line.replace("=                    * /",
+                                "= '*       '           /")
+
+        # A few lines are too long; remove some excess space from those.
+        if len(line) > 80:
+            pre, _, post = line.rpartition(' '*(len(line)-80))
+            line = pre + post
+
+        card = fits.Card.fromstring(line.strip())
+
+        if card.comment.startswith('['):
+            m = re.search(unit_rex, card.comment).groups()[0]
+            try:
+                card.unit = u.Unit(m)
+            except Exception:
+                pass
+
+        if is_col:
+            colinfo.append(card)
+        else:
+            header_cards.append(card)
+            if card.keyword == 'SIMPLE':
+                hdu_cls = fits.PrimaryHDU
+            elif card.keyword == 'XTENSION':
+                # NOTE, this should be the right way to do it,
+                # but right now it only handles one case, BINTABLE.
+                hdu_cls = fits_table_map[card.value]
+
+    columns = []
+    for colinfo in column_cards:
+        # Collate column cards.
+        kwargs = {fits.column.KEYWORD_TO_ATTRIBUTE[card.keyword]: card.value
+                  for card in colinfo}
+        if kwargs['format'] == 'V':  # not in FITS standard...
+            kwargs['format'] = 'J'
+        column = fits.Column(**kwargs)
+        column.cards = colinfo
+        columns.append(column)
+
+    header = fits.Header(header_cards)
+    if 'TFIELDS' in header and header['TFIELDS'] == '*':
+        header['TFIELDS'] = 0
+
+    hdu = hdu_cls(header=header)
+    hdu.header_cards = header_cards
+    if columns:
+        hdu.columns = fits.ColDefs(columns)
+
+    return hdu
 
 
 def get_dtype(col_entry):
@@ -141,96 +186,11 @@ def get_dtype(col_entry):
     return dim, dtype
 
 
-def process_entry(entry):
-    """Process the entry before saving it to HDU templates.
-
-       NOTE
-       ----
-       Right now this only handles the column entry. In the future, we can
-       add other type of entry handling.
-    """
-    if entry['type'] == 'column':
-        entry['col_dim'], entry['dtype'] = get_dtype(entry)
-    return entry
-
-
-def ext2hdu(extension):
-    hdu_parts = {'card': [], 'column': [], 'comment': []}
-    hdu = None
-    cur_entry = {}
-    last_entry = cur_entry
-    # parse extension lines
-    lines = extension.splitlines()
-    ii = 0
-
-    while lines[ii] != "END":
-        line_type, key, value, comment, unit = parse_line(lines[ii])
-        cur_type = cur_entry.get('type', '')
-        if line_type == "empty":
-            pass
-        elif line_type == 'description':
-            if cur_entry != {}:
-                cur_entry['description'] += value
-        elif line_type == 'comment':
-            if cur_type == 'comment':
-                cur_entry['value'] += value
-            else:
-                # record the current entry and init new entry
-                process_entry(cur_entry)
-                hdu_parts[cur_entry['type']].append(cur_entry)
-                last_entry = cur_entry
-                cur_entry = {'name': key, 'value': value, 'type': line_type,
-                             'after': last_entry['name'], 'description': ''}
-        elif line_type == 'column':
-            entry_key = column_map.get(key, None)
-            if cur_type == 'column' and key != 'TTYPE':
-                if entry_key is not None:
-                    cur_entry[entry_key] = (value, comment)
-                # if entry_key == 'format':
-                #     cur_entry['col_dim'], cur_entry['dtype'] = get_dtype(cur_entry['format'][0],
-                #                                                      cur_entry['format'][1])
-            else:
-                # Record the last entry and open a new entry for column
-                process_entry(cur_entry)
-                hdu_parts[cur_entry['type']].append(cur_entry)
-                last_entry = cur_entry
-                cur_entry = {'name': None, 'format': None, 'unit': (None, None),
-                             'dim': None, 'col_dim': None, 'dtype': None,
-                             'description': '', 'type': line_type}
-                if entry_key is not None:
-                    cur_entry[entry_key] = (value, comment)
-
-        elif line_type == 'card':
-            if cur_entry != {}:
-                process_entry(cur_entry)
-                hdu_parts[cur_entry['type']].append(cur_entry)
-            last_entry = cur_entry
-            cur_entry = {'name': key, 'value': value, 'unit': unit,
-                         'comment': comment, 'description': '',
-                         'type': line_type}
-            # Search hdu type
-            # When certain key words have been detected, it will call the
-            # astropy fits hdu
-            if key == 'SIMPLE':
-                hdu = fits.PrimaryHDU
-            elif key == 'XTENSION':
-                # NOTE, this should be the right way to do it, but right now it
-                # only handles one case, BINTABLE.
-                hdu = fits_table_map[value]
-            else:
-                pass
-        else:
-            raise ValueError("Can not parse line '{}'".format(lines[ii]))
-        ii += 1
-    # Record the last entry
-    process_entry(cur_entry)
-    hdu_parts[cur_entry['type']].append(cur_entry)
-    return (hdu, hdu_parts)
-
-
 parser = MyHTMLParser()
 with open(psrfits_doc_path)as f:
     parser.feed(f.read())
+
+
 hdu_templates = {}
 for k, v in parser.extensions.items():
     if k == "":
