@@ -1,23 +1,33 @@
-import re
-import os
+# Licensed under the GPLv3 - see LICENSE
+"""Parser of the PSRFITS definition file.
+
+Parses the PSRFITS definition file from
+https://www.atnf.csiro.au/research/pulsar/psrfits_definition/PsrfitsDocumentation.html
+(which is also available in ``scintillometry.data``)
+to get template Header Data Units (HDUs) for the various extensions.
+
+This is a two-step process, with the .htm file first parsed into
+individual lines, which are either approximate `~astropy.io.fits.Card`
+entries or descriptions of those cards, and then those lines
+interpreted as actual `~astropy.io.fits.Card` instances, and combined
+into headers, columns, and `~astropy.io.fits.PrimaryHDU` and
+`~astropy.io.fits.BinTableHDU` instances.
+"""
 from html.parser import HTMLParser
 
 from astropy.io import fits
-import astropy.units as u
-from astropy.utils.data import get_pkg_data_filename
+from astropy.units import Unit
 
-
-psrfits_doc_path = get_pkg_data_filename('../../data/PsrfitsDocumentation.html')
-fits_table_map = {'BINTABLE': fits.BinTableHDU,
-                  'PRIMARY': fits.PrimaryHDU}
-column_map = {'TTYPE': 'name', 'TFORM': 'format', 'TUNIT': 'unit',
-              'TDIM': 'dim'}
-unit_rex = re.compile(r'\[(.+)\]')
-dim_rex = re.compile(r'N[A-Z]+')
-tdim_rex = re.compile(r'\((.*?)\)')
+from scintillometry.data import PSRFITS_DOCUMENTATION
 
 
 class MyHTMLParser(HTMLParser):
+    """Parser for the PSR FITS definition.
+
+    This follows the structure in the .html to create a number of
+    ``extension`` entries which contain lines that define them.
+    Those lines are close to the required format to define FITS Cards.
+    """
     section = False
     collect = False
     add_nl = False
@@ -65,6 +75,15 @@ class MyHTMLParser(HTMLParser):
         self.extensions[self.extname] = '\n'.join(self.headers)
 
 
+class PSRFITSCard(fits.Card):
+    # Override __repr__ to show description if present.
+    description = None
+
+    def __repr__(self):
+        out = super().__repr__()
+        return out + '\n# ' + self.description if self.description else out
+
+
 def ext2hdu(extension):
     """Turn extension information from htm file into a FITS HDU.
 
@@ -72,12 +91,11 @@ def ext2hdu(extension):
     The original cards, including possible descriptions are stored
     as hdu.header_cards and hdu.column_cards, respectively.
     """
-    header_cards = []
-    column_cards = []
+    cards = []
     # parse extension lines
     lines = extension.splitlines()
     icol = 0
-    card = None
+    card_for_description = None
 
     for line in lines:
         line = line.strip()
@@ -85,114 +103,85 @@ def ext2hdu(extension):
             continue
 
         if line.startswith("#"):
-            # Description for previous card.
-            assert not hasattr(card, 'description')
-            card.description = line[1:].strip()
+            # Description for previous card (or TTYPE card for column).
+            assert card_for_description.description is None
+            card_for_description.description = line[1:].strip()
             continue
+            # For reference: this worked but gives very long FITS headers.
+            # parts = textwrap.wrap(line[1:].strip(), width=70)
+            # cards.extend([fits.Card('COMMENT', part) for part in parts])
 
         is_col = '#' in line[1:8]
         if is_col:
             if line[0:5] == 'TTYPE':
                 icol += 1
-                colinfo = []
-                column_cards.append(colinfo)
-            # This is a column.  Put in the number
-            line = line.replace('#', ' ')
+            # Replace the placeholder with an actual number.
+            line = line.replace('# ', f'{icol:<2d}')
 
-        if (is_col or line.startswith('XTENSION') or
-                line.startswith('EXTNAME')):
-            # Value should be a string but isn't in the .html file.
+        if is_col or line.startswith('XTENSION') or line.startswith('EXTNAME'):
+            # Value should be a string but doesn't have quotes in the .htm file.
             line = line[:10] + "'" + line[10:27] + "'" + line[29:]
         elif "* /" in line:
             # A plain * cannot be parsed; it needs to be a string.
             line = line.replace("=                    * /",
                                 "= '*       '           /")
 
-        # A few lines are too long; remove some excess space from those.
+        # A few lines are too long; remove some excess space from those,
+        # by removing the sufficiently long set of spaces closest to the end.
         if len(line) > 80:
             pre, _, post = line.rpartition(' '*(len(line)-80))
             line = pre + post
 
-        card = fits.Card.fromstring(line.strip())
+        # Create a FITS Card using our description handling subclass.
+        card = PSRFITSCard.fromstring(line)
 
         if card.comment.startswith('['):
-            m = re.search(unit_rex, card.comment).groups()[0]
-            try:
-                card.unit = u.Unit(m)
-            except Exception:
-                pass
+            # Unit in the comments: store it for possible use.
+            m = card.comment[1:].split(']')[0]
+            if m not in ('v/c', 'MJD'):
+                # TODO: support v/c as a special unit.
+                card.unit = Unit(m)
 
-        if is_col:
-            colinfo.append(card)
-        else:
-            header_cards.append(card)
-            if card.keyword == 'SIMPLE':
-                hdu_cls = fits.PrimaryHDU
-            elif card.keyword == 'XTENSION':
-                # NOTE, this should be the right way to do it,
-                # but right now it only handles one case, BINTABLE.
-                hdu_cls = fits_table_map[card.value]
+        if card.keyword.startswith('TUNIT'):
+            # Some units are in upper case, which won't get parsed correctly.
+            if card.value in ('CM-3 PC', 'RAD M-2'):
+                card.value = card.value.lower()
+            # Sanity check.
+            Unit(card.value)
 
-    columns = []
-    for colinfo in column_cards:
-        # Collate column cards.
-        kwargs = {fits.column.KEYWORD_TO_ATTRIBUTE[card.keyword]: card.value
-                  for card in colinfo}
-        if kwargs['format'] == 'V':  # not in FITS standard...
-            kwargs['format'] = 'J'
-        column = fits.Column(**kwargs)
-        column.cards = colinfo
-        columns.append(column)
+        cards.append(card)
+        if not is_col or line.startswith('TTYPE'):
+            card_for_description = card
 
-    header = fits.Header(header_cards)
-    if 'TFIELDS' in header and header['TFIELDS'] == '*':
-        header['TFIELDS'] = 0
+    header = fits.Header(cards)
 
-    hdu = hdu_cls(header=header)
-    hdu.header_cards = header_cards
-    if columns:
-        hdu.columns = fits.ColDefs(columns)
+    if 'SIMPLE' in header:
+        assert icol == 0, 'non-table extension with columns!'
+        hdu = fits.PrimaryHDU(header=header)
+    else:
+        # The number of columns is sometimes not defined or incorrect,
+        # so just set it to the right number.
+        assert icol > 0, 'table extension without columns!'
+        header['TFIELDS'] = icol
+        hdu = fits.BinTableHDU(data=fits.DELAYED, header=header)
 
     return hdu
 
 
-def get_dtype(col_entry):
-    """ Get the dimension from the column format field.
-    """
-    # Get dim from the format value
-    # TODO, this split alway has an empty array
-    dim = None
-    dtype = None
-    if col_entry['dim'] is not None:
-        dim_strs = re.findall(tdim_rex, col_entry['dim'][1])
-        # there could be options for dim
-        dim = []
-        for dim_str in dim_strs:
-            dim.append(tuple(dim_str.split(',')))
-    # parse data type
-    format_fields = re.split(r'(\d+)', col_entry['format'][0])
-    if len(format_fields) == 3:
-        format_fields.remove("")
-    if len(format_fields) == 2:
-        # If the TDIM does not exist
-        if dim is None:
-            dim = [(format_fields[0], ), ]
-        dtype = format_fields[1]
-    elif len(format_fields) == 1:
-        if dim is None:
-            # parse dim from the description
-            dim = [tuple(re.findall(dim_rex, col_entry['format'][1])), ]
-        dtype = format_fields[0]
-    return dim, dtype
-
-
 parser = MyHTMLParser()
-with open(psrfits_doc_path)as f:
+with open(PSRFITS_DOCUMENTATION)as f:
     parser.feed(f.read())
 
 
-hdu_templates = {}
-for k, v in parser.extensions.items():
-    if k == "":
-        k = "PRIMARY"
-    hdu_templates[k] = ext2hdu(v)
+HDU_TEMPLATES = dict((k or "PRIMARY", ext2hdu(v))
+                     for k, v in parser.extensions.items())
+"""PSRFITS template HDUs.
+
+With headers and column information as appropriate.
+The cards used to make the HDU are available via the
+``.header_cards`` and ``.column_cards`` attributes.
+"""
+
+
+# Free memory used by parsed file contents.
+del parser
