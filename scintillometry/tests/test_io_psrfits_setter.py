@@ -105,11 +105,13 @@ class TestPSRHDUWriter(TestWriter):
                                                    (self.reader.shape[1:][::-1]))
 
     def test_no_sample_init(self):
-        # Test no sample shape excpetion
+        # Without sample shape set, we cannot get shape or data information.
         with pytest.raises(AttributeError):
             self.psr_hdu_no_shape.nbin
         with pytest.raises(AttributeError):
             self.psr_hdu_no_shape.shape
+        with pytest.raises(AttributeError):
+            self.psr_hdu_no_shape.data
 
     def test_set_nrow(self):
         assert self.psr_hdu.nbin == self.reader.ih.nbin
@@ -139,7 +141,7 @@ class TestPSRHDUWriter(TestWriter):
         # calculation.
         test_fits = str(tmpdir.join('test_column_writing.fits'))
         test_data = self.reader.read(1)
-        # PSRFITS do not truncate data, it arounds them.
+        # PSRFITS rounds, not truncates data.
         in_data = np.around(((test_data - self.reader.ih.data['DAT_OFFS']) /
                             self.reader.ih.data['DAT_SCL']))
         self.psr_hdu.data['DATA'] = in_data.reshape(self.psr_hdu.data['DATA'].shape)
@@ -152,11 +154,12 @@ class TestPSRHDUWriter(TestWriter):
         hdul = self.psr_hdu.get_hdu_list()
         hdul.writeto(test_fits)
         # Re-open FITS file and check contents are the same.
-        column_reader = psrfits.open(test_fits, weighted=False)
-        assert np.array_equal(self.reader.ih.data['DATA'],
-                              column_reader.ih.data['DATA'])
-        assert np.abs(self.psr_hdu.start_time - self.reader.start_time) < 1 * u.ns
-        assert u.isclose(self.psr_hdu.sample_rate, self.reader.sample_rate)
-        # And read from it, checking the output is the same as well.
-        new_in_data = column_reader.read(1)
-        assert np.array_equal(test_data, new_in_data)
+        with psrfits.open(test_fits, weighted=False) as column_reader:
+            assert np.array_equal(self.reader.ih.data['DATA'],
+                                  column_reader.ih.data['DATA'])
+            assert np.abs(column_reader.start_time -
+                          self.reader.start_time) < 1 * u.ns
+            assert u.isclose(column_reader.sample_rate, self.reader.sample_rate)
+            # And read from it, checking the output is the same as well.
+            new_data = column_reader.read(1)
+        assert np.array_equal(test_data, new_data)

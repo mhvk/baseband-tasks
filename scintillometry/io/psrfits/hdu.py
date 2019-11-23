@@ -7,12 +7,10 @@ from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord, EarthLocation
 from astropy.coordinates import Angle, Latitude, Longitude
 from astropy.io import fits
-from astropy.io.fits.column import FITS2NUMPY
-from astropy.io.fits.fitsrec import FITS_rec
 from astropy.utils import lazyproperty
 import numpy as np
 import operator
-from .psrfits_htm_parser import hdu_templates
+from .psrfits_htm_parser import HDU_TEMPLATES
 
 
 __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
@@ -22,7 +20,13 @@ __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
 class HDUWrapper:
     def __init__(self, hdu=None, verify=True, hdu_type=None):
         if hdu is None:
-            self.hdu = hdu_templates[hdu_type].copy()
+            template = HDU_TEMPLATES[hdu_type]
+            if hdu_type == 'PRIMARY':
+                self.hdu = template.copy()
+            else:
+                # Make an indirect copy that doesn't create data.
+                self.hdu = template.__class__(data=fits.DELAYED,
+                                              header=template.header.copy())
         else:
             self.hdu = hdu
             if verify:
@@ -38,12 +42,7 @@ class HDUWrapper:
     def header(self):
         return self.hdu.header
 
-    @property
-    def data(self):
-        return self.hdu.data
-
     def close(self):
-        del self.hdu.data
         del self.hdu
 
     def get_hdu_list(self):
@@ -260,13 +259,44 @@ class SubintHDU(HDUWrapper):
         return self.primary_hdu.start_time
 
     @property
+    def _has_data(self):
+        # TODO: surely there is a better way...
+        return (self.hdu._file is not None or
+                self.hdu._buffer is not None or
+                self.hdu._has_data)
+
+    @property
+    def data(self):
+        if not self._has_data:
+            try:
+                dims = tuple(self.sample_shape)[::-1]
+            except AttributeError:
+                raise AttributeError('can only initialize data '
+                                     'if sample_shape is set.') from None
+            # It really seems necessary to change a private attribute...
+            self.hdu.columns.change_attrib('DATA', '_dims', dims)
+            repr_dims = repr(dims).replace(' ', '')
+            self.hdu.columns.change_attrib('DATA', 'dim', repr_dims)
+            self.hdu.data = np.zeros(self.nrow, self.hdu.columns.dtype)
+
+        return self.hdu.data
+
+    @data.deleter
+    def data(self):
+        del self.hdu.data
+        del self.hdu.columns._dims
+        del self.hdu.columns.dtype
+
+    @property
     def nrow(self):
         return self.header['NAXIS2']
 
     @nrow.setter
     def nrow(self, value):
+        if self.hdu._has_data:
+            raise AttributeError('can only set nrow on empty HDU. '
+                                 'Delete data first.')
         self.hdu.header['NAXIS2'] = operator.index(value)
-        self._update_data_dim()
 
     @property
     def nchan(self):
@@ -277,8 +307,10 @@ class SubintHDU(HDUWrapper):
 
     @nchan.setter
     def nchan(self, value):
+        if self._has_data:
+            raise AttributeError('can only set nchan on empty HDU. '
+                                 'Delete data first.')
         self.hdu.header['NCHAN'] = operator.index(value)
-        self._update_data_dim()
 
     @property
     def npol(self):
@@ -289,8 +321,11 @@ class SubintHDU(HDUWrapper):
 
     @npol.setter
     def npol(self, value):
+        if self._has_data:
+            raise AttributeError('can only set npol on empty HDU. '
+                                 'Delete data first.')
+
         self.hdu.header['NPOL'] = operator.index(value)
-        self._update_data_dim()
 
     @property
     def nbin(self):
@@ -301,21 +336,10 @@ class SubintHDU(HDUWrapper):
 
     @nbin.setter
     def nbin(self, value):
+        if self._has_data:
+            raise AttributeError('can only set nbin on empty HDU. '
+                                 'Delete data first.')
         self.hdu.header['NBIN'] = operator.index(value)
-        self._update_data_dim()
-
-    def _update_data_dim(self):
-        try:
-            dims = tuple(self.sample_shape)[::-1]
-        except AttributeError:
-            return
-
-        self.hdu.columns.change_attrib('DATA', '_dims', dims)
-        self.hdu.columns.change_attrib('DATA', 'dim', f"'{dims}'")
-        self.hdu.header['TDIM20'] = f"{dims}"
-        del self.hdu.columns._dims
-        del self.hdu.columns.dtype
-        self.hdu.data = np.empty(self.nrow, self.hdu.columns.dtype)
 
     @property
     def sample_shape(self):
@@ -373,8 +397,8 @@ class SubintHDU(HDUWrapper):
         if self.nchan != len(freqs_value):
             raise ValueError("Frequency size has to match the channle number "
                              "'nchan'.")
-        self.hdu.data['DAT_FREQ'] = np.broadcast_to(freqs_value, (self.nrow,
-                                                                  self.nchan))
+        self.data['DAT_FREQ'] = np.broadcast_to(freqs_value, (self.nrow,
+                                                              self.nchan))
         # TODO I am not sure if this is the best way to get the channel
         # bandwidth.
 
@@ -496,7 +520,7 @@ class PSRSubintHDU(SubintHDU):
         else:
             dt = (time - self.primary_hdu.start_time).to(u.s).value
 
-        self.hdu.data['OFFS_SUB'][0] = dt + self.hdu.data['TSUBINT'] / 2
+        self.data['OFFS_SUB'][0] = dt + self.data['TSUBINT'] / 2
 
     @property
     def samples_per_frame(self):
@@ -513,7 +537,7 @@ class PSRSubintHDU(SubintHDU):
     @sample_rate.setter
     def sample_rate(self, value):
         sample_time = 1.0 / value
-        self.hdu.data['TSUBINT'] = sample_time.to_value(u.s)
+        self.data['TSUBINT'] = sample_time.to_value(u.s)
 
     def close(self):
         super().close()
@@ -525,6 +549,6 @@ HDU_map = {'PRIMARY': PSRFITSPrimaryHDU,
 
 subint_map = {'PSR': PSRSubintHDU}
 
+# TODO: add search HDU
 hdu_list_template = {'PSR': {'primary': PSRFITSPrimaryHDU,
-                             'data': PSRSubintHDU},
-                     'SEARCH': [PSRFITSPrimaryHDU, ]}  # Need to add search HDU
+                             'data': PSRSubintHDU}}
