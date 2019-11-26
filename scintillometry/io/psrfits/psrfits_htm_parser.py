@@ -116,7 +116,7 @@ def ext2hdu(extension):
             if line[0:5] == 'TTYPE':
                 icol += 1
             # Replace the placeholder with an actual number.
-            line = line.replace('# ', f'{icol:<2d}')
+            line = line.replace('# ', '{:<2d}'.format(icol))
 
         if is_col or line.startswith('XTENSION') or line.startswith('EXTNAME'):
             # Value should be a string but quotes are omitted in the .htm file.
