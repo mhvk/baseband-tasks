@@ -89,7 +89,8 @@ class TestIntegrate(TestFakePulsarBase):
         ip = Integrate(st, average=False)
         assert ip.start_time == self.sh.start_time
         assert abs(ip.stop_time - self.sh.stop_time) < 1. * u.ns
-        assert abs(ip.stop_time - self.sh.start_time - 1./ip.sample_rate) < 1. * u.ns
+        assert abs(ip.stop_time - self.sh.start_time -
+                   1./ip.sample_rate) < 1. * u.ns
 
         # Square and integrate everything.
         integrated = ip.read()
@@ -193,7 +194,8 @@ class TestIntegrate(TestFakePulsarBase):
         expected_count = [2, 3, 2, 2, 2, 3, 2, 2]
         step = 2.26 / self.sample_rate
         raw = self.raw_power[:18]
-        ref_data = np.add.reduceat(raw, np.add.accumulate([0] + expected_count[:-1]))
+        ref_data = np.add.reduceat(
+            raw, np.add.accumulate([0] + expected_count[:-1]))
 
         st = Square(self.sh)
         ip = Integrate(st, step, average=False,

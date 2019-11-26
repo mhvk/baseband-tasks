@@ -1,7 +1,6 @@
 # Licensed under the GPLv3 - see LICENSE
 """Full-package tests of simulating sources."""
 
-import pytest
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
@@ -83,7 +82,7 @@ class TestCyclicModulation(NoiseStreamBase):
         return (t * 3. * u.Hz).to(1).value
 
     def gaussian_profile(self, phase):
-        """Gaussian profile at 0.5 w/ width=0.05; base of 1., amplitude 0.125."""
+        """Gaussian at 0.5 w/ width=0.05; base of 1., amplitude 0.125."""
         return 1. + 0.125 * np.exp(-((phase - 0.5) / 0.05)**2)
 
     def profile(self, fh, data):

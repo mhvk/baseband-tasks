@@ -64,7 +64,8 @@ class TestResampleReal:
     def test_resample(self, offset):
         ih = Resample(self.part_fh, offset, samples_per_frame=512)
         # Always lose 1 sample per frame.
-        assert ih.shape == (self.part_fh.shape[0] - 1,) + self.part_fh.sample_shape
+        assert ih.shape == ((self.part_fh.shape[0] - 1,) +
+                            self.part_fh.sample_shape)
         # Check we are at the given offset.
         if isinstance(offset, Time):
             expected_time = offset
@@ -107,7 +108,8 @@ class TestResampleNoise(TestResampleComplex):
 
     def setup(self):
         # Make noise with only frequencies covered by part.
-        part_ft_noise = np.random.normal(size=512*2*2).view('c16').reshape(-1, 2)
+        part_ft_noise = (np.random.normal(size=512*2*2)
+                         .view('c16').reshape(-1, 2))
         # Make corresponding FT for full frame.
         full_ft_noise = np.concatenate((part_ft_noise[:256],
                                         np.zeros((512*3, 2), 'c16'),

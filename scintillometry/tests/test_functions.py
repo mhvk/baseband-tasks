@@ -9,7 +9,6 @@ from astropy.time import Time
 from ..base import SetAttribute
 from ..functions import Square, Power
 from ..generators import EmptyStreamGenerator
-from ..shaping import Reshape
 
 from .common import UseDADASample, UseVDIFSample
 
