@@ -39,7 +39,7 @@ env:
         - MAIN_CMD='python setup.py'
         - SETUP_CMD='test'
         - USE_PYFFTW=False
-        - USE_PINT=False
+        - PINT_VERSION=None
         - EVENT_TYPE='pull_request push'
 
 
@@ -89,15 +89,15 @@ matrix:
         # Check for sphinx doc build warnings.
         - env: SETUP_CMD='build_sphinx -w'
                USE_PYFFTW=True
-               USE_PINT=True
+               PINT_VERSION=master
                PIP_DEPENDENCIES='jplephem'
                CONDA_DEPENDENCIES=$CONDA_DEPENDENCIES_DOC
 
         # Check everything, including coverage, with oldest supported versions.
-        - env: SETUP_CMD='test --coverage'
+        - env: SETUP_CMD='test --coverage --remote-data'
                PYTHON_VERSION=3.5 NUMPY_VERSION=1.14 ASTROPY_VERSION=3.1
                BASEBAND_VERSION=2.0
-               USE_PINT=True
+               PINT_VERSION=c394203b9d952ca1d19071e2b84164dee433a8bc
                USE_PYFFTW=True
                PIP_DEPENDENCIES='jplephem pyfftw'
                CONDA_DEPENDENCIES='scipy'
@@ -107,8 +107,10 @@ matrix:
 
         # Regular check that we still work on astropy-dev.
         - stage: Cron tests
-          env: ASTROPY_VERSION=development BASEBAND_VERSION=development
-               USE_PINT=True
+          env: ASTROPY_VERSION=development
+               BASEBAND_VERSION=development
+               SETUP_CMD='test --remote-data'
+               PINT_VERSION=master
                USE_PYFFTW=True
                PIP_DEPENDENCIES='jplephem pyfftw'
                CONDA_DEPENDENCIES='scipy'
@@ -149,9 +151,9 @@ install:
     # well as at the start of the install section or in the before_install
     # section if they are needed before setting up conda) to install any
     # other dependencies.
-    - if [[ $USE_PINT == True ]]; then
+    - if [[ $PINT_VERSION != None ]]; then
          git clone https://github.com/nanograv/PINT.git;
-         (cd PINT && pip install .)
+         (cd PINT && git checkout $PINT_VERSION && pip install .)
       fi
 
 script:
