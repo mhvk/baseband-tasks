@@ -94,10 +94,11 @@ matrix:
                CONDA_DEPENDENCIES=$CONDA_DEPENDENCIES_DOC
 
         # Check everything, including coverage, with oldest supported versions.
+        # NOTE: PINT is temporarily disabled!!!
         - env: SETUP_CMD='test --coverage'
                PYTHON_VERSION=3.5 NUMPY_VERSION=1.14 ASTROPY_VERSION=3.1
                BASEBAND_VERSION=2.0
-               USE_PINT=True
+               USE_PINT=False
                USE_PYFFTW=True
                PIP_DEPENDENCIES='jplephem pyfftw'
                CONDA_DEPENDENCIES='scipy'
