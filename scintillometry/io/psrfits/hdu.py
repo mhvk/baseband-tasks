@@ -2,10 +2,10 @@
 """Wrappers for PSRFTIS Header Data Units (HDUs)."""
 from collections import namedtuple
 
-import astropy.units as u
+from astropy import units as u
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord, EarthLocation
-from astropy.coordinates import Angle, Latitude, Longitude
+from astropy.coordinates import EarthLocation
+from astropy.coordinates import Latitude, Longitude
 from astropy.io import fits
 from astropy.utils import lazyproperty
 import numpy as np
@@ -73,7 +73,7 @@ class PSRFITSPrimaryHDU(HDUWrapper):
                    'ra', 'dec', 'shape', 'sample_rate')
 
     def __init__(self, hdu=None, verify=True):
-        # When input hdu is None, the Primary header will be initialize as empty
+        # When input hdu is None, an empty Primary header will be initialized.
         super().__init__(hdu, hdu_type="PRIMARY", verify=verify)
 
     def verify(self):
@@ -87,7 +87,9 @@ class PSRFITSPrimaryHDU(HDUWrapper):
             return EarthLocation(self.header['ANT_X'],
                                  self.header['ANT_Y'],
                                  self.header['ANT_Z'], u.m)
-        except (KeyError, TypeError):   # Sometimes PSRFITS uses '*' as no data.
+        except (KeyError, TypeError):
+            # Sometimes PSRFITS uses '*' to indicate no data.
+            # TODO: should this be AttributeError instead?
             return None
 
     @location.setter

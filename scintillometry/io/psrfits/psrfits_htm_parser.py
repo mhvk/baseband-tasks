@@ -119,7 +119,7 @@ def ext2hdu(extension):
             line = line.replace('# ', f'{icol:<2d}')
 
         if is_col or line.startswith('XTENSION') or line.startswith('EXTNAME'):
-            # Value should be a string but doesn't have quotes in the .htm file.
+            # Value should be a string but quotes are omitted in the .htm file.
             line = line[:10] + "'" + line[10:27] + "'" + line[29:]
         elif "* /" in line:
             # A plain * cannot be parsed; it needs to be a string.

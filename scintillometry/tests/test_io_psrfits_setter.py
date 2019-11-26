@@ -5,11 +5,8 @@ import os
 
 import pytest
 import numpy as np
-import shutil
-from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord, EarthLocation
-from astropy.coordinates import Angle, Latitude, Longitude
-import astropy.units as u
+from astropy.coordinates import Latitude, Longitude
+from astropy import units as u
 
 from ..io import psrfits
 
@@ -48,7 +45,8 @@ class TestWriter:
                           self.input_p_hdu.header['STT_SMJD'])
         assert np.isclose(float(self.p_hdu.header['STT_OFFS']),
                           self.input_p_hdu.header['STT_OFFS'])
-        assert self.p_hdu.header['DATE-OBS'].startswith(self.input_p_hdu.header['DATE-OBS'])
+        assert self.p_hdu.header['DATE-OBS'].startswith(
+            self.input_p_hdu.header['DATE-OBS'])
 
     def test_set_freq(self):
         self.p_hdu.frequency = self.input_p_hdu.frequency
@@ -101,8 +99,8 @@ class TestPSRHDUWriter(TestWriter):
 
     def test_init_data(self):
         # The data should be initialied in the setup.
-        assert self.psr_hdu.data['DATA'].shape == ((self.reader.shape[0],) +
-                                                   (self.reader.shape[1:][::-1]))
+        assert self.psr_hdu.data['DATA'].shape == (
+            (self.reader.shape[0],) + self.reader.shape[1:][::-1])
 
     def test_no_sample_init(self):
         # Without sample shape set, we cannot get shape or data information.
@@ -130,7 +128,8 @@ class TestPSRHDUWriter(TestWriter):
 
     def test_set_start_time(self):
         self.psr_hdu.start_time = self.reader.start_time
-        assert np.abs(self.psr_hdu.start_time - self.reader.start_time) < 1 * u.ns
+        assert np.abs(self.psr_hdu.start_time -
+                      self.reader.start_time) < 1 * u.ns
 
     def test_set_frequency(self):
         self.psr_hdu.frequency = self.reader.frequency
@@ -143,8 +142,9 @@ class TestPSRHDUWriter(TestWriter):
         test_data = self.reader.read(1)
         # PSRFITS rounds, not truncates data.
         in_data = np.around(((test_data - self.reader.ih.data['DAT_OFFS']) /
-                            self.reader.ih.data['DAT_SCL']))
-        self.psr_hdu.data['DATA'] = in_data.reshape(self.psr_hdu.data['DATA'].shape)
+                            self.reader.ih.data['DAT_SCL'])).reshape(
+                                self.psr_hdu.data['DATA'].shape)
+        self.psr_hdu.data['DATA'] = in_data
         self.psr_hdu.data['DAT_SCL'] = self.reader.ih.data['DAT_SCL']
         self.psr_hdu.data['DAT_OFFS'] = self.reader.ih.data['DAT_OFFS']
         # Implicitly set 'TSUBINT' and 'OFFS_SUB'.
@@ -159,7 +159,8 @@ class TestPSRHDUWriter(TestWriter):
                                   column_reader.ih.data['DATA'])
             assert np.abs(column_reader.start_time -
                           self.reader.start_time) < 1 * u.ns
-            assert u.isclose(column_reader.sample_rate, self.reader.sample_rate)
+            assert u.isclose(column_reader.sample_rate,
+                             self.reader.sample_rate)
             # And read from it, checking the output is the same as well.
             new_data = column_reader.read(1)
         assert np.array_equal(test_data, new_data)
