@@ -2,10 +2,8 @@
 """Phase_utils.py defines the phase calculation utility class. Currently, the
 pulse phase at a given time can be computed by PINT or polycos.
 """
-import warnings
 
-import numpy as np
-import astropy.units as u
+from astropy import units as u
 
 from .phase import Phase
 from .predictor import Polyco

@@ -70,7 +70,7 @@ class CombineStreamsBase(TaskBase):
                          "as required".format([f.shape[1:] for f in fakes]),)
             raise
         if a.shape[0] != 7:
-            raise ValueError("stream combination affected the sample axis (0).")
+            raise ValueError("combination affected the sample axis (0).")
 
         # Calculate the combined shape and attributes.
         shape = (n_sample,) + a.shape[1:]

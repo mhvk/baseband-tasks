@@ -10,7 +10,7 @@ Examples
 
 For use with folding codes with times since some start time t0 in seconds:
 
->>> psr_polyco.phasepol(t0, 'fraction', t0=t0, time_unit=u.second, convert=True)
+>>> psr_polyco.phasepol(t0, 'fraction', t0=t0, time_unit=u.s, convert=True)
 
 Notes
 -----
@@ -49,8 +49,7 @@ Example tempo2 call to produce one:
 
 .. code-block:: text
 
-    tempo2 -tempo1 \
-        -f ~/packages/scintellometry/scintellometry/ephemerides/psrb1957+20.par \
+    tempo2 -tempo1 -f psrb1957+20.par \
         -polyco "56499 56500 300 12 12 aro 150.0"
                  |-- MJD start
                        |-- MJD end
@@ -60,8 +59,6 @@ Example tempo2 call to produce one:
                                        |-- Observatory
                                            |-- Frequency in MHz
 """
-
-from __future__ import division, print_function
 
 from collections import OrderedDict
 
@@ -105,7 +102,8 @@ class Polyco(QTable):
             Package which the writer should emulate.  Default: 'tempo2'
         """
         header_fmt = ''.join(
-            [('{' + key + converter['fmt'] + ('}\n' if key == 'lgrms' else '}'))
+            [('{' + key + converter['fmt'] +
+              ('}\n' if key == 'lgrms' else '}'))
              for key, converter in converters.items()
              if key in self.keys() or key in ('date', 'utc_mid')])
 

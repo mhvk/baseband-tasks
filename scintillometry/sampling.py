@@ -73,7 +73,8 @@ class Resample(PaddedTaskBase):
       >>> from baseband import data, vdif
       >>> fh = vdif.open(data.SAMPLE_VDIF)
       >>> texact = Time('2014-06-16T05:56:07.000123456')
-      >>> ((texact - fh.start_time) * fh.sample_rate).to(1)  # doctest: +FLOAT_CMP
+      >>> ((texact - fh.start_time) * fh.sample_rate).to(1)
+      ... # doctest: +FLOAT_CMP
       <Quantity 3950.59201992>
       >>> rh = Resample(fh, texact)
       >>> rh.time.isot

@@ -3,10 +3,8 @@
 
 See https://github.com/nanograv/PINT
 """
-import warnings
 
 import numpy as np
-from astropy import units as u
 
 
 __all__ = ['PintToas']

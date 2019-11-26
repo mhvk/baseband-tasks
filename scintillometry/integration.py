@@ -5,7 +5,7 @@ import operator
 import warnings
 
 import numpy as np
-import astropy.units as u
+from astropy import units as u
 from astropy.utils import ShapedLikeNDArray, lazyproperty
 
 from .base import BaseTaskBase
@@ -119,7 +119,8 @@ class Integrate(BaseTaskBase):
         else:
             try:
                 # We may not be at an integer sample.
-                ih_start += ((start - ih.time) * ih.sample_rate).to_value(u.one)
+                ih_start += ((start - ih.time) *
+                             ih.sample_rate).to_value(u.one)
             except TypeError:  # start is not a Time
                 start = ih.time
             start_time = start
@@ -208,7 +209,7 @@ class Integrate(BaseTaskBase):
         offsets = (phase / ih_mean_phase_size).to_value(u.one)
         # In order to update guesses, below we interpolate phase in offset.
         # Add known boundaries to ensure we do not go out of bounds there.
-        all_offsets = np.hstack((0, offsets, self.ih.shape[0] - self._ih_start))
+        all_offsets = np.hstack((0, offsets, self.ih.shape[0]-self._ih_start))
         # Associated phases relative to start phase;
         # all but start (=0) and stop will be overwritten.
         all_ih_phase = all_offsets * ih_mean_phase_size

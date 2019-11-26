@@ -1,3 +1,3 @@
-from .core import PintPhase, PolycoPhase
-from .phase import Phase, FractionalPhase
-from .predictor import Polyco
+from .core import PintPhase, PolycoPhase  # noqa
+from .phase import Phase, FractionalPhase  # noqa
+from .predictor import Polyco  # noqa

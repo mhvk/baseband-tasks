@@ -341,8 +341,8 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__,
-                               ', '.join(['{k}={v}'.format(k=k, v=v)
-                                          for k, v in self._repr_kwargs.items()]))
+                               ', '.join(['{}={}'.format(k, v) for k, v
+                                          in self._repr_kwargs.items()]))
 
 
 class fft_maker(ScienceState):
@@ -460,7 +460,7 @@ class fft_maker(ScienceState):
             fft_engine = FFT_MAKER_CLASSES[fft_engine](**kwargs)
 
         elif kwargs:
-            raise TypeError("cannot pass keyword arguments except if fft_engine "
-                            "is the name of an FFT maker.")
+            raise TypeError("cannot pass keyword arguments except if "
+                            "fft_engine is the name of an FFT maker.")
 
         return super().set(fft_engine)

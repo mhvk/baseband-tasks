@@ -2,8 +2,6 @@
 
 import operator
 
-import numpy as np
-
 from .base import TaskBase
 from .fourier import fft_maker
 
@@ -135,7 +133,7 @@ class Dechannelize(TaskBase):
             if dtype.kind == 'c':
                 n = ih.sample_shape[0]
             else:
-                raise ValueError("Need to pass in explicit n for real transform.")
+                raise ValueError("need explicit 'n' for real transform.")
         else:
             n = operator.index(n)
 

@@ -6,7 +6,7 @@ import types
 import warnings
 
 import numpy as np
-import astropy.units as u
+from astropy import units as u
 
 
 __all__ = ['Base', 'BaseTaskBase', 'SetAttribute', 'TaskBase',
@@ -290,7 +290,7 @@ class Base:
             out = np.empty((count,) + self.shape[1:], dtype=self.dtype)
         else:
             assert out.shape[1:] == self.shape[1:], (
-                "'out' should have trailing shape {}".format(self.sample_shape))
+                "'out' must have trailing shape {}".format(self.sample_shape))
             count = out.shape[0]
 
         # TODO: should this just return the maximum possible?
@@ -560,8 +560,8 @@ class TaskBase(BaseTaskBase):
 class Task(TaskBase):
     """Apply a user-supplied callable to a stream.
 
-    The task can either behave like a function or a method.  If a function,
-    it will be passed just the frame data read from the underlying file or task;
+    The task can either behave like a function or a method.  If a function, it
+    will be passed just the frame data read from the underlying file or task;
     if a method, it will be passed the Task instance (with its offset at the
     correct sample) as well as the frame data read.
 

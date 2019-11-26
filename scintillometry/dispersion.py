@@ -1,7 +1,7 @@
 # Licensed under the GPLv3 - see LICENSE
 
 import numpy as np
-import astropy.units as u
+from astropy import units as u
 from astropy.utils import lazyproperty
 
 from .base import PaddedTaskBase
@@ -98,8 +98,8 @@ class Disperse(PaddedTaskBase):
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
         self._fft = fft_maker(shape=(self._padded_samples_per_frame,) +
-                              self.ih.sample_shape,
-                              sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
+                              self.ih.sample_shape, dtype=self.ih.dtype,
+                              sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
         self.dm = dm
         self.reference_frequency = reference_frequency

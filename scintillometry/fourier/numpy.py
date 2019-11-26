@@ -2,7 +2,7 @@
 """FFT maker and class using the `numpy.fft` routines."""
 
 import numpy as np
-import operator
+
 from .base import FFTMakerBase, FFTBase
 
 

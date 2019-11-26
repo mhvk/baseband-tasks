@@ -1,11 +1,12 @@
 # Licensed under the GPLv3 - see LICENSE
 """Interfaces for dealing with PSRFITS fold-mode data."""
 
-from ...base import BaseTaskBase
 from astropy.io import fits
-from .hdu import HDU_map
 from astropy import log
 from collections import defaultdict
+
+from scintillometry.base import BaseTaskBase
+from .hdu import HDU_map
 
 
 __all__ = ['open', 'get_readers', 'PSRFITSReader']
@@ -86,8 +87,8 @@ def get_readers(hdu_list, **kwargs):
         if hdu.name in HDU_map.keys():
             buffers[hdu.name].append(hdu)
         else:
-            log.warning("Skipping HDU {} ({}), as it is not a supported PSRFITS"
-                        " HDU.".format(ii, hdu.name))
+            log.warning("Skipping HDU {} ({}), as it is not a supported "
+                        "PSRFITS HDU.".format(ii, hdu.name))
 
     primary = buffers.pop('PRIMARY', [])
     if len(primary) != 1:

@@ -99,7 +99,8 @@ class Power(TaskBase):
             raise ValueError("{} only works on a complex timestream.")
         dtype = np.zeros(1, ih_dtype).real.dtype
 
-        super().__init__(ih, shape=shape, polarization=polarization, dtype=dtype)
+        super().__init__(ih, shape=shape, polarization=polarization,
+                         dtype=dtype)
 
     def task(self, data):
         """Calculate the polarization powers and cross terms for one frame."""

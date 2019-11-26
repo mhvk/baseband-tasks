@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 # Licensed under the GPLv3 - see LICENSE
 """Provide a Phase class with integer and fractional part."""
-import operator
 
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import Angle, Longitude
-from astropy.time import Time
 from astropy.time.utils import two_sum, two_product
 from astropy.utils import minversion
 
@@ -151,15 +149,15 @@ class FractionalPhase(Longitude):
         unit.  Default is 'cycle'.
     wrap_angle : :class:`~astropy.coordinates.Angle` or equivalent, optional
         Angle at which to wrap back to ``wrap_angle - 1 cycle``.
-        If ``None`` (default), it will be taken to be 0.5 cycle unless ``angle``
-        has a ``wrap_angle`` attribute.
+        If ``None`` (default), it will be taken to be 0.5 cycle unless
+        ``angle`` has a ``wrap_angle`` attribute.
 
     Raises
     ------
     `~astropy.units.UnitsError`
         If a unit is not provided or it is not an angular unit.
     `TypeError`
-        If the angle parameter is an instance of :class:`~astropy.coordinates.Latitude`.
+        If the angle parameter is a :class:`~astropy.coordinates.Latitude`.
     """
     _default_wrap_angle = Angle(0.5, u.cycle)
     _equivalent_unit = _default_unit = u.cycle
@@ -260,19 +258,22 @@ class Phase(Angle):
         if phase2 is not None:
             if isinstance(phase2, Phase):
                 phase2 = phase2 + phase1
-                return phase2 if subok or type(phase2) is cls else phase2.view(cls)
-            else:
-                phase2 = Angle(phase2, cls._unit, copy=False)
+                if not subok and type(phase2) is not cls:
+                    phase2 = phase2.view(cls)
+                return phase2
+
+            phase2 = Angle(phase2, cls._unit, copy=False)
 
         return cls.from_angles(phase1, phase2)
 
     @classmethod
-    def from_angles(cls, phase1, phase2=None, factor=None, divisor=None, out=None):
+    def from_angles(cls, phase1, phase2=None, factor=None, divisor=None,
+                    out=None):
         """Create a Phase instance from two angles.
 
-        The two angles will be added, and possibly multiplied by a factor or divided
-        by a divisor, preserving precision using two doubles, one for the integer
-        part and one for the remainder.
+        The two angles will be added, and possibly multiplied by a factor or
+        divided by a divisor, preserving precision using two doubles, one for
+        the integer part and one for the remainder.
 
         Note that this class method is mostly meant for internal use.
 
@@ -620,7 +621,7 @@ class Phase(Angle):
         """
         return self._take_along_axis(self.argsort(axis), axis, keepdims=True)
 
-    # Quantity lets ndarray.__eq__, __ne__ deal with structured arrays (like us).
+    # Quantity lets ndarray.__eq__, __ne__ deal with structured arrays like us.
     # Override this so we can deal with it in __array_ufunc__.
     def __eq__(self, other):
         try:
@@ -654,11 +655,11 @@ class Phase(Angle):
 
         Returns
         -------
-        result : `~scintillometry.phases.Phase`, `~astropy.units.Quantity`, or `~numpy.ndarray`
+        result : array_like
             Results of the ufunc, with the unit set properly,
-            `~scintillometry.phases.phase` if possible (i.e., units of cycles,
-            others `~astropyy.units.Quantity` or `~numpy.ndarray` as
-            appropriate.
+            `~scintillometry.phases.Phase` if possible (i.e., with units of
+            cycles), otherwise `~astropyy.units.Quantity` or `~numpy.ndarray`
+            as appropriate.
         """
         # Do *not* use inputs.index(self) since that will use __eq__
         for i_self, input_ in enumerate(inputs):
@@ -819,7 +820,8 @@ class Phase(Angle):
 
         return super()._new_view(obj, unit)
 
-    def astype(self, dtype, order='K', casting='unsafe', subok=True, copy=True):
+    def astype(self, dtype, order='K', casting='unsafe', subok=True,
+               copy=True):
         """Copy of the array, cast to a specified type.
 
         As `numpy.ndarray.astype`, but using knowledge of format to cast to
