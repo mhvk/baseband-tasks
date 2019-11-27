@@ -84,8 +84,8 @@ class TestTranspose(UseVDIFSampleWithAttrs):
         assert tt.sideband.shape == ()
         assert np.all(tt.sideband == 1)
         assert tt.polarization.shape == (2, 1)
-        assert np.all(tt.polarization ==
-                      self.fh.polarization[:2].reshape(2, 1))
+        assert np.all(tt.polarization
+                      == self.fh.polarization[:2].reshape(2, 1))
 
     def test_frequency_sideband_polarization_propagation2(self):
         # Add different frequency, sideband, and polarization information.

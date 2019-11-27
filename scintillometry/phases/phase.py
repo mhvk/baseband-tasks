@@ -363,9 +363,9 @@ class Phase(Angle):
         if unit is None or unit != self._unit:
             raise u.UnitTypeError(
                 "{0} instances require units of '{1}'"
-                .format(type(self).__name__, self._unit) +
-                (", but no unit was given." if unit is None else
-                 ", so cannot set it to '{0}'.".format(unit)))
+                .format(type(self).__name__, self._unit)
+                + (", but no unit was given." if unit is None else
+                   ", so cannot set it to '{0}'.".format(unit)))
 
         super()._set_unit(unit)
 
@@ -437,8 +437,9 @@ class Phase(Angle):
                 # guarantee that the right number of digits is shown.
                 frac_str = func(frac+0.25)
                 f24 = int(frac_str[2:4])
-                if func is str and (len(frac_str) == 3 or
-                                    len(frac_str) == 4 and frac_str[3] == '5'):
+                if func is str and (len(frac_str) == 3
+                                    or (len(frac_str) == 4
+                                        and frac_str[3] == '5')):
                     if len(frac_str) == 3:
                         f24 = '{:02d}'.format(f24 * 10 - 25)
                     else:
@@ -603,8 +604,8 @@ class Phase(Angle):
         """
         if out is not None:
             raise ValueError("An `out` argument is not yet supported.")
-        return (self.max(axis, keepdims=keepdims) -
-                self.min(axis, keepdims=keepdims))
+        return (self.max(axis, keepdims=keepdims)
+                - self.min(axis, keepdims=keepdims))
 
     def sort(self, axis=-1):
         """Return a copy sorted along the specified axis.
@@ -714,8 +715,9 @@ class Phase(Angle):
                 diff = (v0['int'] - v1['int']) + (v0['frac'] - v1['frac'])
                 return getattr(function, method)(diff, 0, **kwargs)
 
-        elif ((function is np.multiply or
-               function is np.divide and i_self == 0) and basic_phase_out):
+        elif ((function is np.multiply
+               or function is np.divide and i_self == 0)
+              and basic_phase_out):
             try:
                 other = u.Quantity(inputs[1-i_self], u.dimensionless_unscaled,
                                    copy=False).value
@@ -731,8 +733,8 @@ class Phase(Angle):
                 # downgrading ourself to a quantity and see if things work.
                 pass
 
-        elif (function in {np.floor_divide, np.remainder, np.divmod} and
-              basic_real):
+        elif (function in {np.floor_divide, np.remainder, np.divmod}
+              and basic_real):
             fd_out = None
             if out is not None:
                 if function is np.divmod:

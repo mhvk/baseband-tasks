@@ -22,6 +22,7 @@ class ChangeSampleShapeBase(TaskBase):
     ih : task or `baseband` stream reader
         Input data stream.
     """
+
     def __init__(self, ih):
         # Check operation is possible
         a = np.empty((7,) + ih.sample_shape, dtype='?')
@@ -104,6 +105,7 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
     """
     # Override __init__ only to get rid of kwargs of Task, since these cannot
     # be passed on to ChangeSampleShapeBase anyway.
+
     def __init__(self, ih, task, method=None):
         super().__init__(ih, task, method=method)
 
@@ -328,6 +330,7 @@ class GetItem(ChangeSampleShapeBase):
         array(1, dtype=int8)
         >>> fh.close()
     """
+
     def __init__(self, ih, item):
         if isinstance(item, tuple):
             self._item = (slice(None),) + item

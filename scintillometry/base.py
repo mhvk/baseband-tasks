@@ -456,6 +456,7 @@ class SetAttribute(BaseTaskBase):
         ``['X', 'Y']``, or ``[['L'], ['R']]``.
 
     """
+
     def __init__(self, ih, *, start_time=None, sample_rate=None,
                  frequency=None, sideband=None, polarization=None):
         super().__init__(ih, start_time=start_time, sample_rate=sample_rate,
@@ -524,14 +525,14 @@ class TaskBase(BaseTaskBase):
         else:
             sample_rate_ratio = (ih.sample_rate / sample_rate).to(1).value
         if samples_per_frame is None:
-            (samples_per_frame, r) = divmod(ih.samples_per_frame /
-                                            sample_rate_ratio, 1.)
+            (samples_per_frame, r) = divmod(ih.samples_per_frame
+                                            / sample_rate_ratio, 1.)
             assert r == 0, "inferred samples per frame must be integer"
             samples_per_frame = int(samples_per_frame)
             self._raw_samples_per_frame = ih.samples_per_frame
         else:
-            (raw_samples_per_frame, r) = divmod(samples_per_frame *
-                                                sample_rate_ratio, 1.)
+            (raw_samples_per_frame, r) = divmod(samples_per_frame
+                                                * sample_rate_ratio, 1.)
             assert r == 0, "inferred raw samples per frame must be integer"
             self._raw_samples_per_frame = int(raw_samples_per_frame)
 
@@ -618,6 +619,7 @@ class Task(TaskBase):
     AssertionError
         If the task has zero or more than 2 arguments.
     """
+
     def __init__(self, ih, task, method=None, **kwargs):
         if method is None:
             try:
@@ -668,6 +670,7 @@ class PaddedTaskBase(BaseTaskBase):
         Possible further arguments; see `~scintillometry.base.BaseTaskBase`.
 
     """
+
     def __init__(self, ih, pad_start=0, pad_end=0, *,
                  samples_per_frame=None, **kwargs):
         self._pad_start = operator.index(pad_start)

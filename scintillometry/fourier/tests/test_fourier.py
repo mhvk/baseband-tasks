@@ -55,9 +55,9 @@ class TestFFTClasses:
         self.y_r2D = np.random.uniform(low=-13., high=29., size=(100, 25))
         # 3D complex random.
         self.y_3D = (np.random.uniform(low=-19., high=16.,
-                                       size=(100, 10, 30)) +
-                     1.j * np.random.uniform(low=-13., high=23.,
-                                             size=(100, 10, 30)))
+                                       size=(100, 10, 30))
+                     + 1.j * np.random.uniform(low=-13., high=23.,
+                                               size=(100, 10, 30)))
 
         # Transforms of the above.
         self.Y_exp = np.fft.fft(self.y_exp)

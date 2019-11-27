@@ -56,6 +56,7 @@ class SquareHat(PaddedTaskBase):
 
     `SquareHat` simply convolves with a set of 1s of given length.
     """
+
     def __init__(self, ih, n, offset=0, samples_per_frame=None):
         self._n = n
         super().__init__(ih, pad_start=n-1-offset, pad_end=offset,
@@ -169,8 +170,8 @@ class TestTaskBase(UseVDIFSample):
         assert rt.ndim == fh.ndim + 1
         assert rt.tell() == 0
         assert rt.tell(unit='time') == rt.time == rt.start_time
-        assert abs(rt.stop_time - rt.start_time -
-                   (nsample * n) / fh.sample_rate) < 1*u.ns
+        assert abs(rt.stop_time
+                   - rt.start_time - (nsample * n) / fh.sample_rate) < 1*u.ns
 
         # Get reference data.
         ref_data = fh.read(nsample * n).reshape((-1, n) + fh.sample_shape)
@@ -181,8 +182,8 @@ class TestTaskBase(UseVDIFSample):
         # Check sequential reading.
         data1 = rt.read()
         assert rt.tell() == rt.shape[0]
-        assert abs(rt.time - rt.start_time -
-                   rt.shape[0] / rt.sample_rate) < 1*u.ns
+        assert abs(rt.time
+                   - rt.start_time - rt.shape[0] / rt.sample_rate) < 1*u.ns
         assert rt.dtype is data1.dtype
         assert np.all(ref_data == data1)
 
@@ -339,8 +340,8 @@ class TestTasks(UseVDIFSample):
         # Apply to everything.
         data1 = ft.read()
         assert ft.tell() == ft.shape[0]
-        assert (ft.time - ft.start_time -
-                ft.shape[0] / ft.sample_rate) < 1*u.ns
+        assert abs(ft.time
+                   - ft.start_time - ft.shape[0] / ft.sample_rate) < 1*u.ns
         assert ft.dtype is ref_data.dtype is data1.dtype
         assert np.allclose(ref_data, data1)
 
@@ -399,8 +400,8 @@ class TestPaddedTaskBase(UseVDIFSample):
         expected_size = ((fh.shape[0] - 2) // 4) * 4
         assert sh.sample_rate == fh.sample_rate
         assert sh.shape == (expected_size,) + fh.shape[1:]
-        assert abs(sh.start_time - fh.start_time -
-                   2. / fh.sample_rate) < 1. * u.ns
+        assert abs(sh.start_time
+                   - fh.start_time - 2. / fh.sample_rate) < 1. * u.ns
         raw = fh.read(12)
         expected = raw[:-2] + raw[1:-1] + raw[2:]
         data = sh.read(10)

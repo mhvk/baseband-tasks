@@ -136,6 +136,7 @@ class PSRFITSReader(BaseTaskBase):
     """
     # Note: this very light-weight wrapper around SubintHDU is mostly here
     # because eventually it might unify different/multiple HDUs.
+
     def __init__(self, ih, frequency=None, sideband=None, polarization=None,
                  dtype=None, weighted=True):
         self.weighted = weighted
@@ -169,6 +170,7 @@ class PSRFITSWriter:
     -----
     Currently it only support write the PSRFITS primary HDU and Subint HDU.
     """
+
     def __init__(self, filename, ih, hdus=None):
         self.filename = filename
         self.ih = ih

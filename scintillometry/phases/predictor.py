@@ -102,8 +102,7 @@ class Polyco(QTable):
             Package which the writer should emulate.  Default: 'tempo2'
         """
         header_fmt = ''.join(
-            [('{' + key + converter['fmt'] +
-              ('}\n' if key == 'lgrms' else '}'))
+            ['{' + key + converter['fmt'] + ('}\n' if key == 'lgrms' else '}')
              for key, converter in converters.items()
              if key in self.keys() or key in ('date', 'utc_mid')])
 

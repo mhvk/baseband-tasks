@@ -32,8 +32,8 @@ class TestChannelizeReal(UseVDIFSample):
         # Note: sideband is actually incorrect for this VDIF file;
         # this is for testing only.
         self.ref_sideband = np.tile([-1, 1], 4)
-        self.ref_frequency = ((311.25 + 16 * (np.arange(8) // 2)) * u.MHz +
-                              self.ref_sideband * rfft.frequency)
+        self.ref_frequency = ((311.25 + 16 * (np.arange(8) // 2)) * u.MHz
+                              + self.ref_sideband * rfft.frequency)
         self.fh_freq = SetAttribute(
             self.fh,
             frequency=311.25*u.MHz+(np.arange(8.)//2)*16.*u.MHz,
@@ -46,8 +46,8 @@ class TestChannelizeReal(UseVDIFSample):
         # Channelize everything.
         data1 = ct.read()
         assert ct.tell() == ct.shape[0]
-        assert (ct.time - ct.start_time -
-                ct.shape[0] / ct.sample_rate) < 1*u.ns
+        assert (ct.time - ct.start_time
+                - ct.shape[0] / ct.sample_rate) < 1*u.ns
         assert ct.dtype is self.ref_data.dtype is data1.dtype
         assert np.all(self.ref_data == data1)
 
@@ -121,16 +121,16 @@ class TestChannelizeComplex(UseDADASample):
         """Test frequency calculation."""
         fh = self.fh_freq
         ct = Channelize(fh, self.n)
-        ref_frequency = (320. * u.MHz +
-                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
+        ref_frequency = (320. * u.MHz
+                         + np.fft.fftfreq(self.n, 1. / fh.sample_rate))
         assert np.all(ct.sideband == fh.sideband)
         assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
 
         fh = SetAttribute(self.fh, frequency=self.fh_freq.frequency,
                           sideband=-self.fh_freq.sideband)
         ct = Channelize(fh, self.n)
-        ref_frequency = (320. * u.MHz -
-                         np.fft.fftfreq(self.n, 1. / fh.sample_rate))
+        ref_frequency = (320. * u.MHz
+                         - np.fft.fftfreq(self.n, 1. / fh.sample_rate))
         assert np.all(ct.sideband == fh.sideband)
         assert np.all(ct.frequency == ref_frequency[:, np.newaxis])
 

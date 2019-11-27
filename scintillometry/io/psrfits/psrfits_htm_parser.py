@@ -54,9 +54,9 @@ class MyHTMLParser(HTMLParser):
         self.collect = False
         data = self.data
         if tag == 'p' and (
-                data.startswith('COMMENT') or
-                data.startswith('END') or
-                (len(data) > 8 and data[8] == '=')):
+                data.startswith('COMMENT')
+                or data.startswith('END')
+                or (len(data) > 8 and data[8] == '=')):
             if data.startswith('EXTNAME'):
                 self.extname = data.split(' ')[2]
             self.headers += data.split('\n')

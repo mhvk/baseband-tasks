@@ -101,6 +101,7 @@ class Resample(PaddedTaskBase):
              -3.316505,  1.      ], dtype=float32)
       >>> fh.close()
     """
+
     def __init__(self, ih, offset, whence='start', *,
                  samples_per_frame=None):
 
@@ -118,8 +119,8 @@ class Resample(PaddedTaskBase):
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame)
 
-        self._fft = fft_maker(shape=(self._padded_samples_per_frame,) +
-                              ih.sample_shape, sample_rate=ih.sample_rate,
+        self._fft = fft_maker(shape=(self._padded_samples_per_frame,)
+                              + ih.sample_shape, sample_rate=ih.sample_rate,
                               dtype=ih.dtype)
         self._ifft = self._fft.inverse()
 
@@ -132,8 +133,8 @@ class Resample(PaddedTaskBase):
     @lazyproperty
     def phase_factor(self):
         """Phase offsets of the Fourier-transformed frame."""
-        phase_delay = (self._fraction / self.sample_rate * u.cycle *
-                       self._fft.frequency)
+        phase_delay = (self._fraction / self.sample_rate * u.cycle
+                       * self._fft.frequency)
         phase_factor = np.exp(phase_delay.to_value(u.rad) * 1j)
         phase_factor = phase_factor.astype(self._fft.frequency_dtype,
                                            copy=False)

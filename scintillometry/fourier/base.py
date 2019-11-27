@@ -152,8 +152,8 @@ class FFTBase:
         else:
             frequency = np.fft.fftfreq(a_length, d=(1. / sample_rate))
         # Reshape frequencys to add trailing dimensions.
-        frequency.shape = (frequency.shape +
-                           (len(self._time_shape) - self.axis - 1) * (1,))
+        frequency.shape = (frequency.shape
+                           + (len(self._time_shape) - self.axis - 1) * (1,))
         return frequency
 
     def __call__(self, a):
@@ -198,14 +198,14 @@ class FFTBase:
         return self.__class__(direction=self.direction)
 
     def __eq__(self, other):
-        return (self.direction == other.direction and
-                self.time_shape == other.time_shape and
-                self.time_dtype == other.time_dtype and
-                self.frequency_shape == other.frequency_shape and
-                self.frequency_dtype == other.frequency_dtype and
-                self.axis == other.axis and
-                self.ortho == other.ortho and
-                self.sample_rate == other.sample_rate)
+        return (self.direction == other.direction
+                and self.time_shape == other.time_shape
+                and self.time_dtype == other.time_dtype
+                and self.frequency_shape == other.frequency_shape
+                and self.frequency_dtype == other.frequency_dtype
+                and self.axis == other.axis
+                and self.ortho == other.ortho
+                and self.sample_rate == other.sample_rate)
 
     def __repr__(self):
         return ("<{s.__class__.__name__}"

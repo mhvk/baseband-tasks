@@ -35,6 +35,7 @@ class PintPhase:
     This method provides high precision phase calculation(~10 Nanosecond
     timing precision).
     """
+
     def __init__(self, par_file, observatory, frequency, **kwargs):
         from pint.models import get_model
 
@@ -89,6 +90,7 @@ class PolycoPhase:
     polyco_file : str
         Tempo style polyco file.
     """
+
     def __init__(self, polyco_file):
         self.polyco = Polyco(polyco_file)
 

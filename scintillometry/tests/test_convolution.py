@@ -26,8 +26,8 @@ class TestConvolveDADA(UseDADASample):
         # Convolve everything.
         data1 = ct.read()
         assert ct.tell() == ct.shape[0] == fh.shape[0] - 2
-        assert abs(ct.start_time - fh.start_time -
-                   2 / fh.sample_rate) < 1. * u.ns
+        assert abs(ct.start_time - fh.start_time
+                   - 2 / fh.sample_rate) < 1. * u.ns
         assert abs(ct.stop_time - fh.stop_time) < 1. * u.ns
         assert np.allclose(expected, data1, atol=1.e-4)
 
@@ -59,8 +59,8 @@ class TestConvolveNoise:
     def test_offset(self, convolve_task, offset):
         # Have 16000 - 2 useful samples -> can use 842, but add 2 for response.
         ct = convolve_task(self.nh, self.response, offset=offset)
-        assert abs(ct.start_time - self.start_time -
-                   (2 - offset) / self.sample_rate) < 1. * u.ns
+        assert abs(ct.start_time - self.start_time
+                   - (2 - offset) / self.sample_rate) < 1. * u.ns
         expected = self.data[:-2] + self.data[1:-1] + self.data[2:]
         data1 = ct.read(10)
         assert np.allclose(data1, expected[:10])
@@ -73,10 +73,10 @@ class TestConvolveNoise:
     def test_different_response(self, convolve_task):
         response = np.array([[1., 1., 1.], [1., 1., 0.]]).T
         ct = convolve_task(self.nh, response, samples_per_frame=844)
-        assert abs(ct.start_time - self.start_time -
-                   2 / self.sample_rate) < 1. * u.ns
-        expected = (self.data[:-2] * np.array([1, 0]) + self.data[1:-1] +
-                    self.data[2:])
+        assert abs(ct.start_time
+                   - self.start_time - 2 / self.sample_rate) < 1. * u.ns
+        expected = (self.data[:-2] * np.array([1, 0]) + self.data[1:-1]
+                    + self.data[2:])
         data1 = ct.read()
         assert np.allclose(data1, expected[:data1.shape[0]])
 

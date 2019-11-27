@@ -67,9 +67,9 @@ env:
         # If you want to ignore certain flake8 errors, you can list them
         # in FLAKE8_OPT, for example
         # E226: missing whitespace around arithmetic operator
-        # E501: line too long
-        # W504: line break after binary operator
-        - FLAKE8_OPT='--ignore=E226,E501,W504'
+        # W504: line break before binary operator
+        # By default, we just ignore whatever is in setup.cfg.
+        - FLAKE8_OPT=''
 
 
 matrix:

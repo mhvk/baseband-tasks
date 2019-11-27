@@ -20,6 +20,7 @@ class _FakeOutput(ShapedLikeNDArray):
     It subclasses `~astropy.utils.ShapedLikeNDArray` to mimic all the
     shape properties of `~numpy.ndarray` given a (fake) shape.
     """
+
     def __init__(self, shape, setitem):
         self._shape = shape
         self._setitem = setitem
@@ -96,6 +97,7 @@ class Integrate(BaseTaskBase):
     .. warning: The format for ``average=False`` may change in the future.
 
     """
+
     def __init__(self, ih, step=None, phase=None, *,
                  start=0, average=True, samples_per_frame=1, dtype=None):
         ih_start = ih.seek(start)
@@ -119,8 +121,8 @@ class Integrate(BaseTaskBase):
         else:
             try:
                 # We may not be at an integer sample.
-                ih_start += ((start - ih.time) *
-                             ih.sample_rate).to_value(u.one)
+                ih_start += ((start - ih.time)
+                             * ih.sample_rate).to_value(u.one)
             except TypeError:  # start is not a Time
                 start = ih.time
             start_time = start
@@ -197,8 +199,8 @@ class Integrate(BaseTaskBase):
         Phase is assumed to increase monotonously with time.
         """
         if self._phase is None:
-            return (np.around(samples / self._mean_offset_size +
-                              self._ih_start).astype(int))
+            return (np.around(samples / self._mean_offset_size
+                              + self._ih_start).astype(int))
 
         # Requested phases relative to start (we work relative to the start
         # to avoid rounding errors for large cycle counts).  Also, we want
@@ -227,8 +229,8 @@ class Integrate(BaseTaskBase):
             ih_time = self.ih.start_time + old_offsets / self.ih.sample_rate
             # TODO: the conversion is necessary because Quantity(Phase)
             # doesn't convert the two doubles to float internally.
-            ih_phase[mask] = (self._phase(ih_time) -
-                              self._start).astype(ih_phase.dtype, copy=False)
+            ih_phase[mask] = (self._phase(ih_time)
+                              - self._start).astype(ih_phase.dtype, copy=False)
             # Next, interpolate in known phases to get improved offsets.
             offsets[mask] = np.interp(phase[mask], all_ih_phase, all_offsets)
             # Finally, update mask.
@@ -254,8 +256,8 @@ class Integrate(BaseTaskBase):
         # Get offsets in the underlying stream for the current samples (and
         # the next one to get the upper edge). For integration over time
         # intervals, these offsets are not necessarily evenly spaced.
-        samples = (frame_index * self.samples_per_frame +
-                   np.arange(self.samples_per_frame + 1))
+        samples = (frame_index * self.samples_per_frame
+                   + np.arange(self.samples_per_frame + 1))
         offsets = self._get_offsets(samples)
         self.ih.seek(offsets[0])
         offsets -= offsets[0]
@@ -272,8 +274,8 @@ class Integrate(BaseTaskBase):
             ndim_ih_sample = len(self.ih.sample_shape)
             self._frame = {
                 'data': frame,
-                'count': np.zeros(frame.shape[:-ndim_ih_sample] +
-                                  (1,) * ndim_ih_sample, dtype=int)}
+                'count': np.zeros(frame.shape[:-ndim_ih_sample]
+                                  + (1,)*ndim_ih_sample, dtype=int)}
         else:
             self._frame = frame
         self._offsets = offsets
@@ -369,6 +371,7 @@ class Fold(Integrate):
     .. warning: The format for ``average=False`` may change in the future.
 
     """
+
     def __init__(self, ih, n_phase, phase, step=None, *,
                  start=0, average=True, samples_per_frame=1, dtype=None):
         super().__init__(ih, step=step, start=start, average=average,
@@ -396,8 +399,8 @@ class Fold(Integrate):
 
         # TODO: allow having a phase reference.
         phases = self.phase(self._raw_time + raw_items / self.ih.sample_rate)
-        phase_index = ((phases % (1. * u.cycle)).to_value(u.cycle) *
-                       self.n_phase).astype(int)
+        phase_index = ((phases % (1. * u.cycle)).to_value(u.cycle)
+                       * self.n_phase).astype(int)
         # Do the actual folding, adding the data to the sums and counts.
         # TODO: np.add.at is not very efficient; replace?
         np.add.at(self._frame['data'], (sample_index, phase_index), raw)
@@ -454,6 +457,7 @@ class Stack(BaseTaskBase):
     .. warning: The format for ``average=False`` may change in the future.
 
     """
+
     def __init__(self, ih, n_phase, phase, *,
                  start=0, average=True, samples_per_frame=1, dtype=None):
         # Set up the integration in phase bins.

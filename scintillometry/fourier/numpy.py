@@ -20,6 +20,7 @@ class NumpyFFTBase(FFTBase):
     direction : 'forward' or 'backward', optional
         Direction of the FFT.
     """
+
     def __init__(self, direction='forward'):
         super().__init__(direction=direction)
         time_complex = self._time_dtype.kind == 'c'

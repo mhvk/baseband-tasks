@@ -94,6 +94,7 @@ class TestGenerator(StreamBase):
 
 class TestConstant(StreamBase):
     """Test sources that produce constant signals."""
+
     def test_zeros_generation(self):
         def generate_zero(sh):
             return np.zeros((sh.samples_per_frame,) + sh.shape[1:],
@@ -205,6 +206,7 @@ class TestNoise:
 
     And that the noise generator looks like a streamreader.
     """
+
     def setup(self):
         self.seed = 1234567
         self.start_time = Time('2010-11-12T13:14:15')

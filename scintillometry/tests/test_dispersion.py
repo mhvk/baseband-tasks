@@ -40,8 +40,7 @@ class TestDispersion:
 
     def make_giant_pulse(self, sh):
         data = np.empty((sh.samples_per_frame,) + sh.shape[1:], sh.dtype)
-        do_gp = (sh.tell() + np.arange(sh.samples_per_frame) ==
-                 self.gp_sample)
+        do_gp = sh.tell() + np.arange(sh.samples_per_frame) == self.gp_sample
         data[...] = do_gp[:, np.newaxis]
         return data
 
@@ -60,8 +59,8 @@ class TestDispersion:
     def test_disperse_samples_per_frame(self, reference_frequency):
         disperse = Disperse(self.gp, self.dm,
                             reference_frequency=reference_frequency)
-        assert (disperse.samples_per_frame == 32768 - 6400 or
-                disperse.samples_per_frame == 32768 - 6401)
+        assert (disperse.samples_per_frame == 32768 - 6400
+                or disperse.samples_per_frame == 32768 - 6401)
 
     @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
     def test_disperse_time_offset(self, reference_frequency):
@@ -79,9 +78,9 @@ class TestDispersion:
                             reference_frequency=reference_frequency)
         # Seek input time of the giant pulse, corrected to the reference
         # frequency, and read around it.
-        t_gp = (self.start_time + self.gp_sample / self.sample_rate +
-                self.dm.time_delay(300. * u.MHz,
-                                   disperse.reference_frequency))
+        t_gp = (self.start_time + self.gp_sample / self.sample_rate
+                + self.dm.time_delay(300. * u.MHz,
+                                     disperse.reference_frequency))
         disperse.seek(t_gp)
         disperse.seek(-self.gp_sample // 2, 1)
         around_gp = disperse.read(self.gp_sample)
@@ -124,8 +123,8 @@ class TestDispersion:
         # phase_delay(freq, 300MHz) - phase_delay(freq, reference_frequency)
         # This yields a time shift as well as a phase shift given by:
         d = self.dm.dispersion_delay_constant * self.dm * u.cycle
-        phase_delay = -2. * d * (1./(300. * u.MHz) -
-                                 1./disperse.reference_frequency)
+        phase_delay = -2. * d * (1./(300. * u.MHz)
+                                 - 1./disperse.reference_frequency)
         # Sanity check of analytical derivation.
         assert_quantity_allclose(
             - phase_delay - time_delay * 300 * u.MHz * u.cycle,
@@ -134,8 +133,8 @@ class TestDispersion:
 
         # Seek input time of the giant pulse, corrected to the reference
         # frequency, and read around it.
-        t_gp = (self.start_time + self.gp_sample / self.sample_rate +
-                time_delay)
+        t_gp = (self.start_time + self.gp_sample / self.sample_rate
+                + time_delay)
         # Dedisperse to mean frequency = 300 MHz, and read dedispersed pulse.
         dedisperse = Dedisperse(disperse, self.dm)
         dedisperse.seek(t_gp)
@@ -220,8 +219,8 @@ class TestDispersionReal(TestDispersion):
     def test_disperse_samples_per_frame(self, reference_frequency):
         disperse = Disperse(self.gp, self.dm,
                             reference_frequency=reference_frequency)
-        assert (disperse.samples_per_frame == 65536 - 12800 or
-                disperse.samples_per_frame == 65536 - 12801)
+        assert (disperse.samples_per_frame == 65536 - 12800
+                or disperse.samples_per_frame == 65536 - 12801)
 
 
 class TestDispersionRealDisjoint(TestDispersion):
@@ -244,8 +243,7 @@ class TestDispersionRealDisjoint(TestDispersion):
 
     def make_giant_pulse(self, sh):
         data = np.empty((sh.samples_per_frame,) + sh.shape[1:], sh.dtype)
-        do_gp = (sh.tell() + np.arange(sh.samples_per_frame) ==
-                 self.gp_sample)
+        do_gp = sh.tell() + np.arange(sh.samples_per_frame) == self.gp_sample
         data[...] = do_gp[:, np.newaxis]
         return data
 

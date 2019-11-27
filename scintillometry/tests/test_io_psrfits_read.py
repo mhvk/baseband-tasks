@@ -103,8 +103,8 @@ class TestFoldRead(TestRead):
 
         # Test against psrchive result
         psrdata = self.psrchive_res['data']
-        assert psrdata.shape == ((self.reader.shape[0],) +
-                                 self.reader.sample_shape[::-1]), \
+        assert psrdata.shape == ((self.reader.shape[0],)
+                                 + self.reader.sample_shape[::-1]), \
             "Data shape is not the same with PSRCHIVE result"
         psrdata = psrdata.reshape(shape1)
         assert np.all(np.isclose(psrdata, fold_data)), \

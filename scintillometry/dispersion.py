@@ -97,8 +97,8 @@ class Disperse(PaddedTaskBase):
 
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
-        self._fft = fft_maker(shape=(self._padded_samples_per_frame,) +
-                              self.ih.sample_shape, dtype=self.ih.dtype,
+        self._fft = fft_maker(shape=(self._padded_samples_per_frame,)
+                              + self.ih.sample_shape, dtype=self.ih.dtype,
                               sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
         self.dm = dm
@@ -117,8 +117,8 @@ class Disperse(PaddedTaskBase):
         # Correct for any time offset applied because the reference frequency
         # was out of range.
         if self._sample_offset != 0:
-            phase_delay += (self._sample_offset / self.sample_rate * u.cycle *
-                            self._fft.frequency)
+            phase_delay += (self._sample_offset / self.sample_rate * u.cycle
+                            * self._fft.frequency)
         phase_factor = np.exp(phase_delay.to_value(u.rad) * 1j)
         phase_factor = phase_factor.astype(self._fft.frequency_dtype,
                                            copy=False)

@@ -73,6 +73,7 @@ class Power(TaskBase):
         If the underlying stream is not complex, the number of polarizations
         not equal to two, or the polarization labels not unique.
     """
+
     def __init__(self, ih, polarization=None):
         if polarization is None:
             polarization = ih.polarization

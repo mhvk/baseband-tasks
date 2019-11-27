@@ -30,6 +30,7 @@ class CombineStreamsBase(TaskBase):
         Useful mostly in case the stream readers have time offsets, since
         the output stream will be shortened by an integer number of frames.
     """
+
     def __init__(self, ihs, atol=None, samples_per_frame=None):
         try:
             ih0 = ihs[0]
@@ -168,6 +169,7 @@ class CombineStreams(Task, CombineStreamsBase):
     """
     # Override __init__ only to get rid of kwargs of Task, since these cannot
     # be passed on to ChangeSampleShapeBase anyway.
+
     def __init__(self, ihs, task, method=None, atol=None,
                  samples_per_frame=None):
         super().__init__(ihs, task, method=method, atol=atol,
@@ -198,6 +200,7 @@ class Concatenate(CombineStreamsBase):
     Stack : to stack streams along a new axis
     CombineStreams : to combine streams with a user-supplied function
     """
+
     def __init__(self, ihs, axis=1, atol=None, samples_per_frame=None):
         self.axis = axis
         super().__init__(ihs, atol=atol, samples_per_frame=samples_per_frame)
@@ -236,6 +239,7 @@ class Stack(CombineStreamsBase):
     Concatenate : to concatenate streams along an existing axis
     CombineStreams : to combine streams with a user-supplied function
     """
+
     def __init__(self, ihs, axis=1, atol=None, samples_per_frame=None):
         self.axis = axis
         super().__init__(ihs, atol=atol, samples_per_frame=samples_per_frame)

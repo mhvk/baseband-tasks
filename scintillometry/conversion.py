@@ -65,8 +65,8 @@ class Real2Complex(TaskBase):
                          dtype=dtype)
 
         if self._frequency is not None:
-            self._frequency = (self._frequency +
-                               ih.sample_rate / 2 * self.sideband)
+            self._frequency = (self._frequency
+                               + ih.sample_rate / 2 * self.sideband)
 
     def task(self, data):
         z = data.astype(self.dtype)

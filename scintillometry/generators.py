@@ -72,6 +72,7 @@ class StreamGenerator(Base):
            [1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j]], dtype=complex64)
 
     """
+
     def __init__(self, function, shape, start_time, sample_rate,
                  samples_per_frame=1, frequency=None, sideband=None,
                  polarization=None, dtype=np.complex64):
@@ -140,6 +141,7 @@ class EmptyStreamGenerator(Base):
     >>> sh.read()  # doctest: +FLOAT_CMP
     array([ 1., -1.,  1., -1.,  1.], dtype=float32)
     """
+
     def _read_frame(self, frame_index):
         return np.empty((self.samples_per_frame,) + self.shape[1:],
                         self.dtype)
@@ -163,6 +165,7 @@ class Noise:
     Data is identical between invocations only if seeded identically *and*
     read in the same order.
     """
+
     def __init__(self, seed=None):
         # TODO: replace with new Generator class for numpy >=1.17.
         self._random_state = np.random.RandomState(seed)
@@ -235,6 +238,7 @@ class NoiseGenerator(StreamGenerator):
     first access of frames is done in the same order, with the same number of
     samples per frame.
     """
+
     def __init__(self, shape, start_time, sample_rate, samples_per_frame,
                  frequency=None, sideband=None, polarization=None,
                  dtype=np.complex64, seed=None):

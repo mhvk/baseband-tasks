@@ -27,8 +27,8 @@ class TestResampleReal:
         f_sine = self.sample_rate / 32
 
         def cosine(handle):
-            dt = (handle.offset +
-                  np.arange(handle.samples_per_frame)) / handle.sample_rate
+            dt = (handle.offset
+                  + np.arange(handle.samples_per_frame)) / handle.sample_rate
             phi = (f_sine * dt * u.cycle).to_value(u.rad)
             if handle.dtype.kind == 'f':
                 cosine = np.sin(phi)
@@ -64,22 +64,22 @@ class TestResampleReal:
     def test_resample(self, offset):
         ih = Resample(self.part_fh, offset, samples_per_frame=512)
         # Always lose 1 sample per frame.
-        assert ih.shape == ((self.part_fh.shape[0] - 1,) +
-                            self.part_fh.sample_shape)
+        assert ih.shape == ((self.part_fh.shape[0] - 1,)
+                            + self.part_fh.sample_shape)
         # Check we are at the given offset.
         if isinstance(offset, Time):
             expected_time = offset
         elif isinstance(offset, u.Quantity):
             expected_time = self.part_fh.start_time + offset
         else:
-            expected_time = (self.part_fh.start_time +
-                             offset / self.part_fh.sample_rate)
+            expected_time = (self.part_fh.start_time
+                             + offset / self.part_fh.sample_rate)
         assert abs(ih.time - expected_time) < 1. * u.ns
 
         ioffset, fraction = divmod(float_offset(self.part_fh, offset), 1)
         assert ih.offset == ioffset
-        expected_start_time = (self.part_fh.start_time +
-                               fraction / self.part_fh.sample_rate)
+        expected_start_time = (self.part_fh.start_time
+                               + fraction / self.part_fh.sample_rate)
         assert abs(ih.start_time - expected_start_time) < 1. * u.ns
         ih.seek(0)
         data = ih.read()
