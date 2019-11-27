@@ -58,7 +58,7 @@ env:
         # are in astropy-ci-extras. If your package uses either of these,
         # add the channels to CONDA_CHANNELS along with any other channels
         # you want to use.
-        - CONDA_CHANNELS='astropy conda-forge'
+        - CONDA_CHANNELS='astropy astropy-ci-extras conda-forge'
 
         # If there are matplotlib or other GUI tests, uncomment the following
         # line to use the X virtual framebuffer.
@@ -78,8 +78,9 @@ matrix:
     include:
 
         # Initial tests that all the basics are covered:
-        # Default python, numpy, astropy, baseband.
+        # Oldest possible python, numpy, astropy, baseband.
         - stage: Initial tests
+          env: PYTHON_VERSION=3.5 NUMPY_VERSION=1.14 ASTROPY_VERSION=3.1
 
         # Do a PEP8/pyflakes test with flake8 (see setup.cfg for options)
         - stage: Initial tests
@@ -93,11 +94,10 @@ matrix:
                PIP_DEPENDENCIES='jplephem'
                CONDA_DEPENDENCIES=$CONDA_DEPENDENCIES_DOC
 
-        # Check everything, including coverage, with oldest supported versions.
+        # Check everything, including coverage.
         - env: SETUP_CMD='test --coverage --remote-data'
-               PYTHON_VERSION=3.5 NUMPY_VERSION=1.14 ASTROPY_VERSION=3.1
                BASEBAND_VERSION=2.0
-               PINT_VERSION=c394203b9d952ca1d19071e2b84164dee433a8bc
+               PINT_VERSION=master
                USE_PYFFTW=True
                PIP_DEPENDENCIES='jplephem pyfftw'
                CONDA_DEPENDENCIES='scipy'
