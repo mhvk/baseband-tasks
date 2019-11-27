@@ -152,8 +152,8 @@ class FFTBase:
         else:
             frequency = np.fft.fftfreq(a_length, d=(1. / sample_rate))
         # Reshape frequencys to add trailing dimensions.
-        frequency.shape = (frequency.shape +
-                           (len(self._time_shape) - self.axis - 1) * (1,))
+        frequency.shape = (frequency.shape
+                           + (len(self._time_shape) - self.axis - 1) * (1,))
         return frequency
 
     def __call__(self, a):
@@ -198,14 +198,14 @@ class FFTBase:
         return self.__class__(direction=self.direction)
 
     def __eq__(self, other):
-        return (self.direction == other.direction and
-                self.time_shape == other.time_shape and
-                self.time_dtype == other.time_dtype and
-                self.frequency_shape == other.frequency_shape and
-                self.frequency_dtype == other.frequency_dtype and
-                self.axis == other.axis and
-                self.ortho == other.ortho and
-                self.sample_rate == other.sample_rate)
+        return (self.direction == other.direction
+                and self.time_shape == other.time_shape
+                and self.time_dtype == other.time_dtype
+                and self.frequency_shape == other.frequency_shape
+                and self.frequency_dtype == other.frequency_dtype
+                and self.axis == other.axis
+                and self.ortho == other.ortho
+                and self.sample_rate == other.sample_rate)
 
     def __repr__(self):
         return ("<{s.__class__.__name__}"
@@ -341,8 +341,8 @@ class FFTMakerBase(metaclass=FFTMakerMeta):
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__,
-                               ', '.join(['{k}={v}'.format(k=k, v=v)
-                                          for k, v in self._repr_kwargs.items()]))
+                               ', '.join(['{}={}'.format(k, v) for k, v
+                                          in self._repr_kwargs.items()]))
 
 
 class fft_maker(ScienceState):
@@ -460,7 +460,7 @@ class fft_maker(ScienceState):
             fft_engine = FFT_MAKER_CLASSES[fft_engine](**kwargs)
 
         elif kwargs:
-            raise TypeError("cannot pass keyword arguments except if fft_engine "
-                            "is the name of an FFT maker.")
+            raise TypeError("cannot pass keyword arguments except if "
+                            "fft_engine is the name of an FFT maker.")
 
         return super().set(fft_engine)

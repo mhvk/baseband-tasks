@@ -9,15 +9,16 @@ import numpy as np
 from .base import Base
 
 
-__all__ = ['StreamGenerator', 'EmptyStreamGenerator', 'Noise', 'NoiseGenerator']
+__all__ = ['StreamGenerator', 'EmptyStreamGenerator',
+           'Noise', 'NoiseGenerator']
 
 
 class StreamGenerator(Base):
     """Generator of data produced by a user-provided function.
 
-    The function needs to be aware of stream structure.  As an alternative, generate
-    an empty stream with `~scintillometry.generators.EmptyStreamGenerator` and add a
-    `~scintillometry.base.Task` that fills data arrays.
+    The function needs to be aware of stream structure.  As an alternative,
+    use `~scintillometry.generators.EmptyStreamGenerator` to generate an empty
+    stream and add a `~scintillometry.base.Task` that fills data arrays.
 
     Parameters
     ----------
@@ -34,8 +35,8 @@ class StreamGenerator(Base):
     sample_rate : `~astropy.units.Quantity`
         Sample rate, in units of frequency.
     samples_per_frame : int
-        Blocking factor.  This can be used for efficiency to reduce the overhead
-        of calling the source function.
+        Blocking factor.  This can be used for efficiency to reduce the
+        overhead of calling the source function.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
@@ -55,11 +56,12 @@ class StreamGenerator(Base):
 
     >>> from scintillometry.generators import StreamGenerator
     >>> import numpy as np
-    >>> from astropy import time as t, units as u
+    >>> from astropy.time import Time
+    >>> from astropy import units as u
     >>> def alternate(sh):
     ...     return np.full((1,) + sh.shape[1:], sh.tell() % 2 == 1, sh.dtype)
     ...
-    >>> sh = StreamGenerator(alternate, (10, 6), t.Time('2010-11-12'), 10.*u.Hz)
+    >>> sh = StreamGenerator(alternate, (10, 6), Time('2010-11-12'), 10.*u.Hz)
     >>> sh.seek(5)
     5
     >>> sh.read()  # doctest: +FLOAT_CMP
@@ -68,7 +70,9 @@ class StreamGenerator(Base):
            [1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j],
            [0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j],
            [1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j, 1.+0.j]], dtype=complex64)
+
     """
+
     def __init__(self, function, shape, start_time, sample_rate,
                  samples_per_frame=1, frequency=None, sideband=None,
                  polarization=None, dtype=np.complex64):
@@ -137,6 +141,7 @@ class EmptyStreamGenerator(Base):
     >>> sh.read()  # doctest: +FLOAT_CMP
     array([ 1., -1.,  1., -1.,  1.], dtype=float32)
     """
+
     def _read_frame(self, frame_index):
         return np.empty((self.samples_per_frame,) + self.shape[1:],
                         self.dtype)
@@ -160,6 +165,7 @@ class Noise:
     Data is identical between invocations only if seeded identically *and*
     read in the same order.
     """
+
     def __init__(self, seed=None):
         # TODO: replace with new Generator class for numpy >=1.17.
         self._random_state = np.random.RandomState(seed)
@@ -232,6 +238,7 @@ class NoiseGenerator(StreamGenerator):
     first access of frames is done in the same order, with the same number of
     samples per frame.
     """
+
     def __init__(self, shape, start_time, sample_rate, samples_per_frame,
                  frequency=None, sideband=None, polarization=None,
                  dtype=np.complex64, seed=None):

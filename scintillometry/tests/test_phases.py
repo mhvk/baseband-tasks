@@ -10,7 +10,7 @@ from astropy.time import Time
 from ..phases import PolycoPhase, PintPhase, Phase
 
 try:
-    import pint
+    import pint  # noqa
     HAS_PINT = True
 except ImportError:
     HAS_PINT = False
@@ -20,8 +20,9 @@ else:
     # "stropy.extern.six will be removed in 4.0").
     # It also has warnings itself from "log.warn" that we cannot avoid.
     # TODO: remove once PINT has been updated.
-    pytestmark = [pytest.mark.filterwarnings("ignore:::astropy"),
-                  pytest.mark.filterwarnings("ignore::DeprecationWarning:pint")]
+    pytestmark = [
+        pytest.mark.filterwarnings("ignore:::astropy"),
+        pytest.mark.filterwarnings("ignore::DeprecationWarning:pint")]
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')

@@ -28,10 +28,12 @@ class TestGenerator(StreamBase):
     def test_basics(self):
         with StreamGenerator(self.my_source,
                              shape=self.shape, start_time=self.start_time,
-                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
+                             sample_rate=self.sample_rate,
+                             samples_per_frame=1) as sh:
             assert sh.size == np.prod(self.shape)
             assert sh.shape == self.shape
-            assert isinstance(sh.dtype, np.dtype) and sh.dtype == np.dtype('c8')
+            assert isinstance(sh.dtype, np.dtype)
+            assert sh.dtype == np.dtype('c8')
             assert sh.samples_per_frame == 1
             assert abs(sh.stop_time - sh.start_time - 1. * u.s) < 1. * u.ns
             sh.seek(980)
@@ -48,7 +50,8 @@ class TestGenerator(StreamBase):
         with StreamGenerator(self.my_source,
                              frequency=frequency, sideband=sideband,
                              shape=self.shape, start_time=self.start_time,
-                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
+                             sample_rate=self.sample_rate,
+                             samples_per_frame=1) as sh:
             assert np.all(sh.frequency == frequency)
             assert np.all(sh.sideband == sideband)
             with pytest.raises(AttributeError):
@@ -61,7 +64,8 @@ class TestGenerator(StreamBase):
         with StreamGenerator(self.my_source, polarization=polarization,
                              frequency=frequency, sideband=sideband,
                              shape=self.shape, start_time=self.start_time,
-                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
+                             sample_rate=self.sample_rate,
+                             samples_per_frame=1) as sh:
             assert np.all(sh.frequency == frequency)
             assert np.all(sh.sideband == sideband)
             assert np.all(sh.polarization == polarization)
@@ -69,7 +73,8 @@ class TestGenerator(StreamBase):
     def test_exceptions(self):
         with StreamGenerator(self.my_source,
                              shape=self.shape, start_time=self.start_time,
-                             sample_rate=self.sample_rate, samples_per_frame=1) as sh:
+                             sample_rate=self.sample_rate,
+                             samples_per_frame=1) as sh:
             with pytest.raises(EOFError):
                 sh.seek(-10, 2)
                 sh.read(20)
@@ -89,6 +94,7 @@ class TestGenerator(StreamBase):
 
 class TestConstant(StreamBase):
     """Test sources that produce constant signals."""
+
     def test_zeros_generation(self):
         def generate_zero(sh):
             return np.zeros((sh.samples_per_frame,) + sh.shape[1:],
@@ -200,6 +206,7 @@ class TestNoise:
 
     And that the noise generator looks like a streamreader.
     """
+
     def setup(self):
         self.seed = 1234567
         self.start_time = Time('2010-11-12T13:14:15')

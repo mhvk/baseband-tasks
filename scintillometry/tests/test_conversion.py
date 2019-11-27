@@ -61,8 +61,8 @@ def test_real_to_complex_sine(f_nyquist):
 
     def real_sine(handle):
 
-        real_sine = np.sin(f_nyquist * np.pi *
-                           np.arange(handle.samples_per_frame))
+        real_sine = np.sin(f_nyquist * np.pi
+                           * np.arange(handle.samples_per_frame))
         return real_sine
 
     sine_fh = StreamGenerator(real_sine,
@@ -75,8 +75,8 @@ def test_real_to_complex_sine(f_nyquist):
                               dtype='f8')
 
     f_complex = f_nyquist - 0.5
-    complex_dc = np.exp(2j * np.pi *
-                        (-0.25 + np.arange(2048 // 2) * f_complex))
+    complex_dc = np.exp(2j * np.pi
+                        * (-0.25 + np.arange(2048 // 2) * f_complex))
 
     real2complex = Real2Complex(sine_fh)
     complex_signal = real2complex.read()

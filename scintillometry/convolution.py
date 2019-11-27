@@ -37,8 +37,8 @@ class ConvolveSamples(PaddedTaskBase):
 
     def __init__(self, ih, response, offset=0, samples_per_frame=None):
         if response.ndim == 1 and ih.ndim > 1:
-            response = response.reshape(response.shape[:1] +
-                                        (1,) * (ih.ndim - 1))
+            response = response.reshape(response.shape[:1]
+                                        + (1,) * (ih.ndim - 1))
         else:
             check_broadcast_to(response, response.shape[:1] + ih.sample_shape)
 
@@ -87,20 +87,21 @@ class Convolve(ConvolveSamples):
     ConvolveSamples : convolution in the time domain (for simple responses)
     scintillometry.fourier.fft_maker : to select the FFT package used.
     """
+
     def __init__(self, ih, response, offset=0, samples_per_frame=None):
         super().__init__(ih, response=response, offset=offset,
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.
         self._FFT = fft_maker.get()
-        self._fft = self._FFT(shape=(self._padded_samples_per_frame,) +
-                              self.ih.sample_shape,
-                              sample_rate=self.ih.sample_rate, dtype=self.ih.dtype)
+        self._fft = self._FFT(shape=(self._padded_samples_per_frame,)
+                              + self.ih.sample_shape, dtype=self.ih.dtype,
+                              sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
 
     @lazyproperty
     def _ft_response(self):
-        long_response = np.zeros((self._padded_samples_per_frame,) +
-                                 self._response.shape[1:], self.dtype)
+        long_response = np.zeros((self._padded_samples_per_frame,)
+                                 + self._response.shape[1:], self.dtype)
         long_response[:self._response.shape[0]] = self._response
         fft = self._FFT(shape=long_response.shape, dtype=self.dtype)
         return fft(long_response)

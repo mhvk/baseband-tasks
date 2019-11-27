@@ -34,8 +34,8 @@ class TestWriter:
 
     def test_set_telescope(self):
         self.p_hdu.telescope = self.input_p_hdu.telescope
-        assert (self.p_hdu.header['TELESCOP'] ==
-                self.input_p_hdu.header['TELESCOP'])
+        assert (self.p_hdu.header['TELESCOP']
+                == self.input_p_hdu.header['TELESCOP'])
 
     def test_set_start_time(self):
         self.p_hdu.start_time = self.input_p_hdu.start_time
@@ -50,12 +50,12 @@ class TestWriter:
 
     def test_set_freq(self):
         self.p_hdu.frequency = self.input_p_hdu.frequency
-        assert (self.p_hdu.header['OBSNCHAN'] ==
-                self.input_p_hdu.header['OBSNCHAN'])
-        assert (self.p_hdu.header['OBSFREQ'] ==
-                self.input_p_hdu.header['OBSFREQ'])
-        assert (self.p_hdu.header['OBSBW'] ==
-                self.input_p_hdu.header['OBSBW'])
+        assert (self.p_hdu.header['OBSNCHAN']
+                == self.input_p_hdu.header['OBSNCHAN'])
+        assert (self.p_hdu.header['OBSFREQ']
+                == self.input_p_hdu.header['OBSFREQ'])
+        assert (self.p_hdu.header['OBSBW']
+                == self.input_p_hdu.header['OBSBW'])
 
     def test_set_sideband(self):
         self.p_hdu.header['OBSBW'] = self.input_p_hdu.header['OBSBW']
@@ -63,8 +63,8 @@ class TestWriter:
         assert (self.p_hdu.header['OBSBW'] ==
                 -self.input_p_hdu.header['OBSBW'])
         self.p_hdu.sideband = self.input_p_hdu.sideband
-        assert (self.p_hdu.header['OBSBW'] ==
-                self.input_p_hdu.header['OBSBW'])
+        assert (self.p_hdu.header['OBSBW']
+                == self.input_p_hdu.header['OBSBW'])
 
     def test_set_mode(self):
         self.p_hdu.obs_mode = 'PSR'
@@ -75,10 +75,10 @@ class TestWriter:
     def test_set_skycoord(self):
         self.p_hdu.ra = self.input_p_hdu.ra
         self.p_hdu.dec = self.input_p_hdu.dec
-        assert (Longitude(self.p_hdu.header['RA'], unit=u.hourangle) ==
-                Longitude(self.input_p_hdu.header['RA'], unit=u.hourangle))
-        assert (Latitude(self.p_hdu.header['DEC'], unit=u.deg) ==
-                Latitude(self.input_p_hdu.header['DEC'], unit=u.deg))
+        assert (Longitude(self.p_hdu.header['RA'], unit=u.hourangle)
+                == Longitude(self.input_p_hdu.header['RA'], unit=u.hourangle))
+        assert (Latitude(self.p_hdu.header['DEC'], unit=u.deg)
+                == Latitude(self.input_p_hdu.header['DEC'], unit=u.deg))
 
 
 class TestPSRHDUWriter(TestWriter):
@@ -128,8 +128,8 @@ class TestPSRHDUWriter(TestWriter):
 
     def test_set_start_time(self):
         self.psr_hdu.start_time = self.reader.start_time
-        assert np.abs(self.psr_hdu.start_time -
-                      self.reader.start_time) < 1 * u.ns
+        assert np.abs(self.psr_hdu.start_time
+                      - self.reader.start_time) < 1 * u.ns
 
     def test_set_frequency(self):
         self.psr_hdu.frequency = self.reader.frequency
@@ -141,9 +141,9 @@ class TestPSRHDUWriter(TestWriter):
         test_fits = str(tmpdir.join('test_column_writing.fits'))
         test_data = self.reader.read(1)
         # PSRFITS rounds, not truncates data.
-        in_data = np.around(((test_data - self.reader.ih.data['DAT_OFFS']) /
-                            self.reader.ih.data['DAT_SCL'])).reshape(
-                                self.psr_hdu.data['DATA'].shape)
+        in_data = np.around(((test_data - self.reader.ih.data['DAT_OFFS'])
+                             / self.reader.ih.data['DAT_SCL'])).reshape(
+            self.psr_hdu.data['DATA'].shape)
         self.psr_hdu.data['DATA'] = in_data
         self.psr_hdu.data['DAT_SCL'] = self.reader.ih.data['DAT_SCL']
         self.psr_hdu.data['DAT_OFFS'] = self.reader.ih.data['DAT_OFFS']
@@ -157,8 +157,8 @@ class TestPSRHDUWriter(TestWriter):
         with psrfits.open(test_fits, weighted=False) as column_reader:
             assert np.array_equal(self.reader.ih.data['DATA'],
                                   column_reader.ih.data['DATA'])
-            assert np.abs(column_reader.start_time -
-                          self.reader.start_time) < 1 * u.ns
+            assert np.abs(column_reader.start_time
+                          - self.reader.start_time) < 1 * u.ns
             assert u.isclose(column_reader.sample_rate,
                              self.reader.sample_rate)
             # And read from it, checking the output is the same as well.

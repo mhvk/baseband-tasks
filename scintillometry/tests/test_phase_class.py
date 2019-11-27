@@ -7,7 +7,6 @@ import pytest
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import Angle
-from astropy.time import Time
 
 from ..phases import Phase, FractionalPhase
 
@@ -112,8 +111,8 @@ class PhaseSetup:
     def setup(self):
         self.phase1 = Angle(np.array([1000., 1001., 999., 1005, 1006.]),
                             u.cycle)[:, np.newaxis]
-        self.phase2 = Angle(2.**(-53) * np.array([1, -1., 1., -1.]) +
-                            np.array([-0.5, 0., 0., 0.5]), u.cycle)
+        self.phase2 = Angle(2.**(-53) * np.array([1, -1., 1., -1.])
+                            + np.array([-0.5, 0., 0., 0.5]), u.cycle)
         self.phase = Phase(self.phase1, self.phase2)
         self.delta = Phase(0., self.phase2)
         self.im_phase = Phase(self.phase1 * 1j, self.phase2 * 1j)
@@ -683,6 +682,7 @@ class TestPhaseString(PhaseSetup):
 
 class TestFractionalPhase(PhaseSetup):
     """Since FractionalPhase is a subclass of Longitude, only limited tests."""
+
     def test_keep_precision(self):
         fp = FractionalPhase(self.phase)
         assert np.all(fp == self.phase2)

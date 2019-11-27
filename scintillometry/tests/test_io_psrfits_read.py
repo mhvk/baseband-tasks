@@ -71,14 +71,13 @@ class TestFoldRead(TestRead):
         mjdi = int(start_time0.mjd)
         mjdf = start_time0 - Time(mjdi, 0.0, format='mjd')
         sec_frac, sec_int = np.modf(mjdf.to(u.s).value)
-        assert np.isclose(self.reader.ih.primary_hdu.header['STT_IMJD'], mjdi), \
-            "The header HDU start time's integer MJD is not reading correctly."
-        assert np.isclose(self.reader.ih.primary_hdu.header['STT_SMJD'], sec_int), \
-            ("The header HDU start time's integer second is not reading"
-             "correctly.")
-        assert np.isclose(self.reader.ih.primary_hdu.header['STT_OFFS'], sec_frac), \
-            ("The header HDU start time's fractional second is not reading"
-             "correctly.")
+        assert self.reader.ih.primary_hdu.header['STT_IMJD'] == mjdi, \
+            "HDU start time's integer MJD is not reading correctly."
+        assert self.reader.ih.primary_hdu.header['STT_SMJD'] == sec_int, \
+            "HDU start time's integer second is not reading correctly."
+        assert np.isclose(self.reader.ih.primary_hdu.header['STT_OFFS'],
+                          sec_frac), \
+            "HDU start time's fractional second is not reading correctly."
         # Subint start time
         start_time1 = self.reader.start_time
         psrchive_time = self.psrchive_res['t'][0]
@@ -104,8 +103,8 @@ class TestFoldRead(TestRead):
 
         # Test against psrchive result
         psrdata = self.psrchive_res['data']
-        assert psrdata.shape == ((self.reader.shape[0],) +
-                                 self.reader.sample_shape[::-1]), \
+        assert psrdata.shape == ((self.reader.shape[0],)
+                                 + self.reader.sample_shape[::-1]), \
             "Data shape is not the same with PSRCHIVE result"
         psrdata = psrdata.reshape(shape1)
         assert np.all(np.isclose(psrdata, fold_data)), \

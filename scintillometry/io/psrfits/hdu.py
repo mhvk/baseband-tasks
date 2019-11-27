@@ -103,10 +103,10 @@ class PSRFITSPrimaryHDU(HDUWrapper):
     @property
     def start_time(self):
         return (Time(float(self.header['STT_IMJD']), format='mjd', precision=9,
-                     location=self.location) +
-                TimeDelta(float(self.header['STT_SMJD']),
-                          float(self.header['STT_OFFS']),
-                          format='sec', scale='tai'))
+                     location=self.location)
+                + TimeDelta(float(self.header['STT_SMJD']),
+                            float(self.header['STT_OFFS']),
+                            format='sec', scale='tai'))
 
     @start_time.setter
     def start_time(self, time):
@@ -146,8 +146,8 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         # (n_chan + 1) // 2 to ensure this makes sense for n_chan = 1
         # and is consistent with the document at least for even n_chan.
 
-        freq = c_freq + (np.arange(1, n_chan + 1) -
-                         ((n_chan + 1) // 2)) * chan_bw
+        freq = c_freq + (np.arange(1, n_chan + 1)
+                         - ((n_chan + 1) // 2)) * chan_bw
         return u.Quantity(freq, u.MHz, copy=False)
 
     @frequency.setter
@@ -263,9 +263,9 @@ class SubintHDU(HDUWrapper):
     @property
     def _has_data(self):
         # TODO: surely there is a better way...
-        return (self.hdu._file is not None or
-                self.hdu._buffer is not None or
-                self.hdu._has_data)
+        return (self.hdu._file is not None
+                or self.hdu._buffer is not None
+                or self.hdu._has_data)
 
     @property
     def data(self):
@@ -363,8 +363,8 @@ class SubintHDU(HDUWrapper):
         pol_type = self.header['POL_TYPE']
         # split into equal parts using zip;
         # see https://docs.python.org/3.5/library/functions.html#zip
-        return np.array([map(''.join, zip(*[iter(self.header['POL_TYPE'])] *
-                                          (len(pol_type) // self.npol)))])
+        return np.array([map(''.join, zip(*[iter(self.header['POL_TYPE'])]
+                                          * (len(pol_type) // self.npol)))])
 
     @polarization.setter
     def polarization(self, value):
@@ -462,6 +462,7 @@ class PSRSubintHDU(SubintHDU):
     Right now we are assuming the data rows are continuous in time and the
     frequency are the same.
     """
+
     def verify(self):
         super().verify()
         assert self.mode.upper() == 'PSR', \
@@ -501,8 +502,8 @@ class PSRSubintHDU(SubintHDU):
         """
         start_time = super().start_time
         if "OFFS_SUB" in self.data.names:
-            offset0 = (self.data['OFFS_SUB'][0] -
-                       self.data['TSUBINT'][0] * self.samples_per_frame / 2)
+            offset0 = (self.data['OFFS_SUB'][0]
+                       - self.data['TSUBINT'][0] * self.samples_per_frame / 2)
             start_time += u.Quantity(offset0, u.s, copy=False)
 
         return start_time

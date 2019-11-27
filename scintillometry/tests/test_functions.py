@@ -9,7 +9,6 @@ from astropy.time import Time
 from ..base import SetAttribute
 from ..functions import Square, Power
 from ..generators import EmptyStreamGenerator
-from ..shaping import Reshape
 
 from .common import UseDADASample, UseVDIFSample
 
@@ -28,8 +27,8 @@ class TestSquareComplex(UseDADASample):
         # Square everything.
         data1 = st.read()
         assert st.tell() == st.shape[0]
-        assert (st.time - st.start_time -
-                st.shape[0] / st.sample_rate) < 1*u.ns
+        assert abs(st.time
+                   - st.start_time - st.shape[0] / st.sample_rate) < 1*u.ns
         assert st.dtype is ref_data.dtype is data1.dtype
         assert np.allclose(ref_data, data1)
 
@@ -86,8 +85,8 @@ class TestPoweDADAr(UseDADASample):
 
         # Square everything.
         data1 = pt.read()
-        assert (pt.time - fh.start_time -
-                fh.shape[0] / fh.sample_rate) < 1*u.ns
+        assert abs(pt.time
+                   - fh.start_time - fh.shape[0] / fh.sample_rate) < 1*u.ns
         assert pt.dtype is ref_data.dtype is data1.dtype
         assert np.allclose(ref_data, data1)
         pt.close()

@@ -46,20 +46,20 @@ class TestDM:
         ref_freq = 321.582761 * u.MHz
         dm = DispersionMeasure(self.dm_val)
 
-        time_delay = (dm.dispersion_delay_constant * dm *
-                      (1. / freqs**2 - 1. / ref_freq**2))
+        time_delay = (dm.dispersion_delay_constant * dm
+                      * (1. / freqs**2 - 1. / ref_freq**2))
         assert_quantity_allclose(dm.time_delay(freqs, ref_freq),
                                  time_delay, rtol=1e-13)
         time_delay_infref = dm.dispersion_delay_constant * dm / freqs**2
         assert_quantity_allclose(dm.time_delay(freqs),
                                  time_delay_infref, rtol=1e-13)
 
-        phase_delay = (2. * np.pi * u.rad * dm.dispersion_delay_constant * dm *
-                       freqs * (1. / ref_freq - 1. / freqs)**2)
+        phase_delay = (2. * np.pi * u.rad * dm.dispersion_delay_constant * dm
+                       * freqs * (1. / ref_freq - 1. / freqs)**2)
         assert_quantity_allclose(dm.phase_delay(freqs, ref_freq),
                                  phase_delay, rtol=1e-13)
-        phase_delay_infref = (2. * np.pi * u.rad *
-                              dm.dispersion_delay_constant * dm * 1. / freqs)
+        phase_delay_infref = (2. * np.pi * u.rad
+                              * dm.dispersion_delay_constant * dm * 1. / freqs)
         assert_quantity_allclose(dm.phase_delay(freqs),
                                  phase_delay_infref, rtol=1e-13)
 

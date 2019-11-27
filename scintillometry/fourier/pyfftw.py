@@ -10,9 +10,8 @@ backward transforms (if created using :meth:`PyfftwFFTBase.inverse`)
 
 """
 
-import operator
-import numpy as np
 import pyfftw
+
 from .base import FFTMakerBase, FFTBase
 
 

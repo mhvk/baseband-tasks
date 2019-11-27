@@ -57,8 +57,8 @@ class TestIntegrate(TestFakePulsarBase):
         ip = Integrate(st)
         assert ip.start_time == self.sh.start_time
         assert abs(ip.stop_time - self.sh.stop_time) < 1. * u.ns
-        assert abs(ip.stop_time - self.sh.start_time -
-                   1./ip.sample_rate) < 1. * u.ns
+        assert abs(ip.stop_time
+                   - self.sh.start_time - 1./ip.sample_rate) < 1. * u.ns
 
         # Square and integrate everything.
         data = ip.read()
@@ -73,8 +73,8 @@ class TestIntegrate(TestFakePulsarBase):
 
         st = Square(self.sh)
         ip = Integrate(st, start=151)
-        assert abs(ip.start_time - (self.sh.start_time +
-                                    151 / self.sh.sample_rate)) < 1. * u.ns
+        assert abs(ip.start_time - (self.sh.start_time
+                                    + 151 / self.sh.sample_rate)) < 1. * u.ns
         assert abs(ip.stop_time - self.sh.stop_time) < 1. * u.ns
 
         # Square and integrate everything.
@@ -89,7 +89,8 @@ class TestIntegrate(TestFakePulsarBase):
         ip = Integrate(st, average=False)
         assert ip.start_time == self.sh.start_time
         assert abs(ip.stop_time - self.sh.stop_time) < 1. * u.ns
-        assert abs(ip.stop_time - self.sh.start_time - 1./ip.sample_rate) < 1. * u.ns
+        assert abs(ip.stop_time
+                   - self.sh.start_time - 1./ip.sample_rate) < 1. * u.ns
 
         # Square and integrate everything.
         integrated = ip.read()
@@ -131,8 +132,8 @@ class TestIntegrate(TestFakePulsarBase):
         st = Square(self.sh)
         ip = Integrate(st, n/self.sh.sample_rate, start=121*n, average=False,
                        samples_per_frame=samples_per_frame)
-        assert abs(ip.start_time - (self.sh.start_time +
-                                    121 * n / self.sh.sample_rate)) < 1. * u.ns
+        assert abs(ip.start_time - (self.sh.start_time
+                                    + 121 * n / self.sh.sample_rate)) < 1.*u.ns
         assert ip.sample_rate == self.sh.sample_rate / n
 
         integrated = ip.read(10)
@@ -193,7 +194,8 @@ class TestIntegrate(TestFakePulsarBase):
         expected_count = [2, 3, 2, 2, 2, 3, 2, 2]
         step = 2.26 / self.sample_rate
         raw = self.raw_power[:18]
-        ref_data = np.add.reduceat(raw, np.add.accumulate([0] + expected_count[:-1]))
+        ref_data = np.add.reduceat(
+            raw, np.add.accumulate([0] + expected_count[:-1]))
 
         st = Square(self.sh)
         ip = Integrate(st, step, average=False,
@@ -289,8 +291,8 @@ class TestFold(TestFakePulsarBase):
         assert np.all(fr_count.sum(1) == 300)
 
         # Test the output on and off gates.  3 gates -> 7.5 bins.
-        pulse_power = (fr_data[:, (0, 1, -1)].sum(1) /
-                       fr_count[:, (0, 1, -1)].sum(1))
+        pulse_power = (fr_data[:, (0, 1, -1)].sum(1)
+                       / fr_count[:, (0, 1, -1)].sum(1))
         assert np.all(np.abs(pulse_power - 10. / 7.5 - 0.125) < 0.5), \
             "On-gate power is incorrect."
 
@@ -332,8 +334,8 @@ class TestFold(TestFakePulsarBase):
 
     def test_read_whole_file(self):
         ref_data = self.raw_data[:, 0]
-        phase = self.phase(self.start_time +
-                           np.arange(self.shape[0]) / self.sample_rate)
+        phase = self.phase(self.start_time
+                           + np.arange(self.shape[0]) / self.sample_rate)
         i_phase = ((phase.to_value(u.cycle) * self.n_phase) %
                    self.n_phase).astype(int)
         expected = np.bincount(i_phase, ref_data) / np.bincount(i_phase)
@@ -348,10 +350,10 @@ class TestFold(TestFakePulsarBase):
     def test_read_part(self):
         ref_data = self.raw_data[10000:, 0]
         start = self.start_time + 10000 / self.sample_rate
-        phase = self.phase(start + np.arange(self.shape[0] - 10000) /
-                           self.sample_rate)
-        i_phase = ((phase.to_value(u.cycle) *
-                    self.n_phase) % self.n_phase).astype(int)
+        phase = self.phase(start + (np.arange(self.shape[0] - 10000)
+                                    / self.sample_rate))
+        i_phase = ((phase.to_value(u.cycle) * self.n_phase)
+                   % self.n_phase).astype(int)
         expected = np.bincount(i_phase, ref_data) / np.bincount(i_phase)
 
         fh = Fold(self.sh, self.n_phase, self.phase, average=False,
@@ -432,10 +434,10 @@ class TestStack(TestFakePulsarBase):
         ref_data = self.raw_data[124:-1].reshape(-1, 25, 5, 2).mean(2)
 
         fh = Stack(self.sh, 25, self.phase, start=124)
-        assert abs(fh.start_time - self.start_time -
-                   124 / self.sample_rate) < 1. * u.ns
-        assert abs(fh.stop_time -
-                   (self.sh.stop_time - 1 / self.sample_rate)) < 1. * u.ns
+        assert abs(fh.start_time
+                   - self.start_time - 124 / self.sample_rate) < 1. * u.ns
+        assert abs(fh.stop_time
+                   - (self.sh.stop_time - 1 / self.sample_rate)) < 1. * u.ns
         assert fh.sample_rate == 1. / u.cycle
 
         data = fh.read(2)

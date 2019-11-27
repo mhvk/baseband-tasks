@@ -3,4 +3,4 @@
 
 Presently, the open function only deals with PSRFITS files.
 """
-from .psrfits import open
+from .psrfits import open  # noqa

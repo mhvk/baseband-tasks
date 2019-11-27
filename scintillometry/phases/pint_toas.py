@@ -3,10 +3,8 @@
 
 See https://github.com/nanograv/PINT
 """
-import warnings
 
 import numpy as np
-from astropy import units as u
 
 
 __all__ = ['PintToas']
@@ -53,6 +51,7 @@ class PintToas:
     Combined with metadata, it can be considered a timestamp
     (e.g., observatory, observing frequency, etc.)
     """
+
     def __init__(self, observatory, frequency, *,
                  ephemeris='jpl', include_bipm=True, bipm_version='BIPM2015',
                  include_gps=True, planets=False, tdb_method="default",

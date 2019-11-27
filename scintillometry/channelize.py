@@ -2,8 +2,6 @@
 
 import operator
 
-import numpy as np
-
 from .base import TaskBase
 from .fourier import fft_maker
 
@@ -68,8 +66,8 @@ class Channelize(TaskBase):
 
         if self._frequency is not None:
             # Do not use in-place, since _frequency is likely broadcast.
-            self._frequency = (self._frequency +
-                               self._fft.frequency * self.sideband)
+            self._frequency = (self._frequency
+                               + self._fft.frequency * self.sideband)
 
     def task(self, data):
         return self._fft(data.reshape(self._fft.time_shape))
@@ -135,7 +133,7 @@ class Dechannelize(TaskBase):
             if dtype.kind == 'c':
                 n = ih.sample_shape[0]
             else:
-                raise ValueError("Need to pass in explicit n for real transform.")
+                raise ValueError("need explicit 'n' for real transform.")
         else:
             n = operator.index(n)
 

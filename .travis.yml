@@ -65,8 +65,10 @@ env:
         # - SETUP_XVFB=True
 
         # If you want to ignore certain flake8 errors, you can list them
-        # in FLAKE8_OPT, for example:
-        # - FLAKE8_OPT='--ignore=E501'
+        # in FLAKE8_OPT, for example
+        # E226: missing whitespace around arithmetic operator
+        # W504: line break before binary operator
+        # By default, we just ignore whatever is in setup.cfg.
         - FLAKE8_OPT=''
 
 
