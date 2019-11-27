@@ -2,15 +2,15 @@
 """Wrappers for PSRFTIS Header Data Units (HDUs)."""
 from collections import namedtuple
 
-import astropy.units as u
+from astropy import units as u
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord, EarthLocation
-from astropy.coordinates import Angle, Latitude, Longitude
+from astropy.coordinates import EarthLocation
+from astropy.coordinates import Latitude, Longitude
 from astropy.io import fits
 from astropy.utils import lazyproperty
 import numpy as np
 import operator
-from .psrfits_htm_parser import hdu_templates
+from .psrfits_htm_parser import HDU_TEMPLATES
 
 
 __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
@@ -20,42 +20,40 @@ __all__ = ["HDU_map", "HDUWrapper", "PSRFITSPrimaryHDU",
 class HDUWrapper:
     def __init__(self, hdu=None, verify=True, hdu_type=None):
         if hdu is None:
-            hdu = self.init_hdu(hdu_type)
-            verify = False
-        self.hdu = hdu
-        if verify:
-            self.verify()
+            template = HDU_TEMPLATES[hdu_type]
+            if hdu_type == 'PRIMARY':
+                self.hdu = template.copy()
+            else:
+                # Make an indirect copy that doesn't create data.
+                self.hdu = template.__class__(data=fits.DELAYED,
+                                              header=template.header.copy())
+        else:
+            self.hdu = hdu
+            if verify:
+                self.verify()
+        # This is for selecting the dimension for different mode (i.e., folding
+        # or searching)
+        self._dim_opt = 0
 
     def verify(self):
         assert isinstance(self.header, fits.Header)
-
-    def init_hdu(self, hdu_name):
-        target_hdu, hdu_parts = hdu_templates[hdu_name]
-        hdu = target_hdu()
-        # Add header card.
-        # HDU part should always have cards.
-        for card in hdu_parts['card']:
-            hdu.header.set(card['name'], value=card['value'], comment=card['comment'])
-        # add comment cards
-        # TODO comment need a little bit tuning
-        if hdu_parts['comment'] != []:
-            for ce in hdu_parts['comment']:
-                hdu.header.set(ce['name'], value=' '.join(ce['value'].split()),
-                               after=ce['after'])
-        # TODO add column
-        return hdu
 
     @property
     def header(self):
         return self.hdu.header
 
-    @property
-    def data(self):
-        return self.hdu.data
-
     def close(self):
-        del self.hdu.data
         del self.hdu
+
+    def get_hdu_list(self):
+        # Build HDU list
+        # TODO, this need to be modified when combining multilpe HDU.
+        hdu_list = []
+        if hasattr(self, 'primary_hdu'):
+            hdu_list.append(self.primary_hdu.hdu)
+        hdu_list.append(self.hdu)
+        print(type(hdu_list))
+        return fits.HDUList(hdu_list)
 
 
 class PSRFITSPrimaryHDU(HDUWrapper):
@@ -75,7 +73,7 @@ class PSRFITSPrimaryHDU(HDUWrapper):
                    'ra', 'dec', 'shape', 'sample_rate')
 
     def __init__(self, hdu=None, verify=True):
-        # When input hdu is None, the Primary header will be initialize as empty
+        # When input hdu is None, an empty Primary header will be initialized.
         super().__init__(hdu, hdu_type="PRIMARY", verify=verify)
 
     def verify(self):
@@ -89,7 +87,9 @@ class PSRFITSPrimaryHDU(HDUWrapper):
             return EarthLocation(self.header['ANT_X'],
                                  self.header['ANT_Y'],
                                  self.header['ANT_Z'], u.m)
-        except (KeyError, TypeError):   # Sometimes PSRFITS uses '*' as no data.
+        except (KeyError, TypeError):
+            # Sometimes PSRFITS uses '*' to indicate no data.
+            # TODO: should this be AttributeError instead?
             return None
 
     @location.setter
@@ -102,9 +102,10 @@ class PSRFITSPrimaryHDU(HDUWrapper):
 
     @property
     def start_time(self):
-        return (Time(self.header['STT_IMJD'], format='mjd', precision=9,
+        return (Time(float(self.header['STT_IMJD']), format='mjd', precision=9,
                      location=self.location) +
-                TimeDelta(self.header['STT_SMJD'], self.header['STT_OFFS'],
+                TimeDelta(float(self.header['STT_SMJD']),
+                          float(self.header['STT_OFFS']),
                           format='sec', scale='tai'))
 
     @start_time.setter
@@ -114,7 +115,7 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         if time.location is not None:
             self.location = time.location
         mjd_int = int(time.mjd)
-        mjd_frac = (time - Time(mjd_int, scale=time.scale, format=time.format))
+        mjd_frac = (time - Time(mjd_int, scale=time.scale, format='mjd'))
         frac_sec, int_sec = np.modf(mjd_frac.to(u.s).value)
         self.hdu.header['STT_IMJD'] = '{0:05d}'.format(mjd_int)
         self.hdu.header['STT_SMJD'] = '{}'.format(int(int_sec))
@@ -132,10 +133,10 @@ class PSRFITSPrimaryHDU(HDUWrapper):
     @property
     def frequency(self):
         try:
-            n_chan = self.header['OBSNCHAN']
-            c_freq = self.header['OBSFREQ']
-            bw = self.header['OBSBW']
-        except KeyError:
+            n_chan = int(self.header['OBSNCHAN'])
+            c_freq = float(self.header['OBSFREQ'])
+            bw = float(self.header['OBSBW'])
+        except (KeyError, ValueError):
             return None
 
         chan_bw = bw / n_chan
@@ -242,6 +243,7 @@ class SubintHDU(HDUWrapper):
         self.primary_hdu = primary_hdu
         self.offset = 0
         super().__init__(hdu, verify=verify, hdu_type='SUBINT')
+        self.sample_label = ('nbin', 'nchan', 'npol')
 
     def verify(self):
         assert self.header['EXTNAME'].strip() == "SUBINT", \
@@ -259,40 +261,97 @@ class SubintHDU(HDUWrapper):
         return self.primary_hdu.start_time
 
     @property
+    def _has_data(self):
+        # TODO: surely there is a better way...
+        return (self.hdu._file is not None or
+                self.hdu._buffer is not None or
+                self.hdu._has_data)
+
+    @property
+    def data(self):
+        if not self._has_data:
+            try:
+                dims = tuple(self.sample_shape)[::-1]
+            except AttributeError:
+                raise AttributeError('can only initialize data '
+                                     'if sample_shape is set.') from None
+            # It really seems necessary to change a private attribute...
+            self.hdu.columns.change_attrib('DATA', '_dims', dims)
+            repr_dims = repr(dims).replace(' ', '')
+            self.hdu.columns.change_attrib('DATA', 'dim', repr_dims)
+            self.hdu.data = np.zeros(self.nrow, self.hdu.columns.dtype)
+
+        return self.hdu.data
+
+    @data.deleter
+    def data(self):
+        del self.hdu.data
+        del self.hdu.columns._dims
+        del self.hdu.columns.dtype
+
+    @property
     def nrow(self):
         return self.header['NAXIS2']
 
     @nrow.setter
     def nrow(self, value):
+        if self.hdu._has_data:
+            raise AttributeError('can only set nrow on empty HDU. '
+                                 'Delete data first.')
         self.hdu.header['NAXIS2'] = operator.index(value)
 
     @property
     def nchan(self):
-        return self.header['NCHAN']
+        nchan = self.header['NCHAN']
+        if nchan == '*':
+            raise AttributeError('nchan has not yet been set.')
+        return nchan
 
     @nchan.setter
     def nchan(self, value):
+        if self._has_data:
+            raise AttributeError('can only set nchan on empty HDU. '
+                                 'Delete data first.')
         self.hdu.header['NCHAN'] = operator.index(value)
 
     @property
     def npol(self):
-        return self.header['NPOL']
+        npol = self.header['NPOL']
+        if npol == '*':
+            raise AttributeError('npol has not yet been set.')
+        return npol
 
     @npol.setter
     def npol(self, value):
+        if self._has_data:
+            raise AttributeError('can only set npol on empty HDU. '
+                                 'Delete data first.')
+
         self.hdu.header['NPOL'] = operator.index(value)
 
     @property
     def nbin(self):
-        return self.header['NBIN']
+        nbin = self.header['NBIN']
+        if nbin == '*':
+            raise AttributeError('nbin has not yet been set.')
+        return nbin
 
     @nbin.setter
     def nbin(self, value):
+        if self._has_data:
+            raise AttributeError('can only set nbin on empty HDU. '
+                                 'Delete data first.')
         self.hdu.header['NBIN'] = operator.index(value)
 
     @property
     def sample_shape(self):
         return self._sample_shape_maker(self.nbin, self.nchan, self.npol)
+
+    @sample_shape.setter
+    def sample_shape(self, shape):
+        self.nbin = shape[0]
+        self.nchan = shape[1]
+        self.npol = shape[2]
 
     @property
     def shape(self):
@@ -336,9 +395,21 @@ class SubintHDU(HDUWrapper):
 
     @frequency.setter
     def frequency(self, freqs):
-        freqs = freqs.to_value(u.MHz)
-        self.hdu.data['DAT_FREQ'] = np.broadcast_to(freqs, (self.nrow,
-                                                            self.nchan))
+        freqs_value = np.atleast_1d(freqs.to_value(u.MHz))
+        if self.nchan != len(freqs_value):
+            raise ValueError("Frequency size has to match the channle number "
+                             "'nchan'.")
+        self.data['DAT_FREQ'] = np.broadcast_to(freqs_value, (self.nrow,
+                                                              self.nchan))
+        # TODO I am not sure if this is the best way to get the channel
+        # bandwidth.
+
+        if self.nchan > 1:
+            self.hdu.header['CHAN_BW'] = freqs_value[1] - freqs_value[0]
+        else:
+            pass
+        if self.primary_hdu.frequency is None:
+            self.primary_hdu.frequency = freqs
 
     @property
     def sideband(self):
@@ -347,7 +418,7 @@ class SubintHDU(HDUWrapper):
     @sideband.setter
     def sideband(self, sideband):
         assert np.all(np.abs(sideband) == 1), "sideband should be +/- 1"
-        self['CHAN_BW'] = sideband * abs(self['CHAN_BW'])
+        self.header['CHAN_BW'] = sideband * abs(self.header['CHAN_BW'])
 
     @lazyproperty
     def dtype(self):
@@ -406,12 +477,15 @@ class PSRSubintHDU(SubintHDU):
             assert np.array_equiv(freqs[0], freqs), \
                 "Frequencies are not all the same for different rows."
 
-        tsubint = self.data['TSUBINT']
-        assert all(np.isclose(tsubint[0], tsubint, atol=1e-1)), \
-            "TSUBINT differ by large amounts in different rows."
+        # NOTE some files has large amount of TSUBING differ. comment this part
+        # for right now.
+        # tsubint = self.data['TSUBINT']
+        # assert all(np.isclose(tsubint[0], tsubint, atol=1e-1)), \
+        #     "TSUBINT differ by large amounts in different rows."
 
         d_shape_raw = self.data['DATA'].shape
         d_shape_header = (self.nbin, self.nchan, self.npol)
+        # The shape has to be inversed since FITS is in the Fortran order.
         assert d_shape_raw == (self.nrow,) + d_shape_header[::-1], \
             "Data shape does not match with the header information."
 
@@ -427,9 +501,9 @@ class PSRSubintHDU(SubintHDU):
         """
         start_time = super().start_time
         if "OFFS_SUB" in self.data.names:
-            offset0 = (u.Quantity(self.data['OFFS_SUB'][0], u.s, copy=False) -
-                       self.samples_per_frame / 2 / self.sample_rate)
-            start_time += offset0
+            offset0 = (self.data['OFFS_SUB'][0] -
+                       self.data['TSUBINT'][0] * self.samples_per_frame / 2)
+            start_time += u.Quantity(offset0, u.s, copy=False)
 
         return start_time
 
@@ -440,10 +514,15 @@ class PSRSubintHDU(SubintHDU):
         ----
         this sets the start time of the HDU, not the file start time.
         """
-        dt = (time - self.header_hdu.start_time)
+        try:
+            _ = self.primary_hdu.start_time
+        except ValueError:
+            self.primary_hdu.start_time = time
+            dt = 0
+        else:
+            dt = (time - self.primary_hdu.start_time).to(u.s).value
 
-        center_off0 = dt + 1.0 / self.sample_rate / 2
-        self.hdu.data['OFFS_SUB'][0] = center_off0.to_value(u.s)
+        self.data['OFFS_SUB'][0] = dt + self.data['TSUBINT'] / 2
 
     @property
     def samples_per_frame(self):
@@ -460,7 +539,7 @@ class PSRSubintHDU(SubintHDU):
     @sample_rate.setter
     def sample_rate(self, value):
         sample_time = 1.0 / value
-        self.hdu.data['TSUBINT'] = sample_time.to_value(u.s)
+        self.data['TSUBINT'] = sample_time.to_value(u.s)
 
     def close(self):
         super().close()
@@ -471,3 +550,7 @@ HDU_map = {'PRIMARY': PSRFITSPrimaryHDU,
            'SUBINT': SubintHDU}
 
 subint_map = {'PSR': PSRSubintHDU}
+
+# TODO: add search HDU
+hdu_list_template = {'PSR': {'primary': PSRFITSPrimaryHDU,
+                             'data': PSRSubintHDU}}
