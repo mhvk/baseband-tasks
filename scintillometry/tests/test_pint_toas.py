@@ -10,12 +10,14 @@ from ..phases import pint_toas
 
 
 pint = pytest.importorskip('pint')
-# PINT gives AstropyDeprecationWarnings that we cannot do anything about
-# (in particular, "The truth value of a Quantity is ambiguous." and
-# "stropy.extern.six will be removed in 4.0").  It also has warnings itself
-# from "log.warn" that we cannot avoid.
+# PINT accesses the internet and gives AstropyDeprecationWarnings that we
+# cannot do anything about (in particular, "The truth value of a Quantity
+# is ambiguous." and "astropy.extern.six will be removed in 4.0").  It
+# also has warnings itself from "log.warn" that we cannot avoid.
+#
 # TODO: remove once PINT has been updated.
-pytestmark = [pytest.mark.filterwarnings("ignore:::astropy"),
+pytestmark = [pytest.mark.remote_data,
+              pytest.mark.filterwarnings("ignore:::astropy"),
               pytest.mark.filterwarnings("ignore::DeprecationWarning:pint")]
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
