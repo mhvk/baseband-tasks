@@ -8,8 +8,8 @@ import numpy as np
 from astropy.coordinates import Latitude, Longitude
 from astropy import units as u
 
-from ..io import psrfits
-
+from ..core import open
+from ..hdu import PSRFITSPrimaryHDU, SubintHDU, PSRSubintHDU
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
@@ -18,10 +18,10 @@ class TestWriter:
     def setup(self):
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")
-        self.reader = psrfits.open(self.fold_data, weighted=False)
+        self.reader = open(self.fold_data, weighted=False)
         self.input_p_hdu = self.reader.ih.primary_hdu
         # init Primary
-        self.p_hdu = psrfits.PSRFITSPrimaryHDU()
+        self.p_hdu = PSRFITSPrimaryHDU()
 
     def teardown(self):
         self.reader.close()
@@ -85,8 +85,8 @@ class TestPSRHDUWriter(TestWriter):
     def setup(self):
         super().setup()
         # Create SUBINT using primary header.
-        self.psr_hdu_no_shape = psrfits.SubintHDU(primary_hdu=self.input_p_hdu)
-        self.psr_hdu = psrfits.SubintHDU(primary_hdu=self.input_p_hdu)
+        self.psr_hdu_no_shape = SubintHDU(primary_hdu=self.input_p_hdu)
+        self.psr_hdu = SubintHDU(primary_hdu=self.input_p_hdu)
         self.psr_hdu.nrow = 1
         self.psr_hdu.sample_shape = self.reader.sample_shape
         # Since this test only have one channel, we will not test this setting
@@ -95,7 +95,7 @@ class TestPSRHDUWriter(TestWriter):
 
     def test_mode(self):
         assert (self.psr_hdu.mode == 'PSR')
-        assert isinstance(self.psr_hdu, psrfits.PSRSubintHDU)
+        assert isinstance(self.psr_hdu, PSRSubintHDU)
 
     def test_init_data(self):
         # The data should be initialied in the setup.
@@ -154,7 +154,7 @@ class TestPSRHDUWriter(TestWriter):
         hdul = self.psr_hdu.get_hdu_list()
         hdul.writeto(test_fits)
         # Re-open FITS file and check contents are the same.
-        with psrfits.open(test_fits, weighted=False) as column_reader:
+        with open(test_fits, weighted=False) as column_reader:
             assert np.array_equal(self.reader.ih.data['DATA'],
                                   column_reader.ih.data['DATA'])
             assert np.abs(column_reader.start_time
