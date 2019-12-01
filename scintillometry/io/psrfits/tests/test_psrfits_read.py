@@ -9,7 +9,7 @@ import astropy.units as u
 from astropy.coordinates import Longitude, Latitude, EarthLocation
 from astropy.time import Time
 
-from ..io import psrfits
+from ... import psrfits
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
