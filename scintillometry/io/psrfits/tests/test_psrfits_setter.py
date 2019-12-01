@@ -1,5 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Full-package tests of psrfits writing routines."""
+"""Full-package tests of psrfits setter routines."""
 
 import os
 
@@ -14,7 +14,7 @@ from ..hdu import PSRFITSPrimaryHDU, SubintHDU, PSRSubintHDU
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
-class TestWriter:
+class TestSetter:
     def setup(self):
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")

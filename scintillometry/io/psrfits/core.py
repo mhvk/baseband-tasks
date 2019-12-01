@@ -12,7 +12,7 @@ from .hdu import HDU_map
 __all__ = ['open', 'get_readers', 'PSRFITSReader']
 
 
-def open(filename, mode='r', **kwargs):
+def open(filename, mode='r', overwrite=False, **kwargs):
     """Function to open a PSRFITS file.
 
     Parameters
@@ -62,6 +62,25 @@ def open(filename, mode='r', **kwargs):
         if len(reader_list) != 1:
             raise RuntimeError("Current reader can only read one SUBINT HDU.")
         return reader_list[0]
+    elif mode in ['w', 'rb+']:
+        # Check if file exists
+        is_file = os.path.exists(filename)
+        if is_file and not overwrite:
+            raise RuntimeError("file '{}' exists. Use 'overwrite=Ture' to "
+                                   "overwrite it.")
+
+        if mode == 'rb':
+            if not is_file:
+                raise FileNotFoundError("No such file or directory: "
+                                        "'{}'".format(filename))
+            else:
+                memmap = kwargs.pop('memmap', None)
+                hdu_list = fits.open(filename, 'readonly', memmap=memmap)
+                log.info("Update existing PSRFITS file '{}'.".format(filename))
+                hdu = get_readers(hdu_list, **kwargs)
+        # Build HDU from scratch
+        writer = get_writer(filename, hdu, **kwargs)
+
     else:
         raise ValueError("Unknown mode '{}'. Currently only 'r' mode are"
                          " supported.".format(mode))
@@ -109,6 +128,19 @@ def get_readers(hdu_list, **kwargs):
     return readers
 
 
+def get_writers(filename, shape=None, **kwargs):
+    """Function to init a PSRFITS HDU for writing.
+
+    Parameters
+    ----------
+    shape : tuple
+        The shape for data.
+    **kwargs
+        Additional arguments for creating PSRFITS writer.
+        Passes on to `~scintillometry.io.psrfits.PSRFITSWriter`.
+    """
+
+
 class PSRFITSReader(BaseTaskBase):
     """Wrapper for reading PSRFITS HDUs.
 
@@ -153,15 +185,13 @@ class PSRFITSReader(BaseTaskBase):
         file.close()
 
 
-class PSRFITSWriter:
+class PSRFITSWriter():
     """Interface class for writing the PSRFITS HDUs
 
     Parameters
     ----------
     filename : str
         Output file name.
-    ih : input file handle
-        The file handle for input data.
     hdus: str, optional
 
 
@@ -171,10 +201,18 @@ class PSRFITSWriter:
     Currently it only support write the PSRFITS primary HDU and Subint HDU.
     """
 
-    def __init__(self, filename, ih, hdus=None):
-        self.filename = filename
-        self.ih = ih
-        self.hdus = hdus
+    def __init__(self, filename, hdu):
+        self._filename = filename
+        self.hdu = hdu
+
+    def verify(self):
+        # Verify if the input hdus are read to write out.
+        pass
+
+    def write(self):
+        # First convert the psrfits hdu to HDUList
+        fits_hdu_list = fits.HDUList[self.hdu.primary_hdu.hdu, self.hdu.hdu]
+        fits_hdu_list.writeto(self._filename, overwrite=True)
 
     def close(self):
         pass
