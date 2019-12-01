@@ -1,18 +1,20 @@
 # Licensed under the GPLv3 - see LICENSE
 """Interfaces for dealing with PSRFITS fold-mode data."""
+import os
 
 from astropy.io import fits
 from astropy import log
 from collections import defaultdict
 
 from scintillometry.base import BaseTaskBase
-from .hdu import HDU_map
+from .hdu import HDU_map, subint_map
 
 
-__all__ = ['open', 'get_readers', 'PSRFITSReader']
+__all__ = ['open', 'get_readers', 'get_writer', 'PSRFITSReader',
+           'PSRFITSWriter']
 
 
-def open(filename, mode='r', overwrite=False, **kwargs):
+def open(filename, mode='r', primary_hdu=None, overwrite=False, **kwargs):
     """Function to open a PSRFITS file.
 
     Parameters
@@ -61,25 +63,36 @@ def open(filename, mode='r', overwrite=False, **kwargs):
         # TODO: allow support for more than one HDU.
         if len(reader_list) != 1:
             raise RuntimeError("Current reader can only read one SUBINT HDU.")
+        # TODO Returning one HDU for now. But in the future, we may want to
+        # return a group of it.
         return reader_list[0]
+
     elif mode in ['w', 'rb+']:
         # Check if file exists
         is_file = os.path.exists(filename)
         if is_file and not overwrite:
             raise RuntimeError("file '{}' exists. Use 'overwrite=Ture' to "
-                                   "overwrite it.")
+                               "overwrite it.".format(filename))
 
-        if mode == 'rb':
+        if mode == 'rb+':
             if not is_file:
                 raise FileNotFoundError("No such file or directory: "
                                         "'{}'".format(filename))
             else:
+                # TODO
                 memmap = kwargs.pop('memmap', None)
-                hdu_list = fits.open(filename, 'readonly', memmap=memmap)
+                reader = open(filename, 'r', memmap=memmap)
                 log.info("Update existing PSRFITS file '{}'.".format(filename))
-                hdu = get_readers(hdu_list, **kwargs)
-        # Build HDU from scratch
-        writer = get_writer(filename, hdu, **kwargs)
+                # Build HDU from exsiting hdu
+                writer = get_writer(filename, reader.ih, **kwargs)
+
+        else:
+            # Build Writer from scratch
+            if not primary_hdu:
+                raise ValueError("need a primary hdu/meta data for building a"
+                                 " PSRFITS file.")
+            writer = get_writer(filename, primary_hdu)
+        return writer
 
     else:
         raise ValueError("Unknown mode '{}'. Currently only 'r' mode are"
@@ -128,8 +141,8 @@ def get_readers(hdu_list, **kwargs):
     return readers
 
 
-def get_writers(filename, primary_hdu, sample_rate=None, shape=None,
-                frequency=None, start_time=None, **kwargs):
+def get_writer(filename, hdu, sample_rate=None, shape=None,
+               frequency=None, start_time=None, **kwargs):
     """Function to init a PSRFITS HDU for writing.
 
     Parameters
@@ -140,6 +153,26 @@ def get_writers(filename, primary_hdu, sample_rate=None, shape=None,
         Additional arguments for creating PSRFITS writer.
         Passes on to `~scintillometry.io.psrfits.PSRFITSWriter`.
     """
+    # TODO not sure if this is the best solution to decide how to build a
+    # writer. We made assumptions that every PSRFTIS has subint hdu and we
+    # don't support other hdu right now.
+    
+    # Build from scratch
+    if isinstance(hdu, HDU_map['PRIMARY']):
+        # TODO, is there any PSRFITS has no subint hdu?
+        if hdu.obs_mode not in subint_map.keys():
+            raise ValueError("observation mode '{}' is not a valid"
+                             " mode. Available modes:"
+                             " {}".format(hdu.obs_mode,
+                                          list(subint_map.keys())))
+        hdu = subint_map[hdu.obs_mode](primary_hdu=hdu)
+
+    # Take input from the keywords
+    for ppt in hdu._properties:
+        ppt_value = kwargs.get(ppt, None)
+        if ppt_value is not None:
+            setattr(hdu, ppt, ppt_value)
+    return PSRFITSWriter(filename, hdu)
 
 
 class PSRFITSReader(BaseTaskBase):
@@ -186,7 +219,7 @@ class PSRFITSReader(BaseTaskBase):
         file.close()
 
 
-class PSRFITSWriter():
+class PSRFITSWriter:
     """Interface class for writing the PSRFITS HDUs
 
     Parameters
@@ -194,7 +227,6 @@ class PSRFITSWriter():
     filename : str
         Output file name.
     hdus: str, optional
-
 
 
     Notes

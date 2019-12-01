@@ -81,7 +81,7 @@ class TestSetter:
                 == Latitude(self.input_p_hdu.header['DEC'], unit=u.deg))
 
 
-class TestPSRHDUWriter(TestWriter):
+class TestPSRHDUWrite(TestSetter):
     def setup(self):
         super().setup()
         # Create SUBINT using primary header.

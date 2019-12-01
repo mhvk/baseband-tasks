@@ -548,8 +548,11 @@ class PSRSubintHDU(SubintHDU):
 
 
 HDU_map = {'PRIMARY': PSRFITSPrimaryHDU,
-           'SUBINT': SubintHDU}
+           'SUBINT': SubintHDU,
+           'PSR': PSRSubintHDU}
 
+# TODO maybe we should just use the HDU_map. Is there any psrfits file does not
+# have SUBINT data? Let me put 'PSR' subint to HDU map now.
 subint_map = {'PSR': PSRSubintHDU}
 
 # TODO: add search HDU
