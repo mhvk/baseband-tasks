@@ -128,7 +128,8 @@ def get_readers(hdu_list, **kwargs):
     return readers
 
 
-def get_writers(filename, shape=None, **kwargs):
+def get_writers(filename, primary_hdu, sample_rate=None, shape=None,
+                frequency=None, start_time=None, **kwargs):
     """Function to init a PSRFITS HDU for writing.
 
     Parameters
