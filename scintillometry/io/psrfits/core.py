@@ -1,6 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
 """Interfaces for dealing with PSRFITS fold-mode data."""
-import os
 
 from astropy.io import fits
 from astropy import log
@@ -14,7 +13,7 @@ __all__ = ['open', 'get_readers', 'get_writer', 'PSRFITSReader',
            'PSRFITSWriter']
 
 
-def open(filename, mode='r', primary_hdu=None, overwrite=False, **kwargs):
+def open(filename, mode, primary_hdu=None, **kwargs):
     """Function to open a PSRFITS file.
 
     Parameters
@@ -67,33 +66,13 @@ def open(filename, mode='r', primary_hdu=None, overwrite=False, **kwargs):
         # return a group of it.
         return reader_list[0]
 
-    elif mode in ['w', 'rb+']:
-        # Check if file exists
-        is_file = os.path.exists(filename)
-        if is_file and not overwrite:
-            raise RuntimeError("file '{}' exists. Use 'overwrite=Ture' to "
-                               "overwrite it.".format(filename))
-
-        if mode == 'rb+':
-            if not is_file:
-                raise FileNotFoundError("No such file or directory: "
-                                        "'{}'".format(filename))
-            else:
-                # TODO
-                memmap = kwargs.pop('memmap', None)
-                reader = open(filename, 'r', memmap=memmap)
-                log.info("Update existing PSRFITS file '{}'.".format(filename))
-                # Build HDU from exsiting hdu
-                writer = get_writer(filename, reader.ih, **kwargs)
-
-        else:
-            # Build Writer from scratch
-            if not primary_hdu:
-                raise ValueError("need a primary hdu/meta data for building a"
-                                 " PSRFITS file.")
-            writer = get_writer(filename, primary_hdu)
+    elif mode == 'w':
+        # Build Writer from scratch
+        if not primary_hdu:
+            raise ValueError("need a primary hdu/meta data for building a"
+                             " PSRFITS file.")
+        writer = get_writer(filename, primary_hdu, **kwargs)
         return writer
-
     else:
         raise ValueError("Unknown mode '{}'. Currently only 'r' mode are"
                          " supported.".format(mode))
@@ -156,7 +135,6 @@ def get_writer(filename, hdu, sample_rate=None, shape=None,
     # TODO not sure if this is the best solution to decide how to build a
     # writer. We made assumptions that every PSRFTIS has subint hdu and we
     # don't support other hdu right now.
-    
     # Build from scratch
     if isinstance(hdu, HDU_map['PRIMARY']):
         # TODO, is there any PSRFITS has no subint hdu?
@@ -226,7 +204,7 @@ class PSRFITSWriter:
     ----------
     filename : str
         Output file name.
-    hdus: str, optional
+    hdu: ``~PSRFITS`` HDU
 
 
     Notes
@@ -235,17 +213,29 @@ class PSRFITSWriter:
     """
 
     def __init__(self, filename, hdu):
-        self._filename = filename
+        self.filename = filename
         self.hdu = hdu
+        self.offset = 0
 
     def verify(self):
         # Verify if the input hdus are read to write out.
         pass
 
-    def write(self):
-        # First convert the psrfits hdu to HDUList
-        fits_hdu_list = fits.HDUList[self.hdu.primary_hdu.hdu, self.hdu.hdu]
-        fits_hdu_list.writeto(self._filename, overwrite=True)
+    def write(self, data):
+        open_space = self.hdu.shape[0] - self.offset - data.shape[0]
+        # TODO This may have to change if we want to write data to
+        # multiple files
+        if open_space < 0:
+            raise RuntimeError("Not enough space for input data.")
+        else:
+            # FIXME add scaling
+            # We need to have a hdu data setter, other wrise, this will not
+            # scaled right.
+            self.hdu.data['DATA'][self.offset + self.data.shape[0], :] = data
+            self.offset += data.shape[0]
 
     def close(self):
-        pass
+        # dump the data out
+        # First convert the psrfits hdu to HDUList
+        fits_hdu_list = fits.HDUList([self.hdu.primary_hdu.hdu, self.hdu.hdu])
+        fits_hdu_list.writeto(self.filename, overwrite=False)

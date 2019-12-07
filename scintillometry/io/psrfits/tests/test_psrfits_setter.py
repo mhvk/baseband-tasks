@@ -18,7 +18,7 @@ class TestSetter:
     def setup(self):
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")
-        self.reader = psrfits.open(self.fold_data, weighted=False)
+        self.reader = psrfits.open(self.fold_data, 'r', weighted=False)
         self.input_p_hdu = self.reader.ih.primary_hdu
         # init Primary
         self.p_hdu = PSRFITSPrimaryHDU()
@@ -154,7 +154,7 @@ class TestPSRHDUWrite(TestSetter):
         hdul = self.psr_hdu.get_hdu_list()
         hdul.writeto(test_fits)
         # Re-open FITS file and check contents are the same.
-        with psrfits.open(test_fits, weighted=False) as column_reader:
+        with psrfits.open(test_fits, 'r', weighted=False) as column_reader:
             assert np.array_equal(self.reader.ih.data['DATA'],
                                   column_reader.ih.data['DATA'])
             assert np.abs(column_reader.start_time

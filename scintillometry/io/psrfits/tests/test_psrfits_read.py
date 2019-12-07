@@ -24,7 +24,7 @@ class TestRead:
 class TestFoldRead(TestRead):
     def setup(self):
         super().setup()
-        self.reader = psrfits.open(self.fold_data, weighted=False)
+        self.reader = psrfits.open(self.fold_data, 'r', weighted=False)
         self.psrchive_res = np.load(self.psrchive_fold)
 
     def teardown(self):
@@ -116,7 +116,7 @@ class TestFoldRead(TestRead):
     def test_weighted_read(self):
         self.reader.seek(0)
         unweighted = self.reader.read(1)
-        with psrfits.open(self.fold_data, weighted=True) as reader:
+        with psrfits.open(self.fold_data, 'r', weighted=True) as reader:
             weighted = reader.read(1)
             weights = self.reader.ih.hdu.data['DAT_WTS']
         assert np.all(weighted == unweighted * weights.reshape(-1, 1))
