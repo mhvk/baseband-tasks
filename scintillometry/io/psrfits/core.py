@@ -187,6 +187,10 @@ class PSRFITSReader(BaseTaskBase):
         super().__init__(ih, frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
 
+    @property
+    def primary_hdu(self):
+        return self.ih.primary_hdu
+
     def _read_frame(self, frame_index):
         res = self.ih.read_data_row(frame_index, weighted=self.weighted).T
         return res.reshape((self.samples_per_frame, ) + self.sample_shape)
@@ -220,6 +224,10 @@ class PSRFITSWriter:
     def verify(self):
         # Verify if the input hdus are read to write out.
         pass
+
+    @property
+    def primary_hdu(self):
+        return self.hdu.primary_hdu
 
     def write(self, data):
         open_space = self.hdu.shape[0] - self.offset - data.shape[0]

@@ -7,7 +7,7 @@ import pytest
 from astropy import units as u
 
 from ... import psrfits
-
+from ..hdu import PSRFITSPrimaryHDU
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
