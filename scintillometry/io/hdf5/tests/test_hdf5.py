@@ -135,6 +135,8 @@ class TestHDF5:
             header0 = f5w.header0
             self.check(stream, header0)
             f5w.write(self.data)
+            # Check repr works, though ignore the contents for now.
+            repr(f5w)
 
         with h5py.File(filename, 'r') as h5:
             assert set(h5.keys()) == {'header', 'payload'}
@@ -150,6 +152,12 @@ class TestHDF5:
             assert f5r.header0 == header0
             data = f5r.read()
             assert np.all(data == self.data)
+            # Check repr works, though ignore the contents for now.
+            repr(f5r)
+
+        # Should also work when closed.
+        repr(f5w)
+        repr(f5r)
 
     @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
     def test_copy_stream_copy(self, stream_name, tmpdir):

@@ -68,6 +68,24 @@ class HDF5StreamBase(VLBIStreamBase):
         """
         return self.header0.bps
 
+    def __repr__(self):
+        try:
+            name = self.fh_raw.filename
+        except Exception:
+            name = '<closed>'
+        return ("<{s.__class__.__name__} name={name} "
+                "offset={s.offset}\n"
+                "    sample_rate={s.sample_rate},"
+                " samples_per_frame={s.samples_per_frame},\n"
+                "    sample_shape={s.sample_shape}, {bps_or_dtype},\n"
+                "    {sub}start_time={s.start_time.isot}>"
+                .format(s=self, name=name,
+                        sub=('subset={0}, '.format(self.subset)
+                             if self.subset else ''),
+                        bps_or_dtype=('bps={0}'.format(self.bps)
+                                      if hasattr(self, 'bps') else
+                                      'dtype={0}'.format(self.dtype))))
+
 
 class HDF5StreamReader(HDF5StreamBase, VLBIStreamReaderBase):
     def __init__(self, fh_raw, squeeze=True, subset=(), fill_value=0.,
@@ -110,7 +128,7 @@ class HDF5StreamWriter(HDF5StreamBase, VLBIStreamWriterBase):
     def __setitem__(self, item, value):
         start, stop, step = item.indices(self.shape[0])
         assert start == self.offset, 'Can only assign right following pointer.'
-        assert step == 1, 'unity step size only supported'
+        assert step == 1, 'unity step size onlyin supported'
         assert len(value) == stop-start, 'number of samples should match.'
         self.write(value)
 
