@@ -1,5 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Payload for HDF format."""
+"""Payload for HDF5 format."""
 from functools import reduce
 import operator
 
@@ -27,40 +27,44 @@ class DtypeDefaultCoder(dict):
 class HDF5Payload:
     """Container for decoding and encoding HDF5 payloads.
 
+    The data will be taken to represent their values directly unless
+    the header has a ``bps`` attribute, or ``bps`` is given explicitly.
+
     Parameters
     ----------
     words : `~numpy.ndarray`
         Array containg data as stored in the HDF5 file, which possibly
         are encoded similar to a VDIF payload.
-    header : HDF5Header
-        Header that provides information about how the payload is encoded.
-        If not given, the following arguments have to be passed in.
+    header : `~scintillometry.io.hdf5.HDF5Header`, optional
+        Header providing information about whether, and if so, how the payload
+        is encoded. If not given, then the following need to be passed in.
+    sample_shape : tuple, optional
+        Shape of the samples; e.g., (nchan,).  Default: ().
+    bps : int, optional
+        Number of bits per sample part (i.e., per channel and per real or
+        imaginary component).  If given, the data are assumed to be encoded.
+    complex_data : bool, optional
+        Whether data are complex.  Default: `False`.
     """
-    _decoders = VDIFPayload._decoders
-    _encoders = VDIFPayload._encoders
 
     def __new__(cls, words, header=None, **kwargs):
         if header is not None and hasattr(header, 'bps') or 'bps' in kwargs:
-            cls = HDF5EncodedPayload
+            cls = HDF5CodedPayload
         else:
             cls = HDF5RawPayload
         return super().__new__(cls)
 
     @classmethod
-    def fromfile(cls, fh, header=None, **kwargs):
+    def fromfile(cls, fh, header=None):
         """Get payload words from HDF5 file or group.
 
         Parameters
         ----------
         fh : `~h5py.File` or `~h5py.Group`
             Handle to the HDF5 file/group which has an 'payload' dataset.
+            If the payload does not exist, it will be created.
         header : `~scintillometry.io.hdf5.HDF5Header`, optional
-            If given, used to infer ``dtype``, ``bps``, ``sample_shape``,
-            and ``complex_data``.  If not given, some of those may have
-            to be passed in.
-        **kwargs
-            Additional arguments are passed on to the class initializer. These
-            are only needed if ``header`` is not given.
+            Must be given for encoded payloads, or to create a payload.
         """
         try:
             words = fh['payload']
@@ -76,8 +80,8 @@ class HDF5Payload:
                 dtype = header.dtype
 
             words = fh.create_dataset('payload', shape=shape, dtype=dtype)
-        # Needs more sanity checks for reading!!!
-        return cls(words, header, **kwargs)
+
+        return cls(words, header)
 
 
 class HDF5DatasetWrapper:
@@ -109,6 +113,7 @@ class HDF5DatasetWrapper:
         self.words[item] = value
 
     def view(self, *args, **kwargs):
+        # Needed in case a whole data set is decoded in one go.
         return self.words[:].view(*args, **kwargs)
 
 
@@ -132,7 +137,7 @@ class HDF5RawPayload(HDF5DatasetWrapper, HDF5Payload):
         return len(self.words)
 
 
-class HDF5EncodedPayload(HDF5Payload, VLBIPayloadBase):
+class HDF5CodedPayload(HDF5Payload, VLBIPayloadBase):
     _decoders = VDIFPayload._decoders
     _encoders = VDIFPayload._encoders
 

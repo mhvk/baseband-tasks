@@ -1,4 +1,11 @@
-"""HDF5 header"""
+# Licensed under the GPLv3 - see LICENSE
+"""
+Definitions for HDF5 general storage headers.
+
+Implements a HDF5Header class used to store header definitions, and provides
+methods to initialize from a stream template, and to write to and read from
+an HDF5 Dataset, encoded as yaml file.
+"""
 import operator
 
 import numpy as np
@@ -10,20 +17,37 @@ from scintillometry.base import check_broadcast_to, simplify_shape
 
 
 class HDF5Header(dict):
-    _properties = ('sample_shape', 'samples_per_frame',
-                   'sample_rate', 'time', 'dtype',
+    """HDF5 format header.
+
+    The type of header is decided by the presence of ``bps``.  If present,
+    the payload will be assumed to be encoded; if not, to be raw data with
+    a given ``dtype``.
+
+    Parameters
+    ----------
+    verify : bool, optional
+        Whether to do minimal verification that the header is consistent with
+        what is needed to interpret HDF5 payloads.  Default: `True`.
+    mutable : bool, optional
+        Whether to allow the header to be changed after initialisation.
+        Default: `True`.
+    **kwargs
+        Header keywords to be set.  If this includes ``bps``, then this will
+        be taken to be a header for encoded data.
+    """
+    _properties = ('sample_shape', 'samples_per_frame', 'sample_rate', 'time',
                    'frequency', 'sideband', 'polarization')
 
-    def __new__(cls, *args, verify=True, mutable=True, **kwargs):
+    def __new__(cls, *, verify=True, mutable=True, **kwargs):
         if 'bps' in kwargs:
             cls = HDF5CodedHeader
         else:
-            cls = HDF5Header
+            cls = HDF5RawHeader
         return super().__new__(cls)
 
-    def __init__(self, *args, verify=True, mutable=True, **kwargs):
+    def __init__(self, *, verify=True, mutable=True, **kwargs):
+        super().__init__()
         self.mutable = True
-        super().__init__(*args)
         self.update(**kwargs, verify=verify)
         self.mutable = mutable
 
@@ -32,33 +56,59 @@ class HDF5Header(dict):
                 'sample_rate', 'time'} <= self.keys()
 
     def copy(self):
-        return self.__class__(self)
+        return self.__class__(verify=False, **self)
 
     @classmethod
     def fromfile(cls, fh, verify=True):
+        """Create a header from a yaml-encoded 'header' extension."""
         data = fh['header'][()]
         items = yaml.load(data)
         return cls(**items, mutable=False, verify=verify)
 
     def tofile(self, fh):
+        """Write the header as a yaml-encoded 'header' extension."""
         data = yaml.dump(dict(self))
         fh.create_dataset('header', data=data)
 
     @classmethod
-    def fromvalues(cls, template=None, **kwargs):
+    def fromvalues(cls, template, whole=None, verify=True, **kwargs):
+        """Initialise a header from a template and/or values.
+
+        Parameters
+        ----------
+        template : header or stream template, optional
+            Must have attributes that define a header ('sample_shape',
+            'samples_per_frame', 'sample_rate', 'time', and either 'dtype'
+            or 'bps' and 'complex_data').
+        whole : bool, optional
+            If `True`, assume a header for the complete stream is wanted,
+            and use 'start_time' for the 'time' and the total number of
+            samples for 'samples_per_frame'.  Default: `True` if the template
+            has both 'start_time' and 'shape' (i.e., for streams).
+        verify : bool, optional
+            Whether to do basic verification.  Default: `True`.
+        **kwargs
+            Any additional values.  These will override values inferred from
+            the template.
+        """
         if template is not None:
-            value = getattr(template, 'start_time', None)
-            if value is not None:
-                kwargs.setdefault('time', value)
-            value = getattr(template, 'shape', None)
-            if value is not None:
-                kwargs.setdefault('samples_per_frame', value[0])
-            for attr in HDF5CodedHeader._properties:
+            if whole or (whole is None
+                         and hasattr(template, 'shape')
+                         and hasattr(template, 'start_time')):
+                kwargs.setdefault('time', template.start_time)
+                kwargs.setdefault('samples_per_frame', template.shape[0])
+
+            if hasattr(template, 'bps') or 'bps' in kwargs:
+                attrs = HDF5CodedHeader._properties
+            else:
+                attrs = HDF5RawHeader._properties
+
+            for attr in attrs:
                 value = getattr(template, attr, None)
                 if value is not None:
                     kwargs.setdefault(attr, value)
 
-        return cls(verify=False, **kwargs)
+        return cls(verify=verify, **kwargs)
 
     def update(self, *, verify=True, **kwargs):
         """Update the header with new values.
@@ -98,15 +148,9 @@ class HDF5Header(dict):
                 and all(np.all(self[key] == other[key])
                         for key in self.keys()))
 
-    @property
-    def dtype(self):
-        return np.dtype(self['dtype'])
 
-    @dtype.setter
-    def dtype(self, dtype):
-        self['dtype'] = str(dtype)
-
-
+# Create properties for those that have to be present, using proper
+# initializing classes for the setters.
 def getter(attr):
     def fget(self):
         return self[attr]
@@ -130,6 +174,9 @@ for attr, cls in [('sample_shape', tuple),
                 property(getter(attr), setter(attr, cls)))
 
 
+# Create properties for the optional frequency, sideband, and polarization
+# items.  Those should give AttributeError if not present, and, on setting,
+# should be checked to be broadcastable.
 def optional_getter(attr):
     def fget(self):
         try:
@@ -153,17 +200,31 @@ for attr in 'frequency', 'sideband', 'polarization':
             property(optional_getter(attr), optional_setter(attr)))
 
 
-class HDF5CodedHeader(HDF5Header):
-    _properties = ('bps', 'complex_data') + HDF5Header._properties
+class HDF5RawHeader(HDF5Header):
+    _properties = ('dtype',) + HDF5Header._properties
+
+    def verify(self):
+        super().verify()
+        # Next assert proves that key exists and can be parsed.
+        assert isinstance(self.dtype, np.dtype)
 
     @property
     def dtype(self):
-        return np.dtype('c8') if self.complex_data else np.dtype('f4')
+        return np.dtype(self['dtype'])
 
     @dtype.setter
     def dtype(self, dtype):
-        if self.dtype != dtype:
-            raise ValueError('dtype has to be {}'.format(self.dtype))
+        self['dtype'] = str(dtype)
+
+
+class HDF5CodedHeader(HDF5Header):
+    _properties = ('bps', 'complex_data') + HDF5Header._properties
+
+    def verify(self):
+        super().verify()
+        # Next assert proves that keys exist and can be parsed.
+        assert isinstance(self.bps, int)
+        assert isinstance(self.complex_data, bool)
 
 
 for attr, cls in [('bps', operator.index),

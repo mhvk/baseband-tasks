@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import h5py
 from astropy import units as u
+from astropy.time import Time
 
 import baseband
 import baseband.data
@@ -9,6 +10,42 @@ import baseband.data
 from scintillometry.base import SetAttribute
 
 from ... import hdf5
+
+
+class TestHDF5Basics:
+    def setup(self):
+        self.info = {'sample_shape': (8, 2),
+                     'samples_per_frame': 100,
+                     'sample_rate': 32*u.MHz,
+                     'time': Time('2015-06-07T08:09:10')}
+
+    def test_create_raw_header(self):
+        header = hdf5.HDF5Header(dtype='c8', **self.info)
+        assert set(header.keys()) == set(self.info.keys()) | {'dtype'}
+        assert dict(header) == dict(dtype='c8', **self.info)
+        assert all(getattr(header, key) == self.info[key]
+                   for key in self.info.keys())
+        assert isinstance(header['dtype'], str)
+        assert header['dtype'] == 'c8'
+        assert isinstance(header.dtype, np.dtype)
+        assert header.dtype == 'c8'
+        assert not hasattr(header, 'bps')
+        assert not hasattr(header, 'complex_data')
+        with pytest.raises(KeyError, match='dtype'):
+            hdf5.HDF5Header(**self.info)
+
+    def test_create_coded_header(self):
+        header = hdf5.HDF5Header(bps=2, complex_data=False, **self.info)
+        assert set(header.keys()) == (set(self.info.keys())
+                                      | {'bps', 'complex_data'})
+        assert dict(header) == dict(bps=2, complex_data=False, **self.info)
+        assert all(getattr(header, key) == self.info[key]
+                   for key in self.info.keys())
+        assert header.bps == 2
+        assert header.complex_data is False
+        assert not hasattr(header, 'dtype')
+        with pytest.raises(KeyError, match='complex_data'):
+            hdf5.HDF5Header(bps=2, **self.info)
 
 
 class TestHDF5:
@@ -28,7 +65,7 @@ class TestHDF5:
     def check(self, stream, header, attrs=None, as_key=False):
         if attrs is None:
             if hasattr(stream, 'bps'):
-                attrs = ('sample_shape', 'dtype', 'sample_rate', 'time',
+                attrs = ('sample_shape', 'sample_rate', 'time',
                          'bps', 'complex_data')
                 exclude = ('dtype',)
             else:
@@ -112,3 +149,24 @@ class TestHDF5:
             assert f5r.header0 == header0
             data = f5r.read()
             assert np.all(data == self.data)
+
+    @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
+    def test_copy_stream_copy(self, stream_name, tmpdir):
+        # Check that we can copy ourselves and not mess up depending
+        # on raw vs encoded data.
+        stream = getattr(self, stream_name)
+        filename = str(tmpdir.join('copy.hdf5'))
+        with hdf5.open(filename, 'w', template=stream) as f5w:
+            f5w.write(self.data)
+
+        copyname = str(tmpdir.join('copycopy.hdf5'))
+        with hdf5.open(filename, 'r') as f5r:
+            with hdf5.open(copyname, 'w', template=f5r) as f5w:
+                if stream_name == 'fh':
+                    assert f5w.bps == 2
+                else:
+                    assert not hasattr(f5w, 'bps')
+                self.check(stream, f5w)
+                header0 = f5w.header0
+                self.check(stream, header0)
+                f5w.write(self.data)
