@@ -79,7 +79,8 @@ class TestHDF5:
         if is_header:
             assert stream.shape[0] == header['samples_per_frame']
         for attr in attrs:
-            stream_attr = getattr(stream, attr)
+            stream_attr = getattr(stream, (attr if attr != 'time'
+                                           else 'start_time'))
             header_attr = getattr(header, attr)
             assert np.all(header_attr == stream_attr)
             if is_header:
@@ -170,3 +171,16 @@ class TestHDF5:
                 header0 = f5w.header0
                 self.check(stream, header0)
                 f5w.write(self.data)
+
+    @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
+    def test_stream_as_output(self, stream_name, tmpdir):
+        stream = getattr(self, stream_name)
+        filename = str(tmpdir.join('copy.hdf5'))
+        with hdf5.open(filename, 'w', template=stream) as f5w:
+            stream.seek(0)
+            stream.read(out=f5w)
+
+        with hdf5.open(filename, 'r') as f5r:
+            self.check(stream, f5r)
+            data = f5r.read()
+            assert np.all(data == self.data)

@@ -8,6 +8,8 @@ consisting of either plain numpy data, or data encoded following the
 VDIF standard.
 """
 
+import operator
+
 import h5py
 
 from baseband.vlbi_base.base import (
@@ -100,6 +102,17 @@ class HDF5StreamWriter(HDF5StreamBase, VLBIStreamWriterBase):
 
     def _write_frame(self, frame, valid=True):
         assert valid, 'cannot deal with invalid data yet'
+
+    @property
+    def shape(self):
+        return (self.header0.samples_per_frame,) + self.sample_shape
+
+    def __setitem__(self, item, value):
+        start, stop, step = item.indices(self.shape[0])
+        assert start == self.offset, 'Can only assign right following pointer.'
+        assert step == 1, 'unity step size only supported'
+        assert len(value) == stop-start, 'number of samples should match.'
+        self.write(value)
 
 
 def open(filename, mode='r', **kwargs):
