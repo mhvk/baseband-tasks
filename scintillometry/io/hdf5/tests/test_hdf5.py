@@ -88,7 +88,7 @@ class TestHDF5:
     def test_copy_stream(self, stream_name, tmpdir):
         stream = getattr(self, stream_name)
         filename = str(tmpdir.join('copy.hdf5'))
-        with hdf5.open(filename, 'w', header0=stream) as f5w:
+        with hdf5.open(filename, 'w', template=stream) as f5w:
             if stream_name == 'fh':
                 assert f5w.bps == 2
             else:

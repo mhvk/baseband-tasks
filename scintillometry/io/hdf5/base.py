@@ -67,9 +67,10 @@ class HDF5StreamReader(HDF5StreamBase, VLBIStreamReaderBase):
 
 
 class HDF5StreamWriter(HDF5StreamBase, VLBIStreamWriterBase):
-    def __init__(self, fh_raw, header0=None, squeeze=True, **kwargs):
-        if not isinstance(header0, HDF5Header):
-            header0 = HDF5Header.fromvalues(template=header0, **kwargs)
+    def __init__(self, fh_raw, header0=None, squeeze=True,
+                 template=None, **kwargs):
+        if header0 is None:
+            header0 = HDF5Header.fromvalues(template=template, **kwargs)
         super().__init__(fh_raw, header0, squeeze=squeeze)
 
     def _make_frame(self, index):
