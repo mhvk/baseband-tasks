@@ -66,6 +66,7 @@ folded profiles.
    :maxdepth: 1
 
    io/psrfits
+   io/hdf5
 
 .. _helpers_toc:
 
