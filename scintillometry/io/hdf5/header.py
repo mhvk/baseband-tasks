@@ -16,6 +16,9 @@ from astropy.io.misc import yaml
 from scintillometry.base import check_broadcast_to, simplify_shape
 
 
+__all__ = ['HDF5Header', 'HDF5RawHeader', 'HDF5CodedHeader']
+
+
 class HDF5Header(dict):
     """HDF5 format header.
 

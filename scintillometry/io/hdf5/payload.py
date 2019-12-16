@@ -9,7 +9,8 @@ from baseband.vdif import VDIFPayload
 from baseband.vlbi_base.payload import VLBIPayloadBase
 
 
-__all__ = ['HDF5Payload']
+__all__ = ['HDF5Payload', 'HDF5RawPayload', 'HDF5CodedPayload',
+           'HDF5DatasetWrapper']
 
 
 class DtypeDefaultCoder(dict):
@@ -60,7 +61,7 @@ class HDF5Payload:
 
         Parameters
         ----------
-        fh : `~h5py.File` or `~h5py.Group`
+        fh : `~h5py:File` or `~h5py:Group`
             Handle to the HDF5 file/group which has an 'payload' dataset.
             If the payload does not exist, it will be created.
         header : `~scintillometry.io.hdf5.HDF5Header`, optional

@@ -1,8 +1,8 @@
 # Licensed under the GPLv3 - see LICENSE
 """Interfaces for reading and writing from an internal HDF5 format.
 
-In this format, each HDF5 `~h5py.File` has 'header' and 'payload'
-`~h5py.Dataset` instances, with the header consisting of yaml-encoded
+In this format, each HDF5 `~h5py:File` has 'header' and 'payload'
+`h5py:Dataset` instances, with the header consisting of yaml-encoded
 keywords describing the start time, sample rate, etc., and the payload
 consisting of either plain numpy data, or data encoded following the
 VDIF standard.
@@ -15,6 +15,10 @@ from baseband.vlbi_base.base import (
 
 from .header import HDF5Header
 from .payload import HDF5Payload
+
+
+__all__ = ['HDF5StreamBase', 'HDF5StreamReader', 'HDF5StreamWriter',
+           'open']
 
 
 class HDF5StreamBase(VLBIStreamBase):
@@ -106,7 +110,7 @@ def open(filename, mode='r', **kwargs):
 
     Parameters
     ----------
-    name : str, `~h5py.File`, of `~h5py.Group`
+    name : str, `~h5py:File`, of `~h5py:Group`
         File name, filehandle, or group containing header and payload.
     mode : {'r', 'w'}, optional
         Whether to open for reading (default) or writing.
@@ -126,17 +130,18 @@ def open(filename, mode='r', **kwargs):
 
     header0 : `~scintillometry.io.hdf5.HDF5Header`
         Header for the first frame, holding time information, etc.  Can instead
-        give keyword arguments to construct a header (see ``**kwargs``).
+        give a ``template`` or keyword arguments to construct a header from.
     squeeze : bool, optional
         If `True` (default), writer accepts squeezed arrays as input, and adds
         any dimensions of length unity.
     template : header or stream template, optional
-        Must have attributes that define a header (see below).
+        Must have attributes defining the required header keywords (see below).
     whole : bool, optional
         If `True`, assume a header for the complete stream is wanted,
         and use 'start_time' for the 'time' and the total number of
         samples for 'samples_per_frame'.  Default: `True` if the template
-        has both 'start_time' and 'shape' (i.e., for streams).
+        has both 'start_time' and 'shape' (i.e., for streams).  Ignored if
+        ``template`` is not given.
     verify : bool, optional
         Whether to do basic verification.  Default: `True`.
     **kwargs
@@ -153,7 +158,7 @@ def open(filename, mode='r', **kwargs):
     sample_rate : `~astropy.units.Quantity`
         Number of complete samples per second, i.e. the rate at which each
         channel of each polarization is sampled.
-    dtype : str or `~np.dtype`
+    dtype : str or `~numpy.dtype`
         Data type of the raw data.  Should only be given if ``bps`` and
         ``complex_data`` are not given.
     complex_data : bool, optional
