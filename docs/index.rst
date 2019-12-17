@@ -65,8 +65,8 @@ HDF5 files and final products, such as folded profiles, in PSRFITS format.
 .. toctree::
    :maxdepth: 1
 
-   io/hdf5
-   io/psrfits
+   io/hdf5/index
+   io/psrfits/index
 
 .. _helpers_toc:
 

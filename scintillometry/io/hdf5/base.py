@@ -8,10 +8,6 @@ consisting of either plain numpy data, or data encoded following the
 VDIF standard.
 """
 
-import operator
-
-import h5py
-
 from baseband.vlbi_base.base import (
     VLBIStreamBase, VLBIStreamReaderBase, VLBIStreamWriterBase)
 
@@ -148,7 +144,8 @@ def open(filename, mode='r', **kwargs):
     **kwargs
         Additional arguments when opening the file for writing.
 
-    --- For reading a stream : (see :class:`~scintillometry.io.hdf5.base.HDF5StreamReader`)
+    --- For reading : """ \
+    """(see :class:`~scintillometry.io.hdf5.base.HDF5StreamReader`)
 
     squeeze : bool, optional
         If `True` (default), remove any dimensions of length unity from
@@ -157,7 +154,8 @@ def open(filename, mode='r', **kwargs):
         Specific components of the complete sample to decode (after possibly
         squeezing).
 
-    --- For writing a stream : (see :class:`~scintillometry.io.hdf5.base.HDF5StreamWriter`)
+    --- For writing : """ \
+    """(see :class:`~scintillometry.io.hdf5.base.HDF5StreamWriter`)
 
     header0 : `~scintillometry.io.hdf5.HDF5Header`
         Header for the first frame, holding time information, etc.  Can instead
@@ -179,7 +177,8 @@ def open(filename, mode='r', **kwargs):
         Any additional values for constructing a header.  If ``template`` is
         given, these will override its values.
 
-    --- Header keywords : (see :meth:`~scintillometry.io.hdf5.HDF5Header.fromvalues`)
+    --- Header keywords : """ \
+    """(see :meth:`scintillometry.io.hdf5.HDF5Header.fromvalues`)
 
     sample_shape : tuple
         Shape of the individual samples.
@@ -207,6 +206,8 @@ def open(filename, mode='r', **kwargs):
         :class:`~scintillometry.io.hdf5.base.HDF5StreamWriter` (stream).
 
     """
+    import h5py
+
     if mode not in {'r', 'rs', 'w', 'ws'}:
         raise ValueError('unknown mode {}'.format(mode))
 

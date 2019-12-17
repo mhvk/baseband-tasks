@@ -3,26 +3,12 @@
 from functools import reduce
 import operator
 
-import numpy as np
-import h5py
 from baseband.vdif import VDIFPayload
 from baseband.vlbi_base.payload import VLBIPayloadBase
 
 
 __all__ = ['HDF5Payload', 'HDF5RawPayload', 'HDF5CodedPayload',
            'HDF5DatasetWrapper']
-
-
-class DtypeDefaultCoder(dict):
-    def __getitem__(self, item):
-        try:
-            dtype = np.dtype(item)
-        except Exception:
-            pass
-        else:
-            return lambda x: x.astype(dtype, copy=False)
-
-        return super().__getitem__(item)
 
 
 class HDF5Payload:
@@ -146,8 +132,7 @@ class HDF5CodedPayload(HDF5Payload, VLBIPayloadBase):
                  complex_data=False):
         # Wrap the h5py.Dataset since it misses a few ndarray attributes.
         # In particular, nbytes, itemsize.
-        if isinstance(words, h5py.Dataset):
-            words = HDF5DatasetWrapper(words)
+        words = HDF5DatasetWrapper(words)
         if header is not None:
             sample_shape = header.sample_shape
             bps = header.bps

@@ -9,10 +9,16 @@ import baseband
 import baseband.data
 
 from scintillometry.base import SetAttribute
+from scintillometry.io import hdf5
 
 
-hdf5 = pytest.importorskip('scintillometry.io.hdf5')
-h5py = pytest.importorskip('h5py')
+try:
+    import h5py
+    import astropy.io.misc.yaml  # noqa
+except ImportError:
+    HAS_H5PY = False
+else:
+    HAS_H5PY = True
 
 
 class TestHDF5Basics:
@@ -107,6 +113,7 @@ class TestHDF5:
         with pytest.raises(AttributeError):
             header.polarization
 
+    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_payload_from_baseband(self, tmpdir):
         header = hdf5.HDF5Header.fromvalues(self.fh)
         filename = str(tmpdir.join('payload.hdf5'))
@@ -116,6 +123,7 @@ class TestHDF5:
             assert pl.shape == (40000, 8)
             assert pl.words.shape == (20000,)
 
+    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_payload_from_stream(self, tmpdir):
         header = hdf5.HDF5Header.fromvalues(self.wrapped)
         filename = str(tmpdir.join('payload.hdf5'))
@@ -125,6 +133,7 @@ class TestHDF5:
             assert pl.shape == (40000, 8)
             assert pl.words.shape == (40000, 8)
 
+    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
     def test_copy_stream(self, stream_name, tmpdir):
         stream = getattr(self, stream_name)
@@ -162,6 +171,7 @@ class TestHDF5:
         repr(f5w)
         repr(f5r)
 
+    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
     def test_copy_stream_copy(self, stream_name, tmpdir):
         # Check that we can copy ourselves and not mess up depending
@@ -183,6 +193,7 @@ class TestHDF5:
                 self.check(stream, header0)
                 f5w.write(self.data)
 
+    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
     def test_stream_as_output(self, stream_name, tmpdir):
         stream = getattr(self, stream_name)

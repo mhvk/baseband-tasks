@@ -11,7 +11,6 @@ import operator
 import numpy as np
 from astropy.units import Quantity
 from astropy.time import Time
-from astropy.io.misc import yaml
 
 from scintillometry.base import check_broadcast_to, simplify_shape
 
@@ -64,12 +63,16 @@ class HDF5Header(dict):
     @classmethod
     def fromfile(cls, fh, verify=True):
         """Create a header from a yaml-encoded 'header' extension."""
+        from astropy.io.misc import yaml
+
         data = fh['header'][()]
         items = yaml.load(data)
         return cls(**items, mutable=False, verify=verify)
 
     def tofile(self, fh):
         """Write the header as a yaml-encoded 'header' extension."""
+        from astropy.io.misc import yaml
+
         data = yaml.dump(dict(self))
         fh.create_dataset('header', data=data)
 
@@ -172,9 +175,7 @@ for attr, cls in [('sample_shape', tuple),
                   ('samples_per_frame', operator.index),
                   ('sample_rate', Quantity),
                   ('time', Time)]:
-    if not hasattr(HDF5Header, attr):
-        setattr(HDF5Header, attr,
-                property(getter(attr), setter(attr, cls)))
+    setattr(HDF5Header, attr, property(getter(attr), setter(attr, cls)))
 
 
 # Create properties for the optional frequency, sideband, and polarization
@@ -211,6 +212,8 @@ class HDF5RawHeader(HDF5Header):
         # Next assert proves that key exists and can be parsed.
         assert isinstance(self.dtype, np.dtype)
 
+    # Astropy's Yaml loaded cannot encode dtype, so keep its
+    # string format as a key.
     @property
     def dtype(self):
         return np.dtype(self['dtype'])
@@ -232,5 +235,4 @@ class HDF5CodedHeader(HDF5Header):
 
 for attr, cls in [('bps', operator.index),
                   ('complex_data', bool)]:
-    setattr(HDF5CodedHeader, attr,
-            property(getter(attr), setter(attr, cls)))
+    setattr(HDF5CodedHeader, attr, property(getter(attr), setter(attr, cls)))
