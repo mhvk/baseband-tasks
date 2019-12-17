@@ -1,6 +1,7 @@
+# Licensed under the GPLv3 - see LICENSE
+"""Tests of the HDF5 reader/writer."""
 import numpy as np
 import pytest
-import h5py
 from astropy import units as u
 from astropy.time import Time
 
@@ -9,7 +10,9 @@ import baseband.data
 
 from scintillometry.base import SetAttribute
 
-from ... import hdf5
+
+hdf5 = pytest.importorskip('scintillometry.io.hdf5')
+h5py = pytest.importorskip('h5py')
 
 
 class TestHDF5Basics:
