@@ -47,7 +47,7 @@ env:
         # so Cython is required for testing. If your package does not include
         # Cython code, you can set CONDA_DEPENDENCIES=''
         - CONDA_DEPENDENCIES=''
-        - CONDA_DEPENDENCIES_DOC='sphinx-astropy scipy pyfftw'
+        - CONDA_DEPENDENCIES_DOC='sphinx-astropy scipy pyfftw h5py pyyaml'
 
         # List other runtime dependencies for the package that are available as
         # pip packages here.
@@ -92,7 +92,7 @@ matrix:
         - env: SETUP_CMD='build_sphinx -w'
                USE_PYFFTW=True
                USE_PINT=True
-               PIP_DEPENDENCIES='jplephem'
+               PIP_DEPENDENCIES='jplephem baseband'
                CONDA_DEPENDENCIES=$CONDA_DEPENDENCIES_DOC
 
         # Check everything, including coverage, with oldest supported versions.
@@ -103,7 +103,7 @@ matrix:
                USE_PINT=False
                USE_PYFFTW=True
                PIP_DEPENDENCIES='jplephem pyfftw'
-               CONDA_DEPENDENCIES='scipy'
+               CONDA_DEPENDENCIES='scipy h5py pyyaml'
 
         # Make sure that egg_info works without dependencies
         - env: SETUP_CMD='egg_info'
@@ -114,7 +114,7 @@ matrix:
                USE_PINT=True
                USE_PYFFTW=True
                PIP_DEPENDENCIES='jplephem pyfftw'
-               CONDA_DEPENDENCIES='scipy'
+               CONDA_DEPENDENCIES='scipy h5py pyyaml'
                EVENT_TYPE='cron'
 
 before_install:

@@ -59,13 +59,14 @@ Input/output
 ============
 
 Most I/O is via raw files read using :func:`baseband.open`, but
-Scintillometry offsers options to write out final products, such as
-folded profiles.
+Scintillometry offers options to write out intermediate products as
+HDF5 files and final products, such as folded profiles, in PSRFITS format.
 
 .. toctree::
    :maxdepth: 1
 
-   io/psrfits
+   io/hdf5/index
+   io/psrfits/index
 
 .. _helpers_toc:
 
