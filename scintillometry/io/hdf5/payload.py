@@ -3,12 +3,21 @@
 from functools import reduce
 import operator
 
+import numpy as np
+
 from baseband.vdif import VDIFPayload
 from baseband.vlbi_base.payload import VLBIPayloadBase
 
 
 __all__ = ['HDF5Payload', 'HDF5RawPayload', 'HDF5CodedPayload',
            'HDF5DatasetWrapper']
+
+
+# Ideally, we'd use 'r' and 'i' here, to match the use for
+# other complex numbers inside h5py, but unfortunately that
+# needs a numpy 'c4' dtype to actually exist.
+DTYPE_C4 = np.dtype([('real', '<f2'), ('imag', '<f2')])
+"""Numpy dtype used to encode half-precision complex numbers."""
 
 
 class HDF5Payload:
@@ -19,23 +28,24 @@ class HDF5Payload:
 
     Parameters
     ----------
-    words : `~numpy.ndarray`
+    words : `~h5py:Dataset`
         Array containg data as stored in the HDF5 file, which possibly
         are encoded similar to a VDIF payload.
     header : `~scintillometry.io.hdf5.HDF5Header`, optional
         Header providing information about whether, and if so, how the payload
-        is encoded. If not given, then the following need to be passed in.
+        is encoded. If not given and if the data are encoded, then the
+        following should be passed in.
     sample_shape : tuple, optional
         Shape of the samples; e.g., (nchan,).  Default: ().
     bps : int, optional
         Number of bits per sample part (i.e., per channel and per real or
-        imaginary component).  If given, the data are assumed to be encoded.
+        imaginary component).  No default.
     complex_data : bool, optional
         Whether data are complex.  Default: `False`.
     """
 
     def __new__(cls, words, header=None, **kwargs):
-        if header is not None and hasattr(header, 'bps') or 'bps' in kwargs:
+        if 'bps' in kwargs or hasattr(header, 'bps'):
             cls = HDF5CodedPayload
         else:
             cls = HDF5RawPayload
@@ -53,26 +63,29 @@ class HDF5Payload:
         header : `~scintillometry.io.hdf5.HDF5Header`, optional
             Must be given for encoded payloads, or to create a payload.
         """
-        try:
-            words = fh['payload']
-        except KeyError:
-            if hasattr(header, 'bps'):
-                nsample = reduce(operator.mul, header.sample_shape,
-                                 header.samples_per_frame)
-                shape = ((header.bps * (2 if header.complex_data else 1)
-                          * nsample + 31) // 32,)
-                dtype = '<u4'
-            else:
-                shape = (header.samples_per_frame,) + header.sample_shape
-                dtype = header.dtype
+        if 'payload' in fh:
+            return cls(fh['payload'], header)
 
-            words = fh.create_dataset('payload', shape=shape, dtype=dtype)
+        if hasattr(header, 'bps'):
+            nsample = reduce(operator.mul, header.sample_shape,
+                             header.samples_per_frame)
+            shape = ((header.bps * (2 if header.complex_data else 1)
+                      * nsample + 31) // 32,)
+        else:
+            shape = (header.samples_per_frame,) + header.sample_shape
+
+        words = fh.create_dataset('payload', shape=shape,
+                                  dtype=header.encoded_dtype)
 
         return cls(words, header)
 
 
 class HDF5DatasetWrapper:
-    """Make a HDF5 Dataset look a bit more like ndarray."""
+    """Make a HDF5 Dataset look a bit more like ndarray.
+
+    In particular, adds ``nbytes`` and ``itemsize`` properties,
+    and implements a ``view`` method.
+    """
     def __init__(self, words):
         self.words = words
 
@@ -108,9 +121,14 @@ class HDF5RawPayload(HDF5DatasetWrapper, HDF5Payload):
     def __init__(self, words, header=None):
         self.words = words
         if header is not None:
-            assert header.dtype == self.dtype
+            self._dtype = header.dtype
+            assert header.encoded_dtype == words.dtype
             assert header.sample_shape == self.sample_shape
             assert header.samples_per_frame == len(self)
+        elif words.dtype == DTYPE_C4:
+            self._dtype = np.dtype('c8')
+        else:
+            self._dtype = words.dtype
 
     @property
     def data(self):
@@ -123,12 +141,30 @@ class HDF5RawPayload(HDF5DatasetWrapper, HDF5Payload):
     def __len__(self):
         return len(self.words)
 
+    def __getitem__(self, item):
+        result = super().__getitem__(item)
+        if result.dtype == DTYPE_C4:
+            result = result.view(DTYPE_C4['real']).astype('f4').view('c8')
+
+        return result.astype(self.dtype, copy=False)
+
+    def __setitem__(self, item, value):
+        if self.words.dtype == DTYPE_C4:
+            value = (value.view(value.real.dtype)
+                     .astype(DTYPE_C4['real']).view(DTYPE_C4))
+        super().__setitem__(item, value)
+
+    @property
+    def dtype(self):
+        """Numeric type of the decoded data array."""
+        return self._dtype
+
 
 class HDF5CodedPayload(HDF5Payload, VLBIPayloadBase):
     _decoders = VDIFPayload._decoders
     _encoders = VDIFPayload._encoders
 
-    def __init__(self, words, header=None, sample_shape=None, bps=None,
+    def __init__(self, words, header=None, sample_shape=(), bps=None,
                  complex_data=False):
         # Wrap the h5py.Dataset since it misses a few ndarray attributes.
         # In particular, nbytes, itemsize.

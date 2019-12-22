@@ -14,6 +14,8 @@ from astropy.time import Time
 
 from scintillometry.base import check_broadcast_to, simplify_shape
 
+from .payload import DTYPE_C4, HDF5CodedPayload
+
 
 __all__ = ['HDF5Header', 'HDF5RawHeader', 'HDF5CodedHeader']
 
@@ -22,8 +24,9 @@ class HDF5Header(dict):
     """HDF5 format header.
 
     The type of header is decided by the presence of ``bps``.  If present,
-    the payload will be assumed to be encoded; if not, to be raw data with
-    a given ``dtype``.
+    the payload will be assumed to be encoded; if not, it will be assumed
+    to be raw data with a given `~numpy.dtype` (or optionally a '<c4' type
+    for complex data with '<f2' half-precision real and imaginary parts).
 
     Parameters
     ----------
@@ -205,22 +208,66 @@ for attr in 'frequency', 'sideband', 'polarization':
 
 
 class HDF5RawHeader(HDF5Header):
-    _properties = ('dtype',) + HDF5Header._properties
+    _properties = ('encoded_dtype', 'dtype') + HDF5Header._properties
 
     def verify(self):
         super().verify()
-        # Next assert proves that key exists and can be parsed.
-        assert isinstance(self.dtype, np.dtype)
+        # Next ones implicitly prove that keys exist and can be parsed.
+        complex_data = self.get('complex_data', None)
+        if complex_data is None:
+            assert isinstance(self.dtype, np.dtype)
+            assert isinstance(self.encoded_dtype, np.dtype)
+        else:
+            assert complex_data == (self.dtype.kind == 'c')
+            assert complex_data == (self.encoded_dtype.kind == 'c')
 
-    # Astropy's Yaml loaded cannot encode dtype, so keep its
-    # string format as a key.
+    # Astropy's Yaml loaded cannot encode numpy.dtype, so use its
+    # string format as a key.  For encoded dtype, this allows us to
+    # use 'c4' even though it does not exist as a numpy dtype.
+    @property
+    def encoded_dtype(self):
+        """The numpy dtype in which the data are stored.
+
+        This is generally the same as the actual `~numpy.dtype` in which
+        data are produced, except that it can have lower number of bits.
+        Furthermore, the `~scintillometry.io.hdf5.payload.DTYPE_C4` dtype
+        can be used for complex data using half-precision floats ('<f2')
+        for the real and imaginary parts.
+
+        Can be set using a `~numpy.dtype` or a string (with 'c4'
+        representing the above half-precision complex numbers).  Will
+        set ``dtype`` as well (with half precision changed to single
+        precision, i.e., 'f2' to 'f4' and 'c4' to 'c4').
+
+        """
+        encoded_dtype = self.get('encoded_dtype', None)
+        if encoded_dtype is None:
+            return self.dtype
+
+        elif encoded_dtype in ('<c4', 'c4', 'complex32'):
+            return DTYPE_C4
+        else:
+            return np.dtype(encoded_dtype)
+
+    @encoded_dtype.setter
+    def encoded_dtype(self, encoded_dtype):
+        encoded_dtype = str(encoded_dtype)
+        if encoded_dtype in ('<c4', 'c4', 'complex32'):
+            self['encoded_dtype'] = '<c4'
+            self.dtype = 'c8'
+        else:
+            # Go through a regular dtype to catch input errors.
+            encoded_dtype = np.dtype(encoded_dtype)
+            self['encoded_dtype'] = str(encoded_dtype)
+            self.dtype = 'f4' if encoded_dtype == 'f2' else encoded_dtype
+
     @property
     def dtype(self):
         return np.dtype(self['dtype'])
 
     @dtype.setter
     def dtype(self, dtype):
-        self['dtype'] = str(dtype)
+        self['dtype'] = str(np.dtype(dtype))
 
 
 class HDF5CodedHeader(HDF5Header):
@@ -231,6 +278,11 @@ class HDF5CodedHeader(HDF5Header):
         # Next assert proves that keys exist and can be parsed.
         assert isinstance(self.bps, int)
         assert isinstance(self.complex_data, bool)
+
+    @property
+    def encoded_dtype(self):
+        """The numpy dtype in which the encoded data are stored."""
+        return HDF5CodedPayload._dtype_word
 
 
 for attr, cls in [('bps', operator.index),

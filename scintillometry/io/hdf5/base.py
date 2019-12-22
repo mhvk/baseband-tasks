@@ -191,6 +191,11 @@ def open(filename, mode='r', **kwargs):
     dtype : str or `~numpy.dtype`
         Data type of the raw data.  Should only be given if ``bps`` and
         ``complex_data`` are not given.
+    encoded_dtype : str or `~numpy.dtype`, optional
+        Data type of the encoded data.  By default, equal to ``dtype``, but
+        can be used to reduce the precision, e.g., to half-precision with
+        'f2' for real-valued data or the custom 'c4' dtype for complex.
+        Should only be given if ``bps`` and ``complex_data`` are not given.
     complex_data : bool, optional
         Whether encoded data are complex (default: `False`).  Should only
         be given if ``dtype`` is not given.
