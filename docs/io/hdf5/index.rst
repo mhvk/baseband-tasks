@@ -33,6 +33,11 @@ For instance::
   >>> (squared == recovered).all()
   True
 
+It is also possible to stored data encoding using the standard
+``vdif`` schemes by passing in ``bps`` and ``complex_data``.
+Alternatively, half-precision floats can be used by passing in
+``encoded_dtype='f2'`` or ``'c4'``.
+
 .. _hdf5_api:
 
 Reference/API
