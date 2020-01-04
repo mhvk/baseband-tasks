@@ -411,7 +411,11 @@ class BaseTaskBase(Base):
                          polarization=polarization, dtype=dtype)
 
     def close(self):
-        """Close task, in particular closing its input source."""
+        """Close task.
+
+        Note that this does not explicitly close the underlying source;
+        instead, it just deletes the reference to it.
+        """
         super().close()
         # Delete the reference to the underlying filehandle, so that it
         # can be freed if used nowhere else.
