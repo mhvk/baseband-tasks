@@ -13,15 +13,15 @@ __all__ = ['open', 'get_readers', 'get_writer', 'PSRFITSReader',
            'PSRFITSWriter']
 
 
-def open(filename, mode, primary_hdu=None, **kwargs):
+def open(filename, mode='r', **kwargs):
     """Function to open a PSRFITS file.
 
     Parameters
     ----------
     filename : str
         Input PSRFITS file name.
-    mode : str
-        Open mode, currently, it only supports 'r'/'read' mode.
+    mode : {'r', 'w'}, optional
+        Whether to open for reading (default) or writing.
     **kwargs
         Additional arguments for opening the fits file and creating the reader.
 
@@ -40,6 +40,16 @@ def open(filename, mode, primary_hdu=None, **kwargs):
     verify : bool, optional
         Whether to do basic checks on the PSRFITS HDUs.
         Default is `True`.
+
+    --- For creating the writer :
+
+    primary_hdu : ~scintillometry.io.psrfits.PSRFITSPrimaryHDU
+        Currently required to be constructed before opening the file.
+        This limitation will be lifted in future.
+    **kwargs
+        Further arguments to set up the SUBINT HDU.  These can include
+        'start_time', 'sample_rate', 'sample_shape', 'shape',
+        'samples_per_frame', 'polarization', 'frequency'.
 
     Returns
     -------
@@ -68,14 +78,15 @@ def open(filename, mode, primary_hdu=None, **kwargs):
 
     elif mode == 'w':
         # Build Writer from scratch
-        if not primary_hdu:
+        primary_hdu = kwargs.get('primary_hdu', None)
+        if primary_hdu is None:
             raise ValueError("need a primary hdu/meta data for building a"
                              " PSRFITS file.")
         writer = get_writer(filename, primary_hdu, **kwargs)
         return writer
     else:
-        raise ValueError("Unknown mode '{}'. Currently only 'r' mode are"
-                         " supported.".format(mode))
+        raise ValueError("Unknown mode '{}'. Currently only modes 'r' and 'w' "
+                         "are supported.".format(mode))
 
 
 def get_readers(hdu_list, **kwargs):
@@ -126,30 +137,41 @@ def get_writer(filename, hdu, sample_rate=None, shape=None,
 
     Parameters
     ----------
+    filename : str or filehandle
+        File to eventually write the FITS data to.
     shape : tuple
         The shape for data.
     **kwargs
         Additional arguments for creating PSRFITS writer.
         Passes on to `~scintillometry.io.psrfits.PSRFITSWriter`.
     """
-    # TODO not sure if this is the best solution to decide how to build a
-    # writer. We made assumptions that every PSRFTIS has subint hdu and we
-    # don't support other hdu right now.
-    # Build from scratch
-    if isinstance(hdu, HDU_map['PRIMARY']):
-        # TODO, is there any PSRFITS has no subint hdu?
-        if hdu.obs_mode not in subint_map.keys():
-            raise ValueError("observation mode '{}' is not a valid"
-                             " mode. Available modes:"
-                             " {}".format(hdu.obs_mode,
-                                          list(subint_map.keys())))
-        hdu = subint_map[hdu.obs_mode](primary_hdu=hdu)
+    # TODO: not sure if the best solution is to build from a primary HDU.
+    # Might be nicer if we can construct from kwargs.  Might want to use
+    # the hdu_list_template in hdu.py
+    if not isinstance(hdu, HDU_map['PRIMARY']):
+        raise ValueError("need a PSRFITSPrimaryHDU to write FITS data")
+
+    # TODO, is there any PSRFITS has no subint hdu?
+    try:
+        subint = subint_map[hdu.obs_mode]
+    except KeyError as exc:
+        exc.args += ("observation mode '{}' is not a valid"
+                     " mode. Available modes are: {}"
+                     .format(hdu.obs_mode, list(subint_map.keys())),)
+        raise exc
+
+    hdu = subint(primary_hdu=hdu)
 
     # Take input from the keywords
+    # TODO: in analogy with baseband, should there be a .fromvalues() class
+    # method?  We should not be accessing private properties here...
     for ppt in hdu._properties:
         ppt_value = kwargs.get(ppt, None)
         if ppt_value is not None:
             setattr(hdu, ppt, ppt_value)
+
+    # TODO: should the file already opened for writing here?  Not good
+    # to get an error if the file exists only when the writer is closed!
     return PSRFITSWriter(filename, hdu)
 
 
@@ -187,10 +209,6 @@ class PSRFITSReader(BaseTaskBase):
         super().__init__(ih, frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
 
-    @property
-    def primary_hdu(self):
-        return self.ih.primary_hdu
-
     def _read_frame(self, frame_index):
         res = self.ih.read_data_row(frame_index, weighted=self.weighted).T
         return res.reshape((self.samples_per_frame, ) + self.sample_shape)
@@ -221,28 +239,24 @@ class PSRFITSWriter:
         self.hdu = hdu
         self.offset = 0
 
-    def verify(self):
-        # Verify if the input hdus are read to write out.
-        pass
-
-    @property
-    def primary_hdu(self):
-        return self.hdu.primary_hdu
-
     def write(self, data):
         open_space = self.hdu.shape[0] - self.offset - data.shape[0]
         # TODO This may have to change if we want to write data to
         # multiple files
         if open_space < 0:
             raise RuntimeError("Not enough space for input data.")
-        else:
-            # FIXME add scaling
-            # We need to have a hdu data setter, other wrise, this will not
-            # scaled right.
-            self.hdu.data['DATA'][self.offset + self.data.shape[0], :] = data
-            self.offset += data.shape[0]
+
+        # FIXME add scaling
+        # We need to have a hdu data setter, otherwise, this will not
+        # scaled right.
+        self.hdu.data['DATA'][self.offset + self.data.shape[0], :] = data
+        self.offset += data.shape[0]
 
     def close(self):
+        """Dump the data to the underlying file.
+
+        Also removes references to the underlying HDU.
+        """
         # dump the data out
         # First convert the psrfits hdu to HDUList
         fits_hdu_list = fits.HDUList([self.hdu.primary_hdu.hdu, self.hdu.hdu])

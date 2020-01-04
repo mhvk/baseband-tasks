@@ -36,7 +36,7 @@ class TestWriter:
         with pytest.raises(ValueError):
             psrfits.open("test_raise.fits", "w")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(KeyError):
             no_mode_primary = PSRFITSPrimaryHDU()
             psrfits.open("test_raise2.fits", "w",
                          primary_hdu=no_mode_primary)
