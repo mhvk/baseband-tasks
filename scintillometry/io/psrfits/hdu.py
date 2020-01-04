@@ -219,9 +219,11 @@ class SubintHDU(HDUWrapper):
     frequencies do not vary.
     """
 
-    _properties = ('start_time', 'sample_rate', 'sample_shape',
-                   'shape', 'samples_per_frame',
-                   'polarization', 'frequency')
+    _properties = ('samples_per_frame', 'sample_shape', 'shape',
+                   'start_time', 'sample_rate', 'polarization', 'frequency')
+    """Possibly settable properties that this class provides."""
+    # NOTE: order of the above matters, as some of the later ones may
+    # need earlier ones (e.g., one cannot set start_time without a shape).
 
     _sample_shape_maker = namedtuple('SampleShape', 'nbin, nchan, npol')
     _shape_maker = namedtuple('Shape', 'nsample, nbin, nchan, npol')
@@ -357,6 +359,14 @@ class SubintHDU(HDUWrapper):
     def shape(self):
         return self._shape_maker(self.nrow * self.samples_per_frame,
                                  self.nbin, self.nchan, self.npol)
+
+    @shape.setter
+    def shape(self, shape):
+        assert shape[0] % self.samples_per_frame == 0, (
+            'shape has to an integer multiple of samples_per_frame={}'
+            .format(self.samples_per_frame))
+        self.sample_shape = shape[1:]
+        self.nrow = shape[0] // self.samples_per_frame
 
     @property
     def polarization(self):

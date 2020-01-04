@@ -78,7 +78,7 @@ def open(filename, mode='r', **kwargs):
 
     elif mode == 'w':
         # Build Writer from scratch
-        primary_hdu = kwargs.get('primary_hdu', None)
+        primary_hdu = kwargs.pop('primary_hdu', None)
         if primary_hdu is None:
             raise ValueError("need a primary hdu/meta data for building a"
                              " PSRFITS file.")
@@ -131,8 +131,7 @@ def get_readers(hdu_list, **kwargs):
     return readers
 
 
-def get_writer(filename, hdu, sample_rate=None, shape=None,
-               frequency=None, start_time=None, **kwargs):
+def get_writer(filename, hdu, **kwargs):
     """Function to init a PSRFITS HDU for writing.
 
     Parameters
@@ -166,9 +165,12 @@ def get_writer(filename, hdu, sample_rate=None, shape=None,
     # TODO: in analogy with baseband, should there be a .fromvalues() class
     # method?  We should not be accessing private properties here...
     for ppt in hdu._properties:
-        ppt_value = kwargs.get(ppt, None)
+        ppt_value = kwargs.pop(ppt, None)
         if ppt_value is not None:
             setattr(hdu, ppt, ppt_value)
+
+    if kwargs:
+        raise TypeError('unused keyword arguments: {} '.format(kwargs))
 
     # TODO: should the file already opened for writing here?  Not good
     # to get an error if the file exists only when the writer is closed!
@@ -226,14 +228,17 @@ class PSRFITSWriter:
     ----------
     filename : str
         Output file name.
-    hdu: ``~PSRFITS`` HDU
-
+    hdu : wrapped PSRFITS HDU
+        The output fits table HDU, wrapped in an interface from
+        `~scintillometry.io.psrfits`.
 
     Notes
     -----
     Currently it only support write the PSRFITS primary HDU and Subint HDU.
     """
-
+    # TODO: this should have some of the attributes from the underlying HDU,
+    # in particular sample_shape, sample_rate, etc.  May be good to split
+    # off a ReaderBase from base.Base, and then define a WriterBase as well.
     def __init__(self, filename, hdu):
         self.filename = filename
         self.hdu = hdu

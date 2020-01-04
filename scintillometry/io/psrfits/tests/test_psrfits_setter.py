@@ -125,6 +125,9 @@ class TestPSRHDUSetter(TestPrimaryHDUSetter):
 
     def test_shape(self):
         assert self.psr_hdu.shape == self.reader.ih.shape
+        # Since this was not explicitly set above, check we can change it.
+        self.psr_hdu.shape = (10, 11, 12, 13)
+        assert self.psr_hdu.shape == (10, 11, 12, 13)
 
     def test_set_start_time(self):
         self.psr_hdu.start_time = self.reader.start_time
