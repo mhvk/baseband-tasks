@@ -1,5 +1,5 @@
 # Licensed under the GPLv3 - see LICENSE
-"""Full-package tests of psrfits setter routines."""
+"""Tests of the various property setters of PSRFITS HDUs."""
 
 import os
 
@@ -14,7 +14,7 @@ from ..hdu import PSRFITSPrimaryHDU, SubintHDU, PSRSubintHDU
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
-class TestSetter:
+class TestPrimaryHDUSetter:
     def setup(self):
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")
@@ -81,7 +81,7 @@ class TestSetter:
                 == Latitude(self.input_p_hdu.header['DEC'], unit=u.deg))
 
 
-class TestPSRHDUWrite(TestSetter):
+class TestPSRHDUSetter(TestPrimaryHDUSetter):
     def setup(self):
         super().setup()
         # Create SUBINT using primary header.
