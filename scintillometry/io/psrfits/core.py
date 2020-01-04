@@ -253,9 +253,18 @@ class PSRFITSWriter:
 
         # FIXME add scaling
         # We need to have a hdu data setter, otherwise, this will not
-        # scaled right.
-        self.hdu.data['DATA'][self.offset + self.data.shape[0], :] = data
+        # scaled right.  That should also deal with this reshaping;
+        # i.e., do implement a write_data_row function!
+        data_row = data.reshape(self.hdu.samples_per_frame, -1)
+        self.hdu.data['DATA'][
+            0, self.offset:self.offset+data.shape[0]] = data_row
         self.offset += data.shape[0]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def close(self):
         """Dump the data to the underlying file.

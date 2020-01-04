@@ -39,7 +39,7 @@ class TestWriter:
         assert writer.hdu.sample_rate == 1.0 / u.s
         assert writer.hdu.data.shape == (50,)
 
-    def test_open_raise(self):
+    def test_open_errors(self):
         with pytest.raises(ValueError):
             psrfits.open("test_raise.fits", "w")
 
@@ -53,3 +53,27 @@ class TestWriter:
             wrong_mode_primary.obs_mode = 'WRONG'
             psrfits.open("test_raise3.fits", "w",
                          primary_hdu=no_mode_primary)
+
+    def test_make_copy(self, tmpdir):
+        # This should become easier...
+        with psrfits.open(self.fold_data) as fh:
+            shape = fh.shape
+            data = fh.read()
+            primary_hdu = fh.ih.primary_hdu.copy()
+            frequency = fh.frequency
+            sideband = fh.sideband
+            bandwidth = fh.ih.bandwidth
+            sample_rate = fh.sample_rate
+
+        copy_name = str(tmpdir.join('copy.fits'))
+        with psrfits.open(copy_name, 'w', primary_hdu=primary_hdu,
+                          shape=shape, frequency=frequency,
+                          bandwidth=bandwidth, sideband=sideband,
+                          sample_rate=sample_rate) as fw:
+            fw.write(data)
+
+        with psrfits.open(copy_name, 'r') as fc:
+            fc.read()
+
+        # FIXME: Data is not right yet!!!
+        # assert (copy == data).all()
