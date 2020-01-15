@@ -6,10 +6,11 @@ from astropy import log
 from collections import defaultdict
 
 from scintillometry.base import BaseTaskBase
-from .hdu import HDU_map
+from .hdu import HDU_map, subint_map
 
 
-__all__ = ['open', 'get_readers', 'PSRFITSReader']
+__all__ = ['open', 'get_readers', 'get_writer', 'PSRFITSReader',
+           'PSRFITSWriter']
 
 
 def open(filename, mode='r', **kwargs):
@@ -19,8 +20,8 @@ def open(filename, mode='r', **kwargs):
     ----------
     filename : str
         Input PSRFITS file name.
-    mode : str
-        Open mode, currently, it only supports 'r'/'read' mode.
+    mode : {'r', 'w'}, optional
+        Whether to open for reading (default) or writing.
     **kwargs
         Additional arguments for opening the fits file and creating the reader.
 
@@ -39,6 +40,16 @@ def open(filename, mode='r', **kwargs):
     verify : bool, optional
         Whether to do basic checks on the PSRFITS HDUs.
         Default is `True`.
+
+    --- For creating the writer :
+
+    primary_hdu : ~scintillometry.io.psrfits.PSRFITSPrimaryHDU
+        Currently required to be constructed before opening the file.
+        This limitation will be lifted in future.
+    **kwargs
+        Further arguments to set up the SUBINT HDU.  These can include
+        'start_time', 'sample_rate', 'sample_shape', 'shape',
+        'samples_per_frame', 'polarization', 'frequency'.
 
     Returns
     -------
@@ -61,10 +72,21 @@ def open(filename, mode='r', **kwargs):
         # TODO: allow support for more than one HDU.
         if len(reader_list) != 1:
             raise RuntimeError("Current reader can only read one SUBINT HDU.")
+        # TODO Returning one HDU for now. But in the future, we may want to
+        # return a group of it.
         return reader_list[0]
+
+    elif mode == 'w':
+        # Build Writer from scratch
+        primary_hdu = kwargs.pop('primary_hdu', None)
+        if primary_hdu is None:
+            raise ValueError("need a primary hdu/meta data for building a"
+                             " PSRFITS file.")
+        writer = get_writer(filename, primary_hdu, **kwargs)
+        return writer
     else:
-        raise ValueError("Unknown mode '{}'. Currently only 'r' mode are"
-                         " supported.".format(mode))
+        raise ValueError("Unknown mode '{}'. Currently only modes 'r' and 'w' "
+                         "are supported.".format(mode))
 
 
 def get_readers(hdu_list, **kwargs):
@@ -107,6 +129,52 @@ def get_readers(hdu_list, **kwargs):
         readers.append(PSRFITSReader(hdu, **kwargs))
 
     return readers
+
+
+def get_writer(filename, hdu, **kwargs):
+    """Function to init a PSRFITS HDU for writing.
+
+    Parameters
+    ----------
+    filename : str or filehandle
+        File to eventually write the FITS data to.
+    shape : tuple
+        The shape for data.
+    **kwargs
+        Additional arguments for creating PSRFITS writer.
+        Passes on to `~scintillometry.io.psrfits.PSRFITSWriter`.
+    """
+    # TODO: not sure if the best solution is to build from a primary HDU.
+    # Might be nicer if we can construct from kwargs.  Might want to use
+    # the hdu_list_template in hdu.py
+    if not isinstance(hdu, HDU_map['PRIMARY']):
+        raise ValueError("need a PSRFITSPrimaryHDU to write FITS data")
+
+    # TODO, is there any PSRFITS has no subint hdu?
+    try:
+        subint = subint_map[hdu.obs_mode]
+    except KeyError as exc:
+        exc.args += ("observation mode '{}' is not a valid"
+                     " mode. Available modes are: {}"
+                     .format(hdu.obs_mode, list(subint_map.keys())),)
+        raise exc
+
+    hdu = subint(primary_hdu=hdu)
+
+    # Take input from the keywords
+    # TODO: in analogy with baseband, should there be a .fromvalues() class
+    # method?  We should not be accessing private properties here...
+    for ppt in hdu._properties:
+        ppt_value = kwargs.pop(ppt, None)
+        if ppt_value is not None:
+            setattr(hdu, ppt, ppt_value)
+
+    if kwargs:
+        raise TypeError('unused keyword arguments: {} '.format(kwargs))
+
+    # TODO: should the file already opened for writing here?  Not good
+    # to get an error if the file exists only when the writer is closed!
+    return PSRFITSWriter(filename, hdu)
 
 
 class PSRFITSReader(BaseTaskBase):
@@ -160,21 +228,50 @@ class PSRFITSWriter:
     ----------
     filename : str
         Output file name.
-    ih : input file handle
-        The file handle for input data.
-    hdus: str, optional
-
-
+    hdu : wrapped PSRFITS HDU
+        The output fits table HDU, wrapped in an interface from
+        `~scintillometry.io.psrfits`.
 
     Notes
     -----
     Currently it only support write the PSRFITS primary HDU and Subint HDU.
     """
-
-    def __init__(self, filename, ih, hdus=None):
+    # TODO: this should have some of the attributes from the underlying HDU,
+    # in particular sample_shape, sample_rate, etc.  May be good to split
+    # off a ReaderBase from base.Base, and then define a WriterBase as well.
+    def __init__(self, filename, hdu):
         self.filename = filename
-        self.ih = ih
-        self.hdus = hdus
+        self.hdu = hdu
+        self.offset = 0
+
+    def write(self, data):
+        open_space = self.hdu.shape[0] - self.offset - data.shape[0]
+        # TODO This may have to change if we want to write data to
+        # multiple files
+        if open_space < 0:
+            raise RuntimeError("Not enough space for input data.")
+
+        # FIXME add scaling
+        # We need to have a hdu data setter, otherwise, this will not
+        # scaled right.  That should also deal with this reshaping;
+        # i.e., do implement a write_data_row function!
+        data_row = data.reshape(self.hdu.samples_per_frame, -1)
+        self.hdu.data['DATA'][
+            0, self.offset:self.offset+data.shape[0]] = data_row
+        self.offset += data.shape[0]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def close(self):
-        pass
+        """Dump the data to the underlying file.
+
+        Also removes references to the underlying HDU.
+        """
+        # dump the data out
+        # First convert the psrfits hdu to HDUList
+        fits_hdu_list = fits.HDUList([self.hdu.primary_hdu.hdu, self.hdu.hdu])
+        fits_hdu_list.writeto(self.filename, overwrite=False)

@@ -31,12 +31,12 @@ class HDUWrapper:
             self.hdu = hdu
             if verify:
                 self.verify()
-        # This is for selecting the dimension for different mode (i.e., folding
-        # or searching)
-        self._dim_opt = 0
 
     def verify(self):
         assert isinstance(self.header, fits.Header)
+
+    def copy(self):
+        return self.__class__(self.hdu.copy())
 
     @property
     def header(self):
@@ -219,9 +219,12 @@ class SubintHDU(HDUWrapper):
     frequencies do not vary.
     """
 
-    _properties = ('start_time', 'sample_rate', 'sample_shape',
-                   'shape', 'samples_per_frame',
-                   'polarization', 'frequency')
+    _properties = ('samples_per_frame', 'sample_shape', 'shape',
+                   'start_time', 'sample_rate',
+                   'polarization', 'frequency', 'bandwidth', 'sideband')
+    """Possibly settable properties that this class provides."""
+    # NOTE: order of the above matters, as some of the later ones may
+    # need earlier ones (e.g., one cannot set start_time without a shape).
 
     _sample_shape_maker = namedtuple('SampleShape', 'nbin, nchan, npol')
     _shape_maker = namedtuple('Shape', 'nsample, nbin, nchan, npol')
@@ -358,6 +361,14 @@ class SubintHDU(HDUWrapper):
         return self._shape_maker(self.nrow * self.samples_per_frame,
                                  self.nbin, self.nchan, self.npol)
 
+    @shape.setter
+    def shape(self, shape):
+        assert shape[0] % self.samples_per_frame == 0, (
+            'shape has to an integer multiple of samples_per_frame={}'
+            .format(self.samples_per_frame))
+        self.sample_shape = shape[1:]
+        self.nrow = shape[0] // self.samples_per_frame
+
     @property
     def polarization(self):
         pol_type = self.header['POL_TYPE']
@@ -383,8 +394,7 @@ class SubintHDU(HDUWrapper):
     @property
     def frequency(self):
         if 'DAT_FREQ' in self.data.names:
-            freqs = u.Quantity(self.data['DAT_FREQ'],
-                               u.MHz, copy=False)[0]
+            freqs = u.Quantity(self.data['DAT_FREQ'][0], u.MHz, copy=False)
         else:
             freqs = super().frequency
 
@@ -412,8 +422,26 @@ class SubintHDU(HDUWrapper):
             self.primary_hdu.frequency = freqs
 
     @property
+    def bandwidth(self):
+        try:
+            return np.abs(self.header['CHAN_BW']) * u.MHz
+        except TypeError:
+            return None
+
+    @bandwidth.setter
+    def bandwidth(self, bandwidth):
+        bandwidth = bandwidth.to_value(u.MHz)
+        if self.sideband == -1:
+            bandwidth *= -1
+        self.header['CHAN_BW'] = bandwidth
+
+    @property
     def sideband(self):
-        return np.where(self.header['CHAN_BW'] > 0, np.int8(1), np.int8(-1))
+        try:
+            return np.where(self.header['CHAN_BW'] > 0,
+                            np.int8(1), np.int8(-1))
+        except TypeError:
+            return None
 
     @sideband.setter
     def sideband(self, sideband):
@@ -550,8 +578,11 @@ class PSRSubintHDU(SubintHDU):
 HDU_map = {'PRIMARY': PSRFITSPrimaryHDU,
            'SUBINT': SubintHDU}
 
+# TODO maybe we should just use the HDU_map. Is there any psrfits file that
+# does not have SUBINT data?
 subint_map = {'PSR': PSRSubintHDU}
 
 # TODO: add search HDU
+# TODO: actually use this template!!
 hdu_list_template = {'PSR': {'primary': PSRFITSPrimaryHDU,
                              'data': PSRSubintHDU}}

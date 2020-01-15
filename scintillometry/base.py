@@ -59,7 +59,7 @@ class Base:
 
     Parameters
     ----------
-    shape : tuple, optional
+    shape : tuple
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.
     start_time : `~astropy.time.Time`
