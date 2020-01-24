@@ -59,7 +59,7 @@ class Base:
 
     Parameters
     ----------
-    shape : tuple
+    shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.
     start_time : `~astropy.time.Time`
@@ -299,7 +299,7 @@ class Base:
 
         offset0 = self.offset
         sample = 0
-        while count > 0:
+        while sample < count:
             # For current position, get frame plus offset in that frame.
             frame_index, sample_offset = divmod(self.offset,
                                                 self._samples_per_frame)
@@ -311,13 +311,12 @@ class Base:
                 self._frame = self._read_frame(frame_index)
                 self._frame_index = frame_index
 
-            nsample = min(count, len(self._frame) - sample_offset)
+            nsample = min(count - sample, len(self._frame) - sample_offset)
             data = self._frame[sample_offset:sample_offset + nsample]
             # Copy to relevant part of output.
             out[sample:sample + nsample] = data
             sample += nsample
             self.offset = offset0 + sample
-            count -= nsample
 
         return out
 

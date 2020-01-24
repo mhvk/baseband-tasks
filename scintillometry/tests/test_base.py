@@ -220,6 +220,14 @@ class TestTaskBase(UseVDIFSample):
         with pytest.raises(AttributeError):
             rt.ih
 
+    def test_count_not_changed(self):
+        # Regression test for problem reported for baseband in
+        # https://github.com/mhvk/baseband/issues/370#issuecomment-577916056
+        count = np.array(2)
+        with Multiply(self.fh, 2.) as fm:
+            fm.read(count)
+            assert count == 2
+
     def test_frequency_sideband_propagation(self):
         fh = self.fh
         # Add frequency and sideband information by hand.
