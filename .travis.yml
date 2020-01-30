@@ -45,9 +45,11 @@ env:
         - TOXARGS='-v'
         - TOXPOSARGS=''
 
-        # Also allow tests without pip or tox, getting our packages using apt
+        # Also allow tests without tox, getting our packages using apt;
+        # Here, we still need pip to install baseband.  We use the Debian
+        # version since the one packaged on travis gives some problems.
         - INSTALL_WITH_APT=False
-        - APT_DEPENDENCIES='python3-astropy python3-pytest-astropy python3-setuptools python3-h5py python3-yaml python3-pyfftw'
+        - APT_DEPENDENCIES='python3-astropy python3-pytest-astropy python3-setuptools python3-h5py python3-yaml python3-pyfftw python3-pip'
 
         # If there are matplotlib or other GUI tests, uncomment the following
         # line to use the X virtual framebuffer.
@@ -70,8 +72,9 @@ matrix:
           python: 3.8
           env: TOXENV=codestyle
 
+        # pyfftw seems to need python 3.7 [2020-Jan-31]
         - name: Documentation build
-          python: 3.8
+          python: 3.7
           env: TOXENV=build_docs
 
         - name: Coverage using oldest supported versions
@@ -101,6 +104,7 @@ install:
         echo "deb http://ftp.us.debian.org/debian testing main" | sudo tee -a /etc/apt/sources.list;
         sudo apt-get -qq update;
         sudo apt-get install -y --no-install-recommends ${APT_DEPENDENCIES};
+        /usr/bin/pip3 install --user baseband;
       fi
 
 script:
