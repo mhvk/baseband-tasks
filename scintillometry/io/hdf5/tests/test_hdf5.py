@@ -175,7 +175,7 @@ class TestHDF5:
         filename = str(tmpdir.join('payload.hdf5'))
         with h5py.File(filename, 'w') as h5:
             pl = hdf5.HDF5Payload.fromfile(h5, header)
-            assert pl.words.dtype == 'u4'
+            assert pl.words.dtype == '<u4'
             assert pl.shape == (40000, 8)
             assert pl.words.shape == (20000,)
 
@@ -268,7 +268,7 @@ class TestHDF5:
         stream = self.wrapped
         filename = str(tmpdir.join('copy.hdf5'))
         with hdf5.open(filename, 'w', template=stream,
-                       encoded_dtype='f2') as f5w:
+                       encoded_dtype='<f2') as f5w:
             assert f5w.header0.encoded_dtype == '<f2'
             assert f5w.header0.dtype == '=f4'
             assert not f5w.complex_data

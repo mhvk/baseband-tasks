@@ -46,4 +46,5 @@ Reference/API
 .. automodapi:: scintillometry.io.hdf5
 .. automodapi:: scintillometry.io.hdf5.header
 .. automodapi:: scintillometry.io.hdf5.payload
+   :include-all-objects:
 .. automodapi:: scintillometry.io.hdf5.base

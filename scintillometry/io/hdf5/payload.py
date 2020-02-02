@@ -10,7 +10,7 @@ from baseband.vlbi_base.payload import VLBIPayloadBase
 
 
 __all__ = ['HDF5Payload', 'HDF5RawPayload', 'HDF5CodedPayload',
-           'HDF5DatasetWrapper']
+           'HDF5DatasetWrapper', 'DTYPE_C4']
 
 
 # Ideally, we'd use 'r' and 'i' here, to match the use for
