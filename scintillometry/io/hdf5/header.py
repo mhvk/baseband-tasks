@@ -112,10 +112,10 @@ class HDF5Header(dict):
             else:
                 attrs = HDF5RawHeader._properties
 
-            for attr in attrs:
+            for attr in set(attrs) - kwargs.keys():
                 value = getattr(template, attr, None)
                 if value is not None:
-                    kwargs.setdefault(attr, value)
+                    kwargs[attr] = value
 
         return cls(verify=verify, **kwargs)
 
