@@ -73,6 +73,26 @@ class TestChannelizeReal(UseVDIFSample):
         with pytest.raises(AttributeError):
             ct.ih
 
+    @pytest.mark.parametrize('samples_per_frame', [1, 16, 33])
+    def test_channelize_samples_per_frame(self, samples_per_frame):
+        """Test channelization task."""
+        ct = Channelize(self.fh, self.n, samples_per_frame=samples_per_frame)
+
+        # Channelize everything.
+        data1 = ct.read()
+        assert len(data1) % samples_per_frame == 0
+        assert (len(data1) // samples_per_frame
+                == len(self.ref_data) // samples_per_frame)
+        ref_data = self.ref_data[:len(data1)]
+        assert np.all(data1 == ref_data)
+
+        # Seeking and selective decode.
+        ct.seek(-3, 2)
+        assert ct.tell() == ct.shape[0] - 3
+        data2 = ct.read()
+        assert data2.shape[0] == 3
+        assert np.all(data2 == ref_data[-3:])
+
     def test_channelize_frequency_real(self):
         """Test frequency calculation."""
         ct = Channelize(self.fh_freq, self.n)
