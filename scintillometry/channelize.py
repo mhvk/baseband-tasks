@@ -58,7 +58,8 @@ class Channelize(TaskBase):
                               ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
         sample_rate = ih.sample_rate / n
-        shape = (ih.shape[0] // n,) + self._fft.frequency_shape[1:]
+        n_frames = (ih.shape[0] // n // samples_per_frame) * samples_per_frame
+        shape = (n_frames,) + self._fft.frequency_shape[1:]
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
