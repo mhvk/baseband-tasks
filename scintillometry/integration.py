@@ -86,6 +86,10 @@ class Integrate(BaseTaskBase):
 
     Notes
     -----
+    If there are not many samples per bin, either set ``samples_per_frame``
+    to a larger number or ensure that ``samples_per_frame`` of the underlying
+    stream is not small (larger than, say, 20). If both are small, there will
+    be a relatively large overhead in calculating phases.
 
     Since time or phase bins are typically not an integer multiple of the
     underlying bin spacing, the integrated samples will generally not contain
@@ -360,6 +364,11 @@ class Fold(Integrate):
 
     Notes
     -----
+    If there are only few input samples per phase bin (i.e., its inverse
+    sample rate is similar to the time per phase bin), then it is important
+    to ensure the ``samples_per_frame`` of the underlying stream is not small
+    (larger than, say, 20), to avoid a large overhead in calculating phases.
+
     Since the sample time is not necessarily an integer multiple of the pulse
     period, the returned profiles will generally not contain the same number
     of samples in each phase bin.  The actual number of samples is counted,
@@ -446,6 +455,10 @@ class Stack(BaseTaskBase):
     -----
     One can follow this with a `~scintillometry.integration.Integrate` task
     to average over multiple pulses.
+
+    If there are only few input samples per cycle, one can avoid a large
+    overhead in calculating phases by ensuring ``samples_per_frame`` of
+    the underlying stream is not too small (larger than, say, 20).
 
     Since phase bins are typically not an integer multiple of the underlying
     bin spacing, the integrated samples will generally not contain the same
