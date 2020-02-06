@@ -19,6 +19,7 @@ In addition, you may want to install:
       transforms.
     - `PINT <https://github.com/nanograv/PINT>`_ to calculate phases without
       first generating polycos.
+    - `H5py <https://www.h5py.org/>`_ to read files in the HDF5 format
 
 .. _installation:
 
