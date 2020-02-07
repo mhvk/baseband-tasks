@@ -26,18 +26,35 @@ In addition, you may want to install:
 Installing Scintillometry
 =========================
 
+Scintillometry is not yet on `PyPI <https://pypi.org/>`_ (the name may
+still change...), but you can download and install it with one
+`pip <https://packaging.python.org/key_projects/#pip>`_ command with::
+
+    pip install git+https://github.com/mhvk/scintillometry.git#egg=scintillometry
+
+Possibly with ``--user`` if you installing for yourself outside of a virtual
+environment, and/or with a trailing ``[all]`` to also install the optional
+dependencies (which currently excludes PINT, since it does not work with
+astropy 4.0).
+
 Obtaining Source Code
 ---------------------
 
 The source code and latest development version of Scintillometry can found on
 `its GitHub repo <https://github.com/mhvk/scintillometry>`_.  You can get your
-own clone
-using::
+own clone using::
 
     git clone git@github.com:mhvk/scintillometry.git
 
 Of course, it is even better to fork it on GitHub, and then clone your own
-repository, so that you can more easily contribute!
+repository, so that you can more easily contribute!  From within the cloned
+repository::
+
+    pip install .
+
+Here, apart from the ``--user`` option and possible ``[all]`` suffix,
+you may want to add the ``--editable`` option to just link to the source
+repository, which means that any edit will be seen.
 
 Running Code without Installing
 -------------------------------
@@ -53,41 +70,31 @@ to append the path::
 where ``SCINT_PATH`` is the directory you downloaded or cloned
 Scintillometry into.
 
-Installing Source Code
-----------------------
-
-If you want Scintillometry to be more broadly available, either to all users on
-a system, or within, say, a virtual environment, use :file:`setup.py` in
-the root directory by calling::
-
-    python3 setup.py install
-
-For general information on :file:`setup.py`, see `its documentation
-<https://docs.python.org/3.5/install/index.html#install-index>`_ . Many of the
-:file:`setup.py` options are inherited from Astropy (specifically, from `Astropy
--affiliated package manager <https://github.com/astropy/package-template>`_) and
-are described further in `Astropy's installation documentation
-<https://astropy.readthedocs.io/en/stable/install.html>`_ .
-
 .. _sourcebuildtest:
 
 Testing the Installation
 ========================
 
-The root directory :file:`setup.py` can also be used to test if Scintillometry
-can successfully be run on your system::
+To test that the code works on your system, you need
+`pytest <http://pytest.org>`_ and
+`pytest-astropy <https://github.com/astropy/pytest-astropy>`_
+to be installed;
+this is most easily done by first installing the code together
+with its test dependencies::
 
-    python3 setup.py test
+    pip install -e .[test]
+
+Then, inside the root directory, simply run
+
+    pytest
 
 or, inside of Python::
 
     import scintillometry
     scintillometry.test()
 
-These tests require `pytest <http://pytest.org>`_ to be installed. Further
-documentation can be found on the `Astropy running tests documentation
-<https://astropy.readthedocs.io/en/stable/development/testguide.html#running-tests>`_
-.
+For further details, see the `Astropy Running Tests pages
+<https://astropy.readthedocs.io/en/latest/development/testguide.html#running-tests>`_.
 
 .. _builddocs:
 
@@ -101,10 +108,18 @@ Building Documentation
     Scintillometry's documentation is available online at
     `scintillometry.readthedocs.io <https://scintillometry.readthedocs.io>`_.
 
-The Scintillometry documentation can be built again using :file:`setup.py` from
-the root directory::
+To build the Scintillometry documentation, you need
+`Sphinx <http://sphinx.pocoo.org>`_ and
+`sphinx-astropy <https://github.com/astropy/sphinx-astropy>`_
+to be installed;
+this is most easily done by first installing the code together
+with its documentations dependencies::
 
-    python3 setup.py build_docs
+    pip install -e .[docs]
 
-This requires to have `Sphinx <http://sphinx.pocoo.org>`_ installed (and its
-dependencies).
+Then, go to the ``docs`` directory and run
+
+    make html
+
+For further details, see the `Astropy Building Documentation pages
+<http://docs.astropy.org/en/latest/install.html#builddocs>`_.
