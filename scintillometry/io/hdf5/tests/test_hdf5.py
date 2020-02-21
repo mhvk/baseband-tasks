@@ -124,7 +124,7 @@ class TestHDF5:
         self.wrapped.close()
         self.fh.close()
 
-    def check(self, stream, header, attrs=None, as_key=False):
+    def check(self, stream, header, attrs=None, exclude=()):
         if attrs is None:
             if hasattr(stream, 'bps'):
                 attrs = ('sample_shape', 'sample_rate', 'time',
@@ -133,7 +133,6 @@ class TestHDF5:
             else:
                 attrs = ('sample_shape', 'dtype', 'sample_rate', 'time',
                          'frequency', 'sideband')
-                exclude = ()
 
         is_header = isinstance(header, hdf5.HDF5Header)
 
@@ -168,6 +167,36 @@ class TestHDF5:
         self.check(self.wrapped, header)
         with pytest.raises(AttributeError):
             header.polarization
+
+    def test_header_from_stream_with_override(self):
+        header = hdf5.HDF5Header.fromvalues(self.wrapped, sideband=1)
+        self.check(self.wrapped, header,
+                   attrs=('sample_shape', 'dtype', 'sample_rate', 'time',
+                          'frequency'))
+        assert header.sideband == 1
+
+    def test_header_from_difficult_stream(self):
+        """Check with stream that raises ValueError if accessed."""
+        class Bad:
+            _properties = ('sample_rate', 'samples_per_frame',
+                           'sample_shape', 'time',)
+            sample_rate = 100*u.Hz
+            samples_per_frame = 10
+            sample_shape = (2,)
+            dtype = np.dtype('f4')
+
+            @property
+            def time(self):
+                raise ValueError
+
+        bad = Bad()
+        with pytest.raises(ValueError):
+            hdf5.HDF5Header.fromvalues(bad)
+
+        # But OK with override of bad item.
+        time = Time('J2010')
+        header = hdf5.HDF5Header.fromvalues(bad, time=time)
+        assert header.time == time
 
     @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_payload_from_baseband(self, tmpdir):
