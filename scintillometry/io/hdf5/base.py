@@ -13,6 +13,7 @@ from baseband.vlbi_base.base import (
 
 from .header import HDF5Header
 from .payload import HDF5Payload
+from .frame import HDF5Frame
 
 
 __all__ = ['HDF5StreamBase', 'HDF5StreamReader', 'HDF5StreamWriter',
@@ -97,8 +98,7 @@ class HDF5StreamReader(HDF5StreamBase, VLBIStreamReaderBase):
 
     def _read_frame(self, index):
         assert index == 0
-        # Possibly more logical as reading a Frame!
-        return HDF5Payload.fromfile(self.fh_raw, self.header0)
+        return HDF5Frame.fromfile(self.fh_raw)
 
 
 class HDF5StreamWriter(HDF5StreamBase, VLBIStreamWriterBase):
@@ -111,9 +111,10 @@ class HDF5StreamWriter(HDF5StreamBase, VLBIStreamWriterBase):
     def _make_frame(self, index):
         assert index == 0
         self.header0.tofile(self.fh_raw)
-        # Possibly more logical as creating a Frame!
-        return HDF5Payload.fromfile(self.fh_raw, self.header0)
+        payload = HDF5Payload.fromfile(self.fh_raw, self.header0)
+        return HDF5Frame(self.header0, payload)
 
+    # For baseband <4.0
     def _write_frame(self, frame, valid=True):
         assert valid, 'cannot deal with invalid data yet'
 
