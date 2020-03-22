@@ -40,7 +40,8 @@ class HDF5Header(dict):
         Header keywords to be set.  If this includes ``bps``, then this will
         be taken to be a header for encoded data.
     """
-    _properties = ('sample_shape', 'samples_per_frame', 'sample_rate', 'time',
+    _properties = ('sample_shape', 'samples_per_frame', 'shape',
+                   'sample_rate', 'time',
                    'frequency', 'sideband', 'polarization')
 
     def __new__(cls, *, verify=True, mutable=True, **kwargs):
@@ -101,21 +102,29 @@ class HDF5Header(dict):
             the template.
         """
         if template is not None:
+            # Here and below we ensure that if a given kwargs already
+            # exist, we do not attempt to get it from the template.
+            # This is important if a template cannot actually provide
+            # the value; see gh-157.
             if whole or (whole is None
                          and hasattr(template, 'shape')
                          and hasattr(template, 'start_time')):
-                kwargs.setdefault('time', template.start_time)
-                kwargs.setdefault('samples_per_frame', template.shape[0])
+                if 'time' not in kwargs:
+                    kwargs['time'] = template.start_time
+                if ('samples_per_frame' not in kwargs
+                        and 'shape' not in kwargs):
+                    kwargs['samples_per_frame'] = template.shape[0]
 
             if hasattr(template, 'bps') or 'bps' in kwargs:
                 attrs = HDF5CodedHeader._properties
             else:
                 attrs = HDF5RawHeader._properties
 
-            for attr in set(attrs) - kwargs.keys():
-                value = getattr(template, attr, None)
-                if value is not None:
-                    kwargs[attr] = value
+            for attr in attrs:
+                if attr not in kwargs:
+                    value = getattr(template, attr, None)
+                    if value is not None:
+                        kwargs[attr] = value
 
         return cls(verify=verify, **kwargs)
 
@@ -150,6 +159,14 @@ class HDF5Header(dict):
                             .format(type(self).__name__))
 
         super().__setitem__(item, value)
+
+    @property
+    def shape(self):
+        return (self.samples_per_frame,) + self.sample_shape
+
+    @shape.setter
+    def shape(self, shape):
+        self.samples_per_frame, self.sample_shape = shape[0], shape[1:]
 
     def __eq__(self, other):
         return (type(self) is type(other)
