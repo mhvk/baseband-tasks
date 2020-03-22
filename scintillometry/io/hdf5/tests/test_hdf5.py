@@ -22,13 +22,15 @@ else:
     HAS_H5PY = True
 
 
-class TestHDF5Basics:
-    def setup(self):
-        self.info = {'sample_shape': (8, 2),
-                     'samples_per_frame': 100,
-                     'sample_rate': 32*u.MHz,
-                     'time': Time('2015-06-07T08:09:10')}
+class BasicSetup:
+    def setup_class(cls):
+        cls.info = {'sample_shape': (8, 2),
+                    'samples_per_frame': 100,
+                    'sample_rate': 32*u.MHz,
+                    'time': Time('2015-06-07T08:09:10')}
 
+
+class TestHeaderBasics(BasicSetup):
     def test_create_raw_header(self):
         header = hdf5.HDF5Header(dtype='c8', **self.info)
         assert set(header.keys()) == set(self.info.keys()) | {'dtype'}
@@ -73,7 +75,9 @@ class TestHDF5Basics:
         with pytest.raises(KeyError, match='complex_data'):
             hdf5.HDF5Header(bps=2, **self.info)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
+
+@pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
+class TestHDF5Basics(BasicSetup):
     def test_create_raw_payload(self, tmpdir):
         header = hdf5.HDF5Header(dtype='c8', **self.info)
         filename = str(tmpdir.join('trial.hdf5'))
@@ -85,7 +89,6 @@ class TestHDF5Basics:
             assert payload.words.dtype == 'c8'
             assert payload.words.shape == payload.shape
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_create_c4_payload(self, tmpdir):
         header = hdf5.HDF5Header(encoded_dtype='c4', **self.info)
         filename = str(tmpdir.join('trial.hdf5'))
@@ -97,7 +100,6 @@ class TestHDF5Basics:
             assert payload.words.dtype == hdf5.payload.DTYPE_C4
             assert payload.words.shape == payload.shape
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_create_coded_payload(self, tmpdir):
         header = hdf5.HDF5Header(bps=2, complex_data=False, **self.info)
         filename = str(tmpdir.join('trial.hdf5'))
@@ -110,7 +112,7 @@ class TestHDF5Basics:
             assert payload.words.shape == (100 * 16 * 2 // 32,)
 
 
-class TestHDF5:
+class StreamSetup:
     def setup(self):
         self.fh = baseband.open(baseband.data.SAMPLE_VDIF)
         self.data = self.fh.read()
@@ -154,6 +156,8 @@ class TestHDF5:
                     header_value = header[attr]
                     assert np.all(header_value == stream_attr)
 
+
+class TestHeader(StreamSetup):
     def test_header_from_bandband(self):
         header = hdf5.HDF5Header.fromvalues(self.fh)
         assert 'bps' in header
@@ -198,7 +202,9 @@ class TestHDF5:
         header = hdf5.HDF5Header.fromvalues(bad, time=time)
         assert header.time == time
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
+
+@pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
+class TestHDF5(StreamSetup):
     def test_payload_from_baseband(self, tmpdir):
         header = hdf5.HDF5Header.fromvalues(self.fh)
         filename = str(tmpdir.join('payload.hdf5'))
@@ -208,7 +214,6 @@ class TestHDF5:
             assert pl.shape == (40000, 8)
             assert pl.words.shape == (20000,)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_payload_from_stream(self, tmpdir):
         header = hdf5.HDF5Header.fromvalues(self.wrapped)
         filename = str(tmpdir.join('payload.hdf5'))
@@ -218,7 +223,6 @@ class TestHDF5:
             assert pl.shape == (40000, 8)
             assert pl.words.shape == (40000, 8)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
     def test_copy_stream(self, stream_name, tmpdir):
         stream = getattr(self, stream_name)
@@ -256,7 +260,6 @@ class TestHDF5:
         repr(f5w)
         repr(f5r)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
     def test_copy_stream_copy(self, stream_name, tmpdir):
         # Check that we can copy ourselves and not mess up depending
@@ -278,7 +281,6 @@ class TestHDF5:
                 self.check(stream, header0)
                 f5w.write(self.data)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     @pytest.mark.parametrize('stream_name', ['fh', 'wrapped'])
     def test_stream_as_output(self, stream_name, tmpdir):
         stream = getattr(self, stream_name)
@@ -292,7 +294,6 @@ class TestHDF5:
             data = f5r.read()
             assert_array_equal(data, self.data)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_stream_as_f2(self, tmpdir):
         stream = self.wrapped
         filename = str(tmpdir.join('copy.hdf5'))
@@ -312,7 +313,6 @@ class TestHDF5:
             assert np.allclose(data, self.data, atol=0,
                                rtol=np.finfo('f2').eps)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_complex_baseband(self, tmpdir):
         filename = str(tmpdir.join('copy.hdf5'))
         with baseband.vdif.open(baseband.data.SAMPLE_AROCHIME_VDIF,
@@ -329,7 +329,6 @@ class TestHDF5:
 
         assert_array_equal(recovered, data)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_complex_stream(self, tmpdir):
         filename = str(tmpdir.join('copy.hdf5'))
         with baseband.vdif.open(baseband.data.SAMPLE_AROCHIME_VDIF,
@@ -352,7 +351,6 @@ class TestHDF5:
         # tolerance for float16.
         assert_array_equal(recovered, data)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_complex_stream_as_c4(self, tmpdir):
         filename = str(tmpdir.join('copy.hdf5'))
         with baseband.vdif.open(baseband.data.SAMPLE_AROCHIME_VDIF,
@@ -376,7 +374,6 @@ class TestHDF5:
         # tolerance for float16.
         assert np.allclose(recovered, data, atol=0, rtol=np.finfo('f2').eps)
 
-    @pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
     def test_complex_stream_as_i1(self, tmpdir):
         # Not a particularly good idea, but just to show it is possible.
         filename = str(tmpdir.join('copy.hdf5'))
