@@ -138,9 +138,11 @@ class StreamSetup:
 
         is_header = isinstance(header, hdf5.HDF5Header)
 
-        assert stream.shape[0] == header.samples_per_frame
-        if is_header:
-            assert stream.shape[0] == header['samples_per_frame']
+        if 'shape' not in exclude:
+            assert stream.shape[0] == header.samples_per_frame
+            if is_header:
+                assert stream.shape[0] == header['samples_per_frame']
+
         for attr in attrs:
             stream_attr = getattr(stream, (attr if attr != 'time'
                                            else 'start_time'))
@@ -392,3 +394,20 @@ class TestHDF5(StreamSetup):
         # Will not recover correctly, given the use of int, but should be
         # within tolerance.
         assert np.allclose(recovered, self.data, atol=0.5)
+
+    def test_stream_shape_override(self, tmpdir):
+        filename = str(tmpdir.join('doubled.hdf5'))
+        shape = (self.wrapped.shape[0]*2,) + self.wrapped.shape[1:]
+        with hdf5.open(filename, 'w', template=self.wrapped,
+                       shape=shape) as f5w:
+            assert f5w.shape == shape
+            assert f5w.samples_per_frame == shape[0]
+            self.check(self.wrapped, f5w, exclude=('shape',))
+            f5w.write(self.data)
+            f5w.write(self.data)
+
+        with hdf5.open(filename, 'r') as f5r:
+            assert f5r.shape == shape
+            for i in range(2):
+                data = f5r.read(self.wrapped.shape[0])
+                assert_array_equal(data, self.data)
