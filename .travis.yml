@@ -110,6 +110,10 @@ install:
         /usr/bin/pip3 install --user baseband;
       fi
 
+    - if [[ $TOXENV == *-cov ]]; then
+        export TOXPOSARGS=$TOXPOSARGS" --cov-report=xml:"$TRAVIS_BUILD_DIR"/coverage.xml";
+      fi
+
 script:
     - if [[ $SETUP_METHOD == 'tox' ]]; then
         tox $TOXARGS -- $TOXPOSARGS;
