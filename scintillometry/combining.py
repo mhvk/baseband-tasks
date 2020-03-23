@@ -58,8 +58,8 @@ class CombineStreamsBase(TaskBase):
         for ih in ihs:
             offset = ih.seek(start_time)
             if abs(ih.time - start_time) > atol:
-                raise ValueError("streams not aligned to within {}"
-                                 .format(atol))
+                raise ValueError("streams only aligned to {}, not within {}"
+                                 .format((ih.time-start_time).to(u.ns), atol))
             self._start_offsets.append(offset)
 
         # Check that the stream samples can be combined.
