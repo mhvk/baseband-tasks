@@ -9,13 +9,16 @@ from astropy.time import Time
 
 from ..phases import PolycoPhase, PintPhase, Phase
 
+
 try:
-    import pint.erfautils  # noqa
+    import pint  # noqa
     HAS_PINT = True
 except ImportError:
     HAS_PINT = False
 else:
-    pint.erfautils.get_iers_b_up_to_date(Time('J2019').mjd)
+    def setup_module():
+        from .iers_up_to_date import get_iers_up_to_date
+        get_iers_up_to_date(Time('J2019'))
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
