@@ -9,20 +9,16 @@ from astropy.time import Time
 
 from ..phases import PolycoPhase, PintPhase, Phase
 
+
 try:
     import pint  # noqa
     HAS_PINT = True
 except ImportError:
     HAS_PINT = False
 else:
-    # PINT gives AstropyDeprecationWarnings that we cannot do anything about
-    # (in particular, "The truth value of a Quantity is ambiguous." and
-    # "stropy.extern.six will be removed in 4.0").
-    # It also has warnings itself from "log.warn" that we cannot avoid.
-    # TODO: remove once PINT has been updated.
-    pytestmark = [
-        pytest.mark.filterwarnings("ignore:::astropy"),
-        pytest.mark.filterwarnings("ignore::DeprecationWarning:pint")]
+    def setup_module():
+        from .iers_up_to_date import get_iers_up_to_date
+        get_iers_up_to_date(Time('J2019'))
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')

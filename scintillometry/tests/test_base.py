@@ -2,7 +2,6 @@
 import inspect
 import itertools
 import operator
-import warnings
 
 import numpy as np
 import astropy.units as u
@@ -424,6 +423,5 @@ class TestPaddedTaskBase(UseVDIFSample):
             SquareHat(self.fh, 10, offset=-1)
         with pytest.raises(ValueError):
             SquareHat(self.fh, 10, samples_per_frame=9)
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match='inefficient'):
             SquareHat(self.fh, 10, samples_per_frame=11)
-        assert any('inefficient' in str(_w) for _w in w)

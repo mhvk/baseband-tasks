@@ -10,13 +10,12 @@ from ..phases import pint_toas
 
 
 pint = pytest.importorskip('pint')
-# PINT gives AstropyDeprecationWarnings that we cannot do anything about
-# (in particular, "The truth value of a Quantity is ambiguous." and
-# "stropy.extern.six will be removed in 4.0").  It also has warnings itself
-# from "log.warn" that we cannot avoid.
-# TODO: remove once PINT has been updated.
-pytestmark = [pytest.mark.filterwarnings("ignore:::astropy"),
-              pytest.mark.filterwarnings("ignore::DeprecationWarning:pint")]
+
+
+def setup_module():
+    from .iers_up_to_date import get_iers_up_to_date
+    get_iers_up_to_date(Time('J2019'))
+
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
@@ -51,8 +50,7 @@ class TestPintUtils:
     def test_different_control_param(self):
         # Test input control parameters from initializing;
         # Here, we pick the astropy/erfa built-in ephemeris, to avoid
-        # downloading a(nother) big ephemeris file.  In principle,
-        # this should not download anything, but PINT downloads IERS_B.
+        # downloading a(nother) big ephemeris file.
         pt = pint_toas.PintToas(self.obs, self.freq, ephem='builtin',
                                 include_bipm=False, include_gps=False)
         toas = pt(self.times)

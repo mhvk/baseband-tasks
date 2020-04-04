@@ -7,17 +7,17 @@ Requirements
 
 Scintillometry requires:
 
-    - `Python <https://www.python.org/>`_ v3.5 or later
-    - `Astropy`_ v3.1 or later
-    - `Numpy <http://www.numpy.org/>`_ v1.14 or later
-    - `Baseband <https://pypi.org/project/baseband/>`_ v2.0 or later
+    - `Python <https://www.python.org/>`_ v3.6 or later
+    - `Astropy`_ v3.2 or later
+    - `Numpy <http://www.numpy.org/>`_ v1.16 or later
+    - `Baseband <https://pypi.org/project/baseband/>`_ v3.0 or later
 
 In addition, you may want to install:
 
     - `PyFFTW <https://pypi.org/project/pyFFTW/>`_ v0.11 or later, to be able
       to use the `FFTW <http://www.fftw.org/>`_ library for fast fourier
       transforms.
-    - `PINT <https://github.com/nanograv/PINT>`_ to calculate phases without
+    - `PINT <https://pypi.org/project/pint-pulsar/>`_ to calculate phases without
       first generating polycos.
     - `H5py <https://www.h5py.org/>`_ to read files in the HDF5 format
 
