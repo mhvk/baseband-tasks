@@ -186,7 +186,7 @@ class Polyco(QTable):
             result = self.polynomial(index, rphase, deriv)(dt.value)
         else:
             result = np.zeros(time.shape)
-            for j in set(index):
+            for j in np.unique(index):
                 sel = index == j
                 result[sel] = self.polynomial(j, rphase, deriv)(dt[sel].value)
 

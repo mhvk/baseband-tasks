@@ -52,7 +52,8 @@ class PintBase(Base):
 
 
 class PhaseTest:
-    @pytest.mark.parametrize('index', (0, slice(None)))
+    @pytest.mark.parametrize(
+        'index', [0, slice(None), np.array([[1, 2], [3, 4]])])
     def test_basics(self, index):
         # Compute phase and f0 for a single time
         time = self.times[index]
