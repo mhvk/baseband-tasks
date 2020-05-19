@@ -311,7 +311,7 @@ class Polyco(QTable):
 def int_frac(s):
     mjd_int, _, frac = s.strip().partition('.')
     return np.array((int('0' + mjd_int), float('0.' + frac)),
-                    dtype=[('int', int), ('frac', float)])
+                    dtype=[('int', np.int64), ('frac', np.float64)])
 
 
 def change_type(cls, **kwargs):
