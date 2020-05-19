@@ -21,8 +21,8 @@ class TestPredictor:
 
     def test_polyco_reading(self):
         assert len(self.polyco) == 4
-        for l in self.polyco:
-            assert len(l['coeff']) == l['ncoeff']
+        for entry in self.polyco:
+            assert len(entry['coeff']) == entry['ncoeff']
 
     def test_polyco_writing_roundtrip_tempo1(self, tmpdir):
         name = str(tmpdir.join('polyco.dat'))
