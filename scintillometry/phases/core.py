@@ -63,7 +63,8 @@ class PintPhase:
         shape = getattr(toas, 'shape', ())
         # TODO: Once PINT uses the Phase class, we can return the
         # result directly.
-        return Phase(ph.int, ph.frac).reshape(shape)
+        with u.add_enabled_equivalencies([(u.dimensionless_unscaled, u.cy)]):
+            return Phase(ph.int, ph.frac).reshape(shape)
 
     def apparent_spin_freq(self, t):
         """Compute the apparent spin frequency at one or more times.
