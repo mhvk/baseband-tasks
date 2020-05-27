@@ -158,7 +158,7 @@ class Noise:
     Parameters
     ----------
     seed : int
-       Initial seed for `~numpy.random.mtrand.RandomState`.
+       Initial seed for `~numpy.random.RandomState`.
 
     Notes
     -----
