@@ -21,7 +21,7 @@ class TestFakePulsarBase:
         self.eh = EmptyStreamGenerator(shape=self.shape,
                                        start_time=self.start_time,
                                        sample_rate=self.sample_rate,
-                                       samples_per_frame=200, dtype=np.float)
+                                       samples_per_frame=200, dtype=float)
         self.sh = Task(self.eh, self.pulse_simulate)
         self.period_bin = 125
         self.F0 = 1.0 / (self.period_bin / self.sh.sample_rate)
