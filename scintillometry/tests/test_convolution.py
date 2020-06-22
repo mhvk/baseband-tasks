@@ -50,7 +50,7 @@ class TestConvolveNoise:
         self.nh = NoiseGenerator(shape=self.shape,
                                  start_time=self.start_time,
                                  sample_rate=self.sample_rate,
-                                 samples_per_frame=200, dtype=np.float,
+                                 samples_per_frame=200, dtype=float,
                                  seed=12345)
         self.data = self.nh.read()
 
