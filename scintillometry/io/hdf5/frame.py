@@ -1,6 +1,10 @@
 # Licensed under the GPLv3 - see LICENSE
 """Frame for HDF5 format."""
-from baseband.vlbi_base.frame import VLBIFrameBase
+from baseband import __version__ as _baseband_version
+if _baseband_version < '4.0':
+    from baseband.vlbi_base.frame import VLBIFrameBase as FrameBase
+else:
+    from baseband.base.frame import FrameBase
 from .header import HDF5Header
 from .payload import HDF5Payload
 
@@ -8,7 +12,7 @@ from .payload import HDF5Payload
 __all__ = ['HDF5Frame']
 
 
-class HDF5Frame(VLBIFrameBase):
+class HDF5Frame(FrameBase):
     """Representation of a HDF5 frame, consisting of a header and payload.
 
     Parameters
