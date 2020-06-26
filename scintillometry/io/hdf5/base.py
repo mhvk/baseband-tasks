@@ -7,9 +7,13 @@ keywords describing the start time, sample rate, etc., and the payload
 consisting of either plain numpy data, or data encoded following the
 VDIF standard.
 """
-
-from baseband.vlbi_base.base import (
-    VLBIStreamBase, VLBIStreamReaderBase, VLBIStreamWriterBase)
+from baseband import __version__ as _baseband_version
+if _baseband_version < '4.0':
+    from baseband.vlbi_base.base import (
+        VLBIStreamReaderBase as StreamReaderBase,
+        VLBIStreamWriterBase as StreamWriterBase)
+else:
+    from baseband.base.base import StreamReaderBase, StreamWriterBase
 
 from .header import HDF5Header
 from .payload import HDF5Payload
@@ -20,9 +24,11 @@ __all__ = ['HDF5StreamBase', 'HDF5StreamReader', 'HDF5StreamWriter',
            'open']
 
 
-class HDF5StreamBase(VLBIStreamBase):
+class HDF5StreamBase:
     def __init__(self, fh_raw, header0, squeeze=True, subset=(),
                  fill_value=0., verify=True):
+        # TODO: should not really need __init__, and really should
+        # define header0 bps and complex_data for all headers.
         if hasattr(header0, 'bps'):
             bps = header0.bps
             complex_data = header0.complex_data
@@ -84,7 +90,7 @@ class HDF5StreamBase(VLBIStreamBase):
                                       'dtype={0}'.format(self.dtype))))
 
 
-class HDF5StreamReader(HDF5StreamBase, VLBIStreamReaderBase):
+class HDF5StreamReader(HDF5StreamBase, StreamReaderBase):
     def __init__(self, fh_raw, squeeze=True, subset=(), fill_value=0.,
                  verify=True):
         header0 = HDF5Header.fromfile(fh_raw)
@@ -101,7 +107,7 @@ class HDF5StreamReader(HDF5StreamBase, VLBIStreamReaderBase):
         return HDF5Frame.fromfile(self.fh_raw)
 
 
-class HDF5StreamWriter(HDF5StreamBase, VLBIStreamWriterBase):
+class HDF5StreamWriter(HDF5StreamBase, StreamWriterBase):
     def __init__(self, fh_raw, header0=None, squeeze=True,
                  template=None, **kwargs):
         if header0 is None:

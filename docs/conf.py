@@ -67,9 +67,9 @@ rst_epilog += """
 # -- Intersphinx linkage ------------------------------------------------------
 
 intersphinx_mapping.update(
-    {'pyfftw': ('https://pyfftw.readthedocs.io/en/latest/', None),
-     'baseband': ('https://baseband.readthedocs.io/en/latest/', None),
-     'pint': ('https://nanograv-pint.readthedocs.io/en/latest/', None)})
+    {'pyfftw': ('https://pyfftw.readthedocs.io/en/stable/', None),
+     'baseband': ('https://baseband.readthedocs.io/en/stable/', None),
+     'pint': ('https://nanograv-pint.readthedocs.io/en/stable/', None)})
 
 # -- Project information ------------------------------------------------------
 

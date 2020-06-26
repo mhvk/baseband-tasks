@@ -6,7 +6,11 @@ import operator
 import numpy as np
 
 from baseband.vdif import VDIFPayload
-from baseband.vlbi_base.payload import VLBIPayloadBase
+from baseband import __version__ as _baseband_version
+if _baseband_version < '4.0':
+    from baseband.vlbi_base.payload import VLBIPayloadBase as PayloadBase
+else:
+    from baseband.base.payload import PayloadBase
 
 
 __all__ = ['HDF5Payload', 'HDF5RawPayload', 'HDF5CodedPayload',
@@ -160,7 +164,7 @@ class HDF5RawPayload(HDF5DatasetWrapper, HDF5Payload):
         return self._dtype
 
 
-class HDF5CodedPayload(HDF5Payload, VLBIPayloadBase):
+class HDF5CodedPayload(HDF5Payload, PayloadBase):
     _decoders = VDIFPayload._decoders
     _encoders = VDIFPayload._encoders
 
