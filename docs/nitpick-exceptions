@@ -1,0 +1,9 @@
+# sphinx doing strange things with dict methods (HDF5Header).
+py:class None.  Remove all items from D.
+py:class a shallow copy of D
+py:class a set-like object providing a view on D's items
+py:class a set-like object providing a view on D's keys
+py:class v, remove specified key and return the corresponding value.
+py:class an object providing a view on D's values
+py:class None.  Update D from dict/iterable E and F.
+py:class (k, v), remove and return some (key, value) pair as a
