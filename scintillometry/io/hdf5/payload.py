@@ -6,11 +6,11 @@ import operator
 import numpy as np
 
 from baseband.vdif import VDIFPayload
-from baseband import __version__ as _baseband_version
-if _baseband_version < '4.0':
-    from baseband.vlbi_base.payload import VLBIPayloadBase as PayloadBase
-else:
+try:
     from baseband.base.payload import PayloadBase
+except ImportError:
+    # baseband < 4.0
+    from baseband.vlbi_base.payload import VLBIPayloadBase as PayloadBase
 
 
 __all__ = ['HDF5Payload', 'HDF5RawPayload', 'HDF5CodedPayload',
