@@ -411,3 +411,33 @@ class TestHDF5(StreamSetup):
             for i in range(2):
                 data = f5r.read(self.wrapped.shape[0])
                 assert_array_equal(data, self.data)
+
+
+@pytest.mark.skipif(baseband.__version__ < '4.0',
+                    reason='io entry point became available in baseband 4.0')
+class TestBasebandEntrypoint(StreamSetup):
+    def test_open_stream(self, tmpdir):
+        # Check that we can use the baseband open command for HDF5 format.
+        filename = str(tmpdir.join('copy.hdf5'))
+        stream = self.fh
+        # Writing always requires a format argument.
+        with baseband.open(filename, 'w', format='hdf5',
+                           template=stream) as f5w:
+            assert isinstance(f5w, hdf5.base.HDF5StreamWriter)
+            f5w.write(self.data)
+
+        # Reading with a format argument should just work.
+        with baseband.open(filename, 'r', format='hdf5') as f5r:
+            assert isinstance(f5r, hdf5.base.HDF5StreamReader)
+            self.check(stream, f5r)
+            data = f5r.read()
+            assert_array_equal(data, self.data)
+            # Check that basic info works, since next step relies on it.
+            assert f5r.info.format == 'hdf5'
+
+        # Without a format argument we are relying on our info.
+        with baseband.open(filename, 'r') as f5r:
+            assert isinstance(f5r, hdf5.base.HDF5StreamReader)
+            self.check(stream, f5r)
+            data = f5r.read()
+            assert_array_equal(data, self.data)
