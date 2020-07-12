@@ -84,10 +84,16 @@ jobs:
           python: 3.6
           env: TOXENV="py36-test-oldestdeps-alldeps-cov"
 
-        - name: Python 3.8 with developer versions of baseband, astropy, numpy
+        - name: Python 3.8 with developer version of baseband
+          stage: Comprehensive tests
+          python: 3.8
+          env: TOXENV=py38-test-basebanddev
+
+        # Regularly test with developer versions of all main dependencies.
+        - name: With developer versions of baseband, astropy, numpy, PINT
           stage: Cron tests
           python: 3.8
-          env: TOXENV=py38-test-devdeps
+          env: TOXENV=py38-test-devdeps-alldeps
 
         # Also regularly try the big-endian s390x architecture, in the
         # process checking that installing dependencies with apt works.

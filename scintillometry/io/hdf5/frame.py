@@ -1,10 +1,11 @@
 # Licensed under the GPLv3 - see LICENSE
 """Frame for HDF5 format."""
-from baseband import __version__ as _baseband_version
-if _baseband_version < '4.0':
-    from baseband.vlbi_base.frame import VLBIFrameBase as FrameBase
-else:
+try:
     from baseband.base.frame import FrameBase
+except ImportError:
+    # baseband < 4.0
+    from baseband.vlbi_base.frame import VLBIFrameBase as FrameBase
+
 from .header import HDF5Header
 from .payload import HDF5Payload
 

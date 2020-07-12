@@ -7,13 +7,15 @@ keywords describing the start time, sample rate, etc., and the payload
 consisting of either plain numpy data, or data encoded following the
 VDIF standard.
 """
-from baseband import __version__ as _baseband_version
-if _baseband_version < '4.0':
+try:
+    from baseband.base.base import StreamReaderBase, StreamWriterBase
+except ImportError:
+    BASEBAND_LT_4 = True
     from baseband.vlbi_base.base import (
         VLBIStreamReaderBase as StreamReaderBase,
         VLBIStreamWriterBase as StreamWriterBase)
 else:
-    from baseband.base.base import StreamReaderBase, StreamWriterBase
+    BASEBAND_LT_4 = False
 
 from .header import HDF5Header
 from .payload import HDF5Payload
@@ -25,10 +27,15 @@ __all__ = ['HDF5StreamBase', 'HDF5StreamReader', 'HDF5StreamWriter',
 
 
 class HDF5StreamBase:
-    def __init__(self, fh_raw, header0, squeeze=True, subset=(),
-                 fill_value=0., verify=True):
-        # TODO: should not really need __init__, and really should
-        # define header0 bps and complex_data for all headers.
+    def __init__(self, fh_raw, header0, **kwargs):
+        if BASEBAND_LT_4:
+            kwargs.update(sample_rate=header0.sample_rate,
+                          samples_per_frame=header0.samples_per_frame,
+                          unsliced_shape=header0.sample_shape)
+            kwargs.setdefault('subset', ())
+            kwargs.setdefault('fill_value', 0.)
+            kwargs.setdefault('verify', True)
+
         if hasattr(header0, 'bps'):
             bps = header0.bps
             complex_data = header0.complex_data
@@ -37,12 +44,8 @@ class HDF5StreamBase:
             # We do need to pass on bps to the base class, even though
             # we do not need it.  We override the property below.
             bps = header0.dtype.itemsize * 8 // (2 if complex_data else 1)
-        super().__init__(
-            fh_raw=fh_raw, header0=header0, sample_rate=header0.sample_rate,
-            samples_per_frame=header0.samples_per_frame,
-            unsliced_shape=header0.sample_shape, bps=bps,
-            complex_data=complex_data, squeeze=squeeze, subset=subset,
-            fill_value=fill_value, verify=verify)
+        super().__init__(fh_raw=fh_raw, header0=header0,
+                         complex_data=complex_data, bps=bps, **kwargs)
 
     @property
     def dtype(self):
@@ -84,7 +87,7 @@ class HDF5StreamBase:
                 "    {sub}start_time={s.start_time.isot}>"
                 .format(s=self, name=name,
                         sub=('subset={0}, '.format(self.subset)
-                             if self.subset else ''),
+                             if getattr(self, 'subset', None) else ''),
                         bps_or_dtype=('bps={0}'.format(self.bps)
                                       if hasattr(self, 'bps') else
                                       'dtype={0}'.format(self.dtype))))
