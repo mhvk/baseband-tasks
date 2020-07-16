@@ -12,6 +12,8 @@ import baseband.data
 from scintillometry.base import SetAttribute
 from scintillometry.io import hdf5
 
+from scintillometry.tests.test_entry_points import needs_entrypoints
+
 
 try:
     import h5py
@@ -20,6 +22,9 @@ except ImportError:
     HAS_H5PY = False
 else:
     HAS_H5PY = True
+
+
+needs_h5py = pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
 
 
 class BasicSetup:
@@ -76,7 +81,7 @@ class TestHeaderBasics(BasicSetup):
             hdf5.HDF5Header(bps=2, **self.info)
 
 
-@pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
+@needs_h5py
 class TestHDF5Basics(BasicSetup):
     def test_create_raw_payload(self, tmpdir):
         header = hdf5.HDF5Header(dtype='c8', **self.info)
@@ -205,7 +210,7 @@ class TestHeader(StreamSetup):
         assert header.time == time
 
 
-@pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
+@needs_h5py
 class TestHDF5(StreamSetup):
     def test_payload_from_baseband(self, tmpdir):
         header = hdf5.HDF5Header.fromvalues(self.fh)
@@ -413,8 +418,10 @@ class TestHDF5(StreamSetup):
                 assert_array_equal(data, self.data)
 
 
-@pytest.mark.skipif(baseband.__version__ < '4.0',
+@needs_h5py
+@pytest.mark.skipif(not hasattr(baseband, 'io'),
                     reason='io entry point became available in baseband 4.0')
+@needs_entrypoints
 class TestBasebandEntrypoint(StreamSetup):
     def test_open_stream(self, tmpdir):
         # Check that we can use the baseband open command for HDF5 format.
