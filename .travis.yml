@@ -46,12 +46,6 @@ env:
         - TOXARGS='-v'
         - TOXPOSARGS=''
 
-        # Also allow tests without tox, getting our packages using apt;
-        # Here, we still need pip to install baseband.  We use the Debian
-        # version since the one packaged on travis gives some problems.
-        - APT_DEPENDENCIES="python3-astropy python3-pytest-astropy-header python3-pytest-doctestplus python3-pytest-openfiles python3-setuptools"
-        - APT_DEPENDENCIES="$APT_DEPENDENCIES python3-h5py python3-yaml python3-pyfftw python3-pip"
-
         # If there are matplotlib or other GUI tests, uncomment the following
         # line to use the X virtual framebuffer.
         # - SETUP_XVFB=True
@@ -98,9 +92,22 @@ jobs:
         # Also regularly try the big-endian s390x architecture, in the
         # process checking that installing dependencies with apt works.
         - name: big-endian s390x architecture with apt
-          stage: Cron tests
+          stage: Initial tests
           arch: s390x
           language: c
+          addons:
+            apt:
+              sources:
+              - sourceline: 'deb http://ftp.us.debian.org/debian testing main'
+                key_url: 'https://ftp-master.debian.org/keys/archive-key-10.asc'
+              packages:
+              - python3-astropy
+              - python3-pyfftw
+              - python3-h5py
+              - python3-yaml
+              - python3-attr  # too old in bionic
+              - python3-h5py-serial  # not needed on amd64; weird.
+              - libhdf5-hl-100  # not needed on amd64; weird.
           env: SETUP_METHOD='apt'
 
 install:
@@ -110,10 +117,6 @@ install:
     - if [[ $SETUP_METHOD == 'tox' ]]; then
         pip install tox;
       else
-        curl https://ftp-master.debian.org/keys/archive-key-10.asc | sudo apt-key add -;
-        echo "deb http://ftp.us.debian.org/debian testing main" | sudo tee -a /etc/apt/sources.list;
-        sudo apt-get -qq update;
-        sudo apt-get install -y --no-install-recommends ${APT_DEPENDENCIES};
         /usr/bin/pip3 install --user baseband;
       fi
 

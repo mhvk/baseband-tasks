@@ -82,7 +82,7 @@ class Resample(PaddedTaskBase):
       >>> rh.seek(-4, 1)
       3946
       >>> data = rh.read(8)
-      >>> data[4]  # doctest: +FLOAT_CMP
+      >>> data[4]  # doctest: +SKIP
       array([-1.6905369 ,  0.52486056, -2.00316   ,  0.9242443 , -0.0470082 ,
               1.6006405 , -1.8970288 ,  1.1860422 ], dtype=float32)
 
