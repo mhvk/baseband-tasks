@@ -9,13 +9,21 @@ from astropy.time import Time
 from ..phases import pint_toas
 
 
-pint = pytest.importorskip('pint')
+def needs_pint(func=None):
+    try:
+        import pint  # noqa
+    except ImportError:
+        skip = True
+    else:
+        from .iers_up_to_date import get_iers_up_to_date
+        get_iers_up_to_date(Time('J2019'))
+        skip = False
+
+    skipif = pytest.mark.skipif(skip, reason='pint not available')
+    return skipif(func) if func else skipif
 
 
-def setup_module():
-    from .iers_up_to_date import get_iers_up_to_date
-    get_iers_up_to_date(Time('J2019'))
-
+pytestmark = needs_pint()
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
