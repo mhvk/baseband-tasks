@@ -5,6 +5,12 @@ Scintillometry: A Package for Radio Baseband Data Reduction
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
+.. warning::
+   The Scintillometry project has been renamed to
+   `baseband-tasks <https://github.com/mhvk/baseband-tasks>`_.
+   For reproducing old results, one can checkout the old repository with
+   ``pip install git+https://github.com/mhvk/baseband-tasks.git@scintillometry#egg=scintillometry``.
+
 Scintillometry is a package for reduction and analysis of radio baseband data,
 optimized for pulsar scintillometry science.  It relies on `Baseband
 <https://pypi.org/project/baseband/>`_, `NumPy <http://www.numpy.org/>`_ and

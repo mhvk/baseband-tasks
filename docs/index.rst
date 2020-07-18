@@ -4,6 +4,13 @@
 Scintillometry
 **************
 
+.. warning::
+   The Scintillometry project has been renamed to
+   `baseband-tasks <https://baseband.readthedocs.io/project/baseband-tasks>`_.
+   For reproducing old results, one can checkout the old repository with
+   ``pip install git+https://github.com/mhvk/baseband-tasks.git@scintillometry#egg=scintillometry``.
+
+
 Welcome to the Scintillometry documentation!  Scintillometry is a package for
 reduction and analysis of radio baseband data, optimized for pulsar
 scintillometry science.
