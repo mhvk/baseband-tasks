@@ -128,6 +128,7 @@ script:
     - if [[ $SETUP_METHOD == 'tox' ]]; then
         tox $TOXARGS -- $TOXPOSARGS;
       else
+        python3 setup.py egg_info;
         pytest-3;
       fi
 
