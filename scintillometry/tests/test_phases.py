@@ -8,17 +8,7 @@ import astropy.units as u
 from astropy.time import Time
 
 from ..phases import PolycoPhase, PintPhase, Phase
-
-
-try:
-    import pint  # noqa
-    HAS_PINT = True
-except ImportError:
-    HAS_PINT = False
-else:
-    def setup_module():
-        from .iers_up_to_date import get_iers_up_to_date
-        get_iers_up_to_date(Time('J2019'))
+from .test_pint_toas import needs_pint
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
@@ -65,8 +55,7 @@ class PhaseTest:
         assert f0.shape == time.shape
 
 
-@pytest.mark.skipif(not HAS_PINT,
-                    reason="pint phase tests require PINT to be installed.")
+@needs_pint
 class TestPintPhase(PhaseTest, PintBase):
     pass
 
@@ -75,8 +64,7 @@ class TestPolycoPhase(PhaseTest, PolycoBase):
     pass
 
 
-@pytest.mark.skipif(not HAS_PINT,
-                    reason="pint phase tests require PINT to be installed.")
+@needs_pint
 class TestPhaseComparison(PintBase, PolycoBase):
     def test_phase(self):
         # Compute PINT phase and f0
@@ -98,8 +86,7 @@ class TestPhaseComparison(PintBase, PolycoBase):
             "The apparent spin frequencyies do now match."
 
 
-@pytest.mark.skipif(not HAS_PINT,
-                    reason="pint phase tests require PINT to be installed.")
+@needs_pint
 class TestPintFrequencyBroadcasting(Base):
     def setup(self):
         super().setup()
