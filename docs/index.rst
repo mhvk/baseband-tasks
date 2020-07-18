@@ -1,10 +1,10 @@
 .. _baseband_tasks_docs:
 
 **************
-Scintillometry
+Baseband-tasks
 **************
 
-Welcome to the Scintillometry documentation!  Scintillometry is a package for
+Welcome to the Baseband-tasks documentation!  Baseband-tasks is a package for
 reduction and analysis of radio baseband data, optimized for pulsar
 baseband_tasks science.
 
@@ -23,7 +23,7 @@ Overview
 Tasks
 =====
 
-At the core of Scintillometry is a collection of "tasks", filehandle-like
+At the core of Baseband-tasks is a collection of "tasks", filehandle-like
 classes that can be linked together into a data reduction pipeline.
 
 .. toctree::
@@ -45,7 +45,7 @@ classes that can be linked together into a data reduction pipeline.
 Simulation
 ==========
 
-To help simulate and debug reduction processes, Scintillometry allows
+To help simulate and debug reduction processes, Baseband-tasks allows
 one to generate fake signals.
 
 .. toctree::
@@ -59,7 +59,7 @@ Input/output
 ============
 
 Most I/O is via raw files read using :func:`baseband.open`, but
-Scintillometry offers options to write out intermediate products as
+Baseband-tasks offers options to write out intermediate products as
 HDF5 files and final products, such as folded profiles, in PSRFITS format.
 
 .. toctree::
@@ -73,7 +73,7 @@ HDF5 files and final products, such as folded profiles, in PSRFITS format.
 Helpers
 =======
 
-Scintillometry also contains helper modules that assist with calculations and
+Baseband-tasks also contains helper modules that assist with calculations and
 that link it with other software, such as Fourier transform packages or pulsar
 timing software.
 
