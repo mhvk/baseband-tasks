@@ -1,15 +1,15 @@
 .. _channelize:
 
 ********************************************
-Channelization (`scintillometry.channelize`)
+Channelization (`baseband_tasks.channelize`)
 ********************************************
 
-`~scintillometry.channelize` contains tasks for basic channelization.
+`~baseband_tasks.channelize` contains tasks for basic channelization.
 
 .. _channelize_api:
 
 Reference/API
 =============
 
-.. automodapi:: scintillometry.channelize
+.. automodapi:: baseband_tasks.channelize
    :no-inherited-members:

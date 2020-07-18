@@ -30,7 +30,7 @@ Scintillometry is not yet on `PyPI <https://pypi.org/>`_ (the name may
 still change...), but you can download and install it with one
 `pip <https://packaging.python.org/key_projects/#pip>`_ command with::
 
-    pip install git+https://github.com/mhvk/scintillometry.git#egg=scintillometry
+    pip install git+https://github.com/mhvk/baseband_tasks.git#egg=baseband_tasks
 
 Possibly with ``--user`` if you installing for yourself outside of a virtual
 environment, and/or with a trailing ``[all]`` to also install the optional
@@ -41,10 +41,10 @@ Obtaining Source Code
 ---------------------
 
 The source code and latest development version of Scintillometry can found on
-`its GitHub repo <https://github.com/mhvk/scintillometry>`_.  You can get your
+`its GitHub repo <https://github.com/mhvk/baseband_tasks>`_.  You can get your
 own clone using::
 
-    git clone git@github.com:mhvk/scintillometry.git
+    git clone git@github.com:mhvk/baseband_tasks.git
 
 Of course, it is even better to fork it on GitHub, and then clone your own
 repository, so that you can more easily contribute!  From within the cloned
@@ -90,8 +90,8 @@ Then, inside the root directory, simply run
 
 or, inside of Python::
 
-    import scintillometry
-    scintillometry.test()
+    import baseband_tasks
+    baseband_tasks.test()
 
 For further details, see the `Astropy Running Tests pages
 <https://astropy.readthedocs.io/en/latest/development/testguide.html#running-tests>`_.
@@ -106,7 +106,7 @@ Building Documentation
     As with Astropy, building the documentation is unnecessary unless you
     are writing new documentation or do not have internet access, as
     Scintillometry's documentation is available online at
-    `scintillometry.readthedocs.io <https://scintillometry.readthedocs.io>`_.
+    `baseband_tasks.readthedocs.io <https://baseband_tasks.readthedocs.io>`_.
 
 To build the Scintillometry documentation, you need
 `Sphinx <http://sphinx.pocoo.org>`_ and

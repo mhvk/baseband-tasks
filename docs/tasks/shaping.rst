@@ -1,10 +1,10 @@
 .. _shaping:
 
 ****************************************************
-Sample shape manipulation (`scintillometry.shaping`)
+Sample shape manipulation (`baseband_tasks.shaping`)
 ****************************************************
 
-`~scintillometry.shaping` contains tasks to change the sample shape, e.g., to
+`~baseband_tasks.shaping` contains tasks to change the sample shape, e.g., to
 ensure frequency and polarization are on different axes in preparation for
 calculating polarized powers and cross products.  The changes can be done
 using a user-defined function or with pre-defined implementations for
@@ -15,5 +15,5 @@ reshaping, transposition and slicing.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.shaping
+.. automodapi:: baseband_tasks.shaping
    :no-inherited-members:

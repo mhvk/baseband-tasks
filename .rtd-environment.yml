@@ -1,4 +1,4 @@
-name: scintillometry
+name: baseband_tasks
 
 channels:
     - astropy

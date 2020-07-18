@@ -1,10 +1,10 @@
 .. _sampling:
 
 ************************************
-Sampling (`scintillometry.sampling`)
+Sampling (`baseband_tasks.sampling`)
 ************************************
 
-`~scintillometry.sampling` contains tasks for resampling a stream on a
+`~baseband_tasks.sampling` contains tasks for resampling a stream on a
 new grid.
 
 .. _sampling_api:
@@ -12,5 +12,5 @@ new grid.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.sampling
+.. automodapi:: baseband_tasks.sampling
    :no-inherited-members:

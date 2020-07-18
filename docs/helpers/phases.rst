@@ -1,7 +1,7 @@
 .. _phases:
 
 *******************************************
-Phase Calculation (`scintillometry.phases`)
+Phase Calculation (`baseband_tasks.phases`)
 *******************************************
 
 Introduction
@@ -21,6 +21,6 @@ interface.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.phases
+.. automodapi:: baseband_tasks.phases
    :no-inherited-members:
-.. automodapi:: scintillometry.phases.pint_toas
+.. automodapi:: baseband_tasks.phases.pint_toas

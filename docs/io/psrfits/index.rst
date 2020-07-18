@@ -1,15 +1,15 @@
 .. _psrfits:
 
 *************************************
-PSRFITS (`scintillometry.io.psrfits`)
+PSRFITS (`baseband_tasks.io.psrfits`)
 *************************************
 
-`~scintillometry.io.psrfits` contains interfaces for PSRFITS data.
+`~baseband_tasks.io.psrfits` contains interfaces for PSRFITS data.
 
 .. _psrfits_api:
 
 Reference/API
 =============
 
-.. automodapi:: scintillometry.io.psrfits
+.. automodapi:: baseband_tasks.io.psrfits
    :no-inherited-members:

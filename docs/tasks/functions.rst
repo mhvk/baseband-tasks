@@ -1,10 +1,10 @@
 .. _functions:
 
 **************************************
-Functions (`scintillometry.functions`)
+Functions (`baseband_tasks.functions`)
 **************************************
 
-`~scintillometry.functions` contains general tasks to apply a user-defined
+`~baseband_tasks.functions` contains general tasks to apply a user-defined
 function to a stream, as well as pre-defined implementations for common
 functions such as squaring to transform voltages to into intensities.
 
@@ -13,5 +13,5 @@ functions such as squaring to transform voltages to into intensities.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.functions
+.. automodapi:: baseband_tasks.functions
    :no-inherited-members:

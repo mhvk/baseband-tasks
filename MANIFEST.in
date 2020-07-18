@@ -4,7 +4,7 @@ include LICENSE
 include setup.cfg
 include pyproject.toml
 
-recursive-include scintillometry *.pyx *.c *.pxd
+recursive-include baseband_tasks *.pyx *.c *.pxd
 recursive-include docs *
 recursive-include licenses *
 recursive-include cextern *

@@ -6,12 +6,12 @@ Scintillometry: A Package for Radio Baseband Data Reduction
     :alt: Powered by Astropy Badge
 
 Scintillometry is a package for reduction and analysis of radio baseband data,
-optimized for pulsar scintillometry science.  It relies on `Baseband
+optimized for pulsar baseband_tasks science.  It relies on `Baseband
 <https://pypi.org/project/baseband/>`_, `NumPy <http://www.numpy.org/>`_ and
 `Astropy <http://www.astropy.org/>`_.
 
 For installation and usage instructions, please see the `online documentation
-<https://scintillometry.readthedocs.io/>`_.
+<https://baseband_tasks.readthedocs.io/>`_.
 
 Project Status
 --------------
@@ -20,16 +20,16 @@ Project Status
     :target: https://www.astropy.org/
     :alt: Powered by Astropy Badge
 
-.. image:: https://travis-ci.org/mhvk/scintillometry.svg?branch=master
-   :target: https://travis-ci.org/mhvk/scintillometry
+.. image:: https://travis-ci.org/mhvk/baseband_tasks.svg?branch=master
+   :target: https://travis-ci.org/mhvk/baseband_tasks
    :alt: Test Status
 
-.. image:: https://codecov.io/gh/mhvk/scintillometry/branch/master/graph/badge.svg
-   :target: https://codecov.io/gh/mhvk/scintillometry
+.. image:: https://codecov.io/gh/mhvk/baseband_tasks/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/mhvk/baseband_tasks
    :alt: Coverage Level
 
-.. image:: https://readthedocs.org/projects/scintillometry/badge/?version=latest
-   :target: https://scintillometry.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/baseband_tasks/badge/?version=latest
+   :target: https://baseband_tasks.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
 Contributing
