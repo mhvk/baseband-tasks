@@ -5,8 +5,11 @@ Baseband-tasks
 **************
 
 Welcome to the Baseband-tasks documentation!  Baseband-tasks is a package for
-reduction and analysis of radio baseband data, optimized for pulsar
-baseband_tasks science.
+reduction and analysis of radio baseband data.
+
+.. note::
+   The package was recently renamed. For reproducing old scripts, see the
+   `scintillometry branch <https://github.com/mhvk/baseband-tasks/tree/scintillometry>`_.
 
 .. _overview_toc:
 
@@ -93,16 +96,16 @@ Project details
     :target: https://www.astropy.org/
     :alt: Powered by Astropy Badge
 
-.. image:: https://travis-ci.org/mhvk/baseband_tasks.svg?branch=master
-   :target: https://travis-ci.org/mhvk/baseband_tasks
+.. image:: https://travis-ci.org/mhvk/baseband-tasks.svg?branch=master
+   :target: https://travis-ci.org/mhvk/baseband-tasks
    :alt: Test Status
 
-.. image:: https://codecov.io/gh/mhvk/baseband_tasks/branch/master/graph/badge.svg
-   :target: https://codecov.io/gh/mhvk/baseband_tasks
+.. image:: https://codecov.io/gh/mhvk/baseband-tasks/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/mhvk/baseband-tasks
    :alt: Coverage Level
 
-.. image:: https://readthedocs.org/projects/baseband_tasks/badge/?version=latest
-   :target: https://baseband_tasks.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/baseband-tasks/badge/?version=latest
+   :target: https://baseband-tasks.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
 .. toctree::

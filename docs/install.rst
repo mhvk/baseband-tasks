@@ -26,11 +26,11 @@ In addition, you may want to install:
 Installing Baseband-tasks
 =========================
 
-Baseband-tasks is not yet on `PyPI <https://pypi.org/>`_ (the name may
-still change...), but you can download and install it with one
+Baseband-tasks is not yet on `PyPI <https://pypi.org/>`_, but you can
+download and install it with one
 `pip <https://packaging.python.org/key_projects/#pip>`_ command with::
 
-    pip install git+https://github.com/mhvk/baseband_tasks.git#egg=baseband_tasks
+    pip install git+https://github.com/mhvk/baseband-tasks.git#egg=baseband-tasks
 
 Possibly with ``--user`` if you installing for yourself outside of a virtual
 environment, and/or with a trailing ``[all]`` to also install the optional
@@ -41,10 +41,10 @@ Obtaining Source Code
 ---------------------
 
 The source code and latest development version of Baseband-tasks can found on
-`its GitHub repo <https://github.com/mhvk/baseband_tasks>`_.  You can get your
+`its GitHub repo <https://github.com/mhvk/baseband-tasks>`_.  You can get your
 own clone using::
 
-    git clone git@github.com:mhvk/baseband_tasks.git
+    git clone git@github.com:mhvk/baseband-tasks.git
 
 Of course, it is even better to fork it on GitHub, and then clone your own
 repository, so that you can more easily contribute!  From within the cloned
@@ -106,7 +106,7 @@ Building Documentation
     As with Astropy, building the documentation is unnecessary unless you
     are writing new documentation or do not have internet access, as
     Baseband-tasks's documentation is available online at
-    `baseband_tasks.readthedocs.io <https://baseband_tasks.readthedocs.io>`_.
+    `baseband.readthedocs.io/project/baseband-tasks <https://baseband.readthedocs.io/project/baseband-tasks>`_.
 
 To build the Baseband-tasks documentation, you need
 `Sphinx <http://sphinx.pocoo.org>`_ and
