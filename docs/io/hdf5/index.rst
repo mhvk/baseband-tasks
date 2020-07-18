@@ -1,10 +1,10 @@
 .. _hdf5:
 
 *******************************
-HDF5 (`scintillometry.io.hdf5`)
+HDF5 (`baseband_tasks.io.hdf5`)
 *******************************
 
-`~scintillometry.io.hdf5` contains interfaces for reading and writing
+`~baseband_tasks.io.hdf5` contains interfaces for reading and writing
 an internal HDF5 format that is suitable for storing intermediate
 steps of pipelines.  A writer can conveniently be used as the output
 argument for any reader, automatically writing in the relevant block size.
@@ -13,8 +13,8 @@ For instance::
 .. doctest-requires:: h5py, pyyaml
 
   >>> from baseband import data, vdif
-  >>> from scintillometry.functions import Square
-  >>> from scintillometry.io import hdf5
+  >>> from baseband_tasks.functions import Square
+  >>> from baseband_tasks.io import hdf5
   >>> fh = vdif.open(data.SAMPLE_VDIF, 'rs')
   >>> square = Square(fh)
   >>> squared = square.read()
@@ -43,8 +43,8 @@ Alternatively, half-precision floats can be used by passing in
 Reference/API
 =============
 
-.. automodapi:: scintillometry.io.hdf5
-.. automodapi:: scintillometry.io.hdf5.header
-.. automodapi:: scintillometry.io.hdf5.payload
+.. automodapi:: baseband_tasks.io.hdf5
+.. automodapi:: baseband_tasks.io.hdf5.header
+.. automodapi:: baseband_tasks.io.hdf5.payload
    :include-all-objects:
-.. automodapi:: scintillometry.io.hdf5.base
+.. automodapi:: baseband_tasks.io.hdf5.base

@@ -1,7 +1,7 @@
 .. _fourier:
 
 *********************************************
-Fourier Transforms (`scintillometry.fourier`)
+Fourier Transforms (`baseband_tasks.fourier`)
 *********************************************
 
 Introduction
@@ -22,17 +22,17 @@ frequency-domain values are always treated as complex.
 Using the Fourier Module
 ========================
 
-To make FFTs, easiest is to use the `~scintillometry.fourier.base.fft_maker`
+To make FFTs, easiest is to use the `~baseband_tasks.fourier.base.fft_maker`
 factory.  In our examples, we will use it with the numpy fft back-end::
 
-    >>> from scintillometry.fourier import fft_maker
+    >>> from baseband_tasks.fourier import fft_maker
     >>> fft_maker.set('numpy')
     <ScienceState fft_maker: NumpyFFTMaker()>
 
-The :meth:`~scintillometry.fourier.base.fft_maker.set` method allows one to
+The :meth:`~baseband_tasks.fourier.base.fft_maker.set` method allows one to
 choose any of the FFT maker classes -
-e.g. `~scintillometry.fourier.numpy.NumpyFFTMaker` or
-`~scintillometry.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options, such
+e.g. `~baseband_tasks.fourier.numpy.NumpyFFTMaker` or
+`~baseband_tasks.fourier.pyfftw.PyfftwFFTMaker`.  Package-level options, such
 as the flags to `~pyfftw.FFTW`, can be passed as ``**kwargs``.
 
 To create a transform, we pass the time-dimension data array shape and dtype,
@@ -75,7 +75,7 @@ To show information about the transform, we can simply print the instance::
         Frequency domain: shape=(501,), dtype=complex128>
 
 To obtain the sample frequencies of ``Y``, we can use the
-`~scintillometry.fourier.base.FFTBase.frequency` property::
+`~baseband_tasks.fourier.base.FFTBase.frequency` property::
 
     >>> fft.frequency[:10]  # doctest: +FLOAT_CMP
     <Quantity [0.   , 0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008,
@@ -89,9 +89,9 @@ axis.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.fourier
+.. automodapi:: baseband_tasks.fourier
    :include-all-objects:
-.. automodapi:: scintillometry.fourier.base
+.. automodapi:: baseband_tasks.fourier.base
    :include-all-objects:
-.. automodapi:: scintillometry.fourier.numpy
-.. automodapi:: scintillometry.fourier.pyfftw
+.. automodapi:: baseband_tasks.fourier.numpy
+.. automodapi:: baseband_tasks.fourier.pyfftw

@@ -1,10 +1,10 @@
 .. _integration:
 
 ******************************************************
-Integration and Folding (`scintillometry.integration`)
+Integration and Folding (`baseband_tasks.integration`)
 ******************************************************
 
-`~scintillometry.integration` contains tasks for integration, folding, and
+`~baseband_tasks.integration` contains tasks for integration, folding, and
 creating pulse stacks.  Helpers to create phase functions are in the
 :ref:`phases` module.
 
@@ -13,5 +13,5 @@ creating pulse stacks.  Helpers to create phase functions are in the
 Reference/API
 =============
 
-.. automodapi:: scintillometry.integration
+.. automodapi:: baseband_tasks.integration
    :no-inherited-members:

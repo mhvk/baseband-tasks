@@ -1,10 +1,10 @@
 .. _convolution:
 
 ******************************************
-Convolution (`scintillometry.convolution`)
+Convolution (`baseband_tasks.convolution`)
 ******************************************
 
-`~scintillometry.convolution` contains tasks for convolving time streams
+`~baseband_tasks.convolution` contains tasks for convolving time streams
 with a response.
 
 .. _convolution_api:
@@ -12,5 +12,5 @@ with a response.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.convolution
+.. automodapi:: baseband_tasks.convolution
    :no-inherited-members:

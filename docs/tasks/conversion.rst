@@ -1,10 +1,10 @@
 .. _conversion:
 
 ******************************************
-Conversion (`scintillometry.conversion`)
+Conversion (`baseband_tasks.conversion`)
 ******************************************
 
-`~scintillometry.conversion` contains a task for converting a real time stream
+`~baseband_tasks.conversion` contains a task for converting a real time stream
 to a complex one.
 
 .. _conversionn_api:
@@ -12,5 +12,5 @@ to a complex one.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.conversion
+.. automodapi:: baseband_tasks.conversion
    :no-inherited-members:

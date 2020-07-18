@@ -78,13 +78,14 @@ project = setup_cfg['name']
 author = setup_cfg['author']
 copyright = '{0}, {1}'.format(
     datetime.datetime.now().year, setup_cfg['author'])
+provides = setup_cfg.get('provides', project)
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-import_module(setup_cfg['name'])
-package = sys.modules[setup_cfg['name']]
+import_module(provides)
+package = sys.modules[provides]
 
 # The short X.Y version.
 version = package.__version__.split('-', 1)[0]
@@ -104,9 +105,9 @@ release = package.__version__
 
 # Please update these texts to match the name of your package.
 html_theme_options = {
-    'logotext1': 'scintillo',  # white,  semi-bold
-    'logotext2': 'metry',  # orange, light
-    'logotext3': ':docs'   # white,  light
+    'logotext1': 'base',  # white,  semi-bold
+    'logotext2': 'band',  # orange, light
+    'logotext3': '-tasks'   # white,  light
     }
 
 # Add any paths that contain custom themes here, relative to this directory.

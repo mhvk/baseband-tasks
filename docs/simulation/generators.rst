@@ -1,10 +1,10 @@
 .. _generators:
 
 ****************************************
-Generators (`scintillometry.generators`)
+Generators (`baseband_tasks.generators`)
 ****************************************
 
-`~scintillometry.generators` contains helpers to generate streams of
+`~baseband_tasks.generators` contains helpers to generate streams of
 data.
 
 .. _generators_api:
@@ -12,5 +12,5 @@ data.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.generators
+.. automodapi:: baseband_tasks.generators
    :no-inherited-members:

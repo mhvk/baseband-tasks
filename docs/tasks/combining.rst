@@ -1,10 +1,10 @@
 .. _combining:
 
 **********************************************
-Combining streams (`scintillometry.combining`)
+Combining streams (`baseband_tasks.combining`)
 **********************************************
 
-`~scintillometry.combining` contains tasks to combine multiple streams,
+`~baseband_tasks.combining` contains tasks to combine multiple streams,
 e.g., in preparation for correlation.  The combining can be done
 using a user-defined function or with pre-defined implementations for
 concatenation and stacking.
@@ -14,5 +14,5 @@ concatenation and stacking.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.combining
+.. automodapi:: baseband_tasks.combining
    :no-inherited-members:

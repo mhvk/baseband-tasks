@@ -5,7 +5,7 @@ Installation
 Requirements
 ============
 
-Scintillometry requires:
+Baseband-tasks requires:
 
     - `Python <https://www.python.org/>`_ v3.6 or later
     - `Astropy`_ v3.2 or later
@@ -23,14 +23,14 @@ In addition, you may want to install:
 
 .. _installation:
 
-Installing Scintillometry
+Installing Baseband-tasks
 =========================
 
-Scintillometry is not yet on `PyPI <https://pypi.org/>`_ (the name may
+Baseband-tasks is not yet on `PyPI <https://pypi.org/>`_ (the name may
 still change...), but you can download and install it with one
 `pip <https://packaging.python.org/key_projects/#pip>`_ command with::
 
-    pip install git+https://github.com/mhvk/scintillometry.git#egg=scintillometry
+    pip install git+https://github.com/mhvk/baseband_tasks.git#egg=baseband_tasks
 
 Possibly with ``--user`` if you installing for yourself outside of a virtual
 environment, and/or with a trailing ``[all]`` to also install the optional
@@ -40,11 +40,11 @@ astropy 4.0).
 Obtaining Source Code
 ---------------------
 
-The source code and latest development version of Scintillometry can found on
-`its GitHub repo <https://github.com/mhvk/scintillometry>`_.  You can get your
+The source code and latest development version of Baseband-tasks can found on
+`its GitHub repo <https://github.com/mhvk/baseband_tasks>`_.  You can get your
 own clone using::
 
-    git clone git@github.com:mhvk/scintillometry.git
+    git clone git@github.com:mhvk/baseband_tasks.git
 
 Of course, it is even better to fork it on GitHub, and then clone your own
 repository, so that you can more easily contribute!  From within the cloned
@@ -59,7 +59,7 @@ repository, which means that any edit will be seen.
 Running Code without Installing
 -------------------------------
 
-As Scintillometry is purely Python, it can be used without being built or
+As Baseband-tasks is purely Python, it can be used without being built or
 installed, by appending the directory it is located in to the ``PYTHON_PATH``
 environment variable.  Alternatively, you can use :obj:`sys.path` within Python
 to append the path::
@@ -68,7 +68,7 @@ to append the path::
     sys.path.append(SCINT_PATH)
 
 where ``SCINT_PATH`` is the directory you downloaded or cloned
-Scintillometry into.
+Baseband-tasks into.
 
 .. _sourcebuildtest:
 
@@ -90,8 +90,8 @@ Then, inside the root directory, simply run
 
 or, inside of Python::
 
-    import scintillometry
-    scintillometry.test()
+    import baseband_tasks
+    baseband_tasks.test()
 
 For further details, see the `Astropy Running Tests pages
 <https://astropy.readthedocs.io/en/latest/development/testguide.html#running-tests>`_.
@@ -105,10 +105,10 @@ Building Documentation
 
     As with Astropy, building the documentation is unnecessary unless you
     are writing new documentation or do not have internet access, as
-    Scintillometry's documentation is available online at
-    `scintillometry.readthedocs.io <https://scintillometry.readthedocs.io>`_.
+    Baseband-tasks's documentation is available online at
+    `baseband_tasks.readthedocs.io <https://baseband_tasks.readthedocs.io>`_.
 
-To build the Scintillometry documentation, you need
+To build the Baseband-tasks documentation, you need
 `Sphinx <http://sphinx.pocoo.org>`_ and
 `sphinx-astropy <https://github.com/astropy/sphinx-astropy>`_
 to be installed;

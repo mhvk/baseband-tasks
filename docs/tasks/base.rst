@@ -1,10 +1,10 @@
 .. _base:
 
 ****************************
-Base (`scintillometry.base`)
+Base (`baseband_tasks.base`)
 ****************************
 
-`~scintillometry.base` contains the base classes and functions used by other
+`~baseband_tasks.base` contains the base classes and functions used by other
 tasks.
 
 .. _base_api:
@@ -12,5 +12,5 @@ tasks.
 Reference/API
 =============
 
-.. automodapi:: scintillometry.base
+.. automodapi:: baseband_tasks.base
    :no-inherited-members:
