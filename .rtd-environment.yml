@@ -1,5 +1,3 @@
-name: baseband_tasks
-
 channels:
     - astropy
     - conda-forge

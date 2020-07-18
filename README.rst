@@ -5,10 +5,9 @@ Baseband-tasks: A Package for Radio Baseband Data Reduction
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
-Baseband-tasks is a package for reduction and analysis of radio baseband data,
-optimized for pulsar baseband_tasks science.  It relies on `Baseband
-<https://pypi.org/project/baseband/>`_, `NumPy <http://www.numpy.org/>`_ and
-`Astropy <http://www.astropy.org/>`_.
+Baseband-tasks is a package for reduction and analysis of radio baseband data.
+It relies on `Baseband <https://pypi.org/project/baseband/>`_,
+ `NumPy <http://www.numpy.org/>`_ and `Astropy <http://www.astropy.org/>`_.
 
 For installation and usage instructions, please see the `online documentation
 <https://baseband_tasks.readthedocs.io/>`_.
@@ -20,16 +19,16 @@ Project Status
     :target: https://www.astropy.org/
     :alt: Powered by Astropy Badge
 
-.. image:: https://travis-ci.org/mhvk/baseband_tasks.svg?branch=master
-   :target: https://travis-ci.org/mhvk/baseband_tasks
+.. image:: https://travis-ci.org/mhvk/baseband-tasks.svg?branch=master
+   :target: https://travis-ci.org/mhvk/baseband-tasks
    :alt: Test Status
 
-.. image:: https://codecov.io/gh/mhvk/baseband_tasks/branch/master/graph/badge.svg
-   :target: https://codecov.io/gh/mhvk/baseband_tasks
+.. image:: https://codecov.io/gh/mhvk/baseband-tasks/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/mhvk/baseband-tasks
    :alt: Coverage Level
 
-.. image:: https://readthedocs.org/projects/baseband_tasks/badge/?version=latest
-   :target: https://baseband_tasks.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/baseband-tasks/badge/?version=latest
+   :target: https://baseband-tasks.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
 Contributing
