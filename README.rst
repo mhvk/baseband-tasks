@@ -5,19 +5,9 @@ Baseband-tasks: A Package for Radio Baseband Data Reduction
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
-Baseband-tasks is a package for reduction and analysis of radio baseband data.
-It relies on `Baseband <https://pypi.org/project/baseband/>`_,
- `NumPy <http://www.numpy.org/>`_ and `Astropy <http://www.astropy.org/>`_.
-
-For installation and usage instructions, please see the `online documentation
-<https://baseband-tasks.readthedocs.io/>`_.
-
-Project Status
---------------
-
-.. image:: https://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat
-    :target: https://www.astropy.org/
-    :alt: Powered by Astropy Badge
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.3951543.svg
+   :target: https://doi.org/10.5281/zenodo.3951543
+   :alt: DOI 10.5281/zenodo.3951543
 
 .. image:: https://travis-ci.org/mhvk/baseband-tasks.svg?branch=master
    :target: https://travis-ci.org/mhvk/baseband-tasks
@@ -30,6 +20,16 @@ Project Status
 .. image:: https://readthedocs.org/projects/baseband-tasks/badge/?version=latest
    :target: https://baseband-tasks.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
+
+Baseband-tasks is a package for reduction and analysis of radio baseband data.
+It relies on `Baseband <https://pypi.org/project/baseband/>`_,
+`NumPy <http://www.numpy.org/>`_ and `Astropy <http://www.astropy.org/>`_.
+
+For installation and usage instructions, please see the `online documentation
+<https://baseband.readthedocs.io/projects/baseband-tasks/>`_.
+
+If you used this package in your research, please cite it via DOI
+`10.5281/zenodo.3951543 <https://doi.org/10.5281/zenodo.3951543>`_.
 
 Contributing
 ------------

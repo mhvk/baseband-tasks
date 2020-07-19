@@ -1,3 +1,10 @@
+0.1.1 (2020-07-19)
+==================
+
+Update that includes the DOI and for which the README.txt is clean
+enough for ``twine``.
+
+
 0.1 (2020-07-19)
 ================
 
