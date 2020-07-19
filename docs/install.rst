@@ -5,12 +5,10 @@ Installation
 Requirements
 ============
 
-Baseband-tasks requires:
-
-    - `Python <https://www.python.org/>`_ v3.6 or later
-    - `Astropy`_ v3.2 or later
-    - `Numpy <http://www.numpy.org/>`_ v1.16 or later
-    - `Baseband <https://pypi.org/project/baseband/>`_ v3.0 or later
+Baseband-tasks requires `Baseband
+<https://pypi.org/project/baseband/>`_, v3.0 or later, which in turn
+requires `Python <https://www.python.org/>`_, `Astropy`_, and `Numpy
+<http://www.numpy.org/>`_.
 
 In addition, you may want to install:
 
@@ -19,23 +17,31 @@ In addition, you may want to install:
       transforms.
     - `PINT <https://pypi.org/project/pint-pulsar/>`_ to calculate phases without
       first generating polycos.
-    - `H5py <https://www.h5py.org/>`_ to read files in the HDF5 format
+    - `H5py <https://www.h5py.org/>`_ to read files in the HDF5 format.
 
 .. _installation:
 
 Installing Baseband-tasks
 =========================
 
-Baseband-tasks is not yet on `PyPI <https://pypi.org/>`_, but you can
-download and install it with one
-`pip <https://packaging.python.org/key_projects/#pip>`_ command with::
+To install Baseband-tasks with `pip <https://pip.pypa.io/>`_,
+run::
 
-    pip install git+https://github.com/mhvk/baseband-tasks.git#egg=baseband-tasks
+    pip3 install baseband-tasks
 
 Possibly with ``--user`` if you installing for yourself outside of a virtual
 environment, and/or with a trailing ``[all]`` to also install the optional
-dependencies (which currently excludes PINT, since it does not work with
-astropy 4.0).
+dependencies (or ``[io]`` for just HDF5 support).
+
+.. note::
+   Baseband-tasks was originally developped under the name ``scintillometry``.
+   It was never put on `PyPI <https://pypi.org/>`_ under that name, but
+   could be downloaded from github. If you have old scripts that depend
+   on that name and want these to work without (yet) changing imports,
+   you can install the last version under the ``scintillometry`` name
+   with::
+
+    pip install git+https://github.com/mhvk/baseband-tasks.git@scintillometry#egg=scintillometry
 
 Obtaining Source Code
 ---------------------
@@ -52,7 +58,7 @@ repository::
 
     pip install .
 
-Here, apart from the ``--user`` option and possible ``[all]`` suffix,
+Here, apart from the ``--user`` option and possible ``[all]`` or ``[io]`` suffix,
 you may want to add the ``--editable`` option to just link to the source
 repository, which means that any edit will be seen.
 
@@ -65,10 +71,15 @@ environment variable.  Alternatively, you can use :obj:`sys.path` within Python
 to append the path::
 
     import sys
-    sys.path.append(SCINT_PATH)
+    sys.path.append(PACKAGE_PATH)
 
-where ``SCINT_PATH`` is the directory you downloaded or cloned
+where ``PACKAGE_PATH`` is the directory you downloaded or cloned
 Baseband-tasks into.
+
+Note that for the `baseband.io` and `baseband.tasks` plugins to work, you will
+need to produce ``egg_info``, which can be done with::
+
+    python3 setup.py egg_info
 
 .. _sourcebuildtest:
 
