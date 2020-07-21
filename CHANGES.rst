@@ -2,7 +2,8 @@
 ================
 
 This release will depend on ``baseband`` 4.0 as one can then assume
-(and document) the existence of ``baseband.tasks``.
+(and document) the existence of ``baseband.tasks``.  Like baseband 4.0,
+it will also require python 3.7, astropy 4.0, and numpy 1.17.
 
 
 0.1.1 (2020-07-19)

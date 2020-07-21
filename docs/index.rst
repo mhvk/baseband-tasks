@@ -31,6 +31,8 @@ Tasks
 
 At the core of Baseband-tasks is a collection of "tasks", filehandle-like
 classes that can be linked together into a data reduction pipeline.
+These would generally be accessed from :ref:`baseband.tasks <tasks_api>`,
+but are here organized by type.
 
 .. toctree::
    :maxdepth: 1
@@ -64,9 +66,11 @@ one to generate fake signals.
 Input/output
 ============
 
-Most I/O is via raw files read using :func:`baseband.open`, but
 Baseband-tasks offers options to write out intermediate products as
 HDF5 files and final products, such as folded profiles, in PSRFITS format.
+The former, like most I/O of raw files, can also be accessed using
+:func:`baseband.open` (with ``format='hdf5'`` for writing).
+
 
 .. toctree::
    :maxdepth: 1
@@ -121,3 +125,12 @@ Project details
    authors_for_sphinx
    changelog
    license
+
+.. _tasks_api:
+
+Reference/API
+=============
+.. automodapi:: baseband.tasks
+   :allowed-package-names: baseband_tasks
+   :no-inheritance-diagram:
+   :no-main-docstr:

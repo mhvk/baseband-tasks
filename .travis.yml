@@ -75,8 +75,8 @@ jobs:
 
         - name: Coverage using oldest supported versions
           stage: Comprehensive tests
-          python: 3.6
-          env: TOXENV="py36-test-oldestdeps-alldeps-cov"
+          python: 3.7
+          env: TOXENV="py37-test-oldestdeps-alldeps-cov"
 
         - name: Python 3.8 with developer version of baseband
           stage: Comprehensive tests
