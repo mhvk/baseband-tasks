@@ -121,3 +121,10 @@ Project details
    authors_for_sphinx
    changelog
    license
+
+Reference/API
+=============
+.. automodapi:: baseband.tasks
+   :allowed-package-names: baseband_tasks
+   :no-inheritance-diagram:
+   :no-main-docstr:
