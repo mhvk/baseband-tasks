@@ -1,10 +1,6 @@
 # Licensed under the GPLv3 - see LICENSE
 """Frame for HDF5 format."""
-try:
-    from baseband.base.frame import FrameBase
-except ImportError:
-    # baseband < 4.0
-    from baseband.vlbi_base.frame import VLBIFrameBase as FrameBase
+from baseband.base.frame import FrameBase
 
 from .header import HDF5Header
 from .payload import HDF5Payload
