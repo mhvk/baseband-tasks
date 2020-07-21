@@ -102,14 +102,7 @@ class CombineStreamsBase(TaskBase):
         if all(value is None for value in values):
             return None
 
-        # Don't count on our task to pass on subclasses
-        # (needs astropy >=4.0 and numpy >=1.17).
-        value0 = values[0]
-        unit = getattr(value0, 'unit', None)
-        if unit is not None:
-            values = [value.to_value(unit) for value in values]
-
-        values = [np.broadcast_to(value, (1,) + ih.sample_shape)
+        values = [np.broadcast_to(value, (1,) + ih.sample_shape, subok=True)
                   for value, ih in zip(values, self.ihs)]
 
         try:
@@ -119,10 +112,7 @@ class CombineStreamsBase(TaskBase):
                          "as required".format(attr),)
             raise
 
-        if unit is None:
-            return result[0]
-        else:
-            return value0.__class__(result[0], unit, copy=False)
+        return result[0]
 
     def close(self):
         super().close()
