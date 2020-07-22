@@ -433,9 +433,9 @@ class BaseTaskBase(Base):
         if polarization is None:
             polarization = getattr(ih, 'polarization', None)
         # Sanity check on shape.
-        nframes = (shape[0] // samples_per_frame) * samples_per_frame
+        nframes = shape[0] // samples_per_frame
         assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes,) + shape[1:]
+        shape = (nframes * samples_per_frame,) + shape[1:]
 
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
@@ -469,7 +469,7 @@ class SetAttribute(BaseTaskBase):
 
     The class reads directly from the underlying stream, which means it has
     very little performance impact, but also that one cannot change the
-    ``shape``, ``frames_per_sample``, or ``dtype`` of the underlying stream.
+    ``shape``, ``samples_per_frames``, or ``dtype`` of the underlying stream.
 
     By default, all parameters are taken from the underlying stream.
 
@@ -590,7 +590,7 @@ class TaskBase(BaseTaskBase):
         # Read data from underlying filehandle.
         self.ih.seek(frame_index * self._raw_samples_per_frame)
         data = self.ih.read(self._raw_samples_per_frame)
-        # Apply function to the data.  Note that the read() function
+        # Apply function to the data.  Note that the _get_frame() function
         # in base ensures that our offset pointer is correct.
         return self.task(data)
 
