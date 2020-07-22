@@ -57,11 +57,17 @@ class HDF5StreamBase:
         """
         return self.header0.bps
 
-    def __repr__(self):
+    @property
+    def closed(self):
         try:
-            name = self.fh_raw.filename
+            self.fh_raw.filename
         except Exception:
-            name = '<closed>'
+            return True
+        else:
+            return False
+
+    def __repr__(self):
+        name = self.fh_raw.filename if not self.closed else '<closed>'
         return ("<{s.__class__.__name__} name={name} "
                 "offset={s.offset}\n"
                 "    sample_rate={s.sample_rate},"

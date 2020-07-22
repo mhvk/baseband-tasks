@@ -210,6 +210,9 @@ class Base:
     def seek(self, offset, whence=0):
         """Change the sample pointer position.
 
+        This works like a normal filehandle seek, but the offset is in samples
+        (or a relative or absolute time).
+
         Parameters
         ----------
         offset : int, `~astropy.units.Quantity`, or `~astropy.time.Time`
@@ -277,37 +280,33 @@ class Base:
         Parameters
         ----------
         count : int or None, optional
-            Number of complete samples to read.  If `None` (default) or
-            negative, the entire input data is processed.  Ignored if ``out``
-            is given.
+            Number of complete samples to read. If `None` (default) or
+            negative, the number of samples left. Ignored if ``out`` is given.
         out : None or array, optional
-            Array to store the output in. If given, ``count`` will be inferred
-            from the first dimension; the other dimension should equal
+            Array to store the samples in. If given, ``count`` will be inferred
+            from the first dimension; the remaining dimensions should equal
             `sample_shape`.
 
         Returns
         -------
         out : `~numpy.ndarray` of float or complex
-            The first dimension is sample-time, and the remainder given by
-            `sample_shape`.
+            The first dimension is sample-time, and the remaining ones are
+            as given by `sample_shape`.
         """
         if self.closed:
-            raise ValueError("I/O operation on closed task/generator.")
+            raise ValueError("I/O operation on closed stream.")
 
-        # NOTE: this will return an EOF error when attempting to read partial
-        # frames, making it identical to fh.read().
-
-        samples_left = max(0, self.shape[0] - self.offset)
+        samples_left = self.shape[0] - self.offset
         if out is None:
             if count is None or count < 0:
-                count = samples_left
-            out = np.empty((count,) + self.shape[1:], dtype=self.dtype)
+                count = max(0, samples_left)
+
+            out = np.empty((count,) + self.sample_shape, dtype=self.dtype)
         else:
-            assert out.shape[1:] == self.shape[1:], (
+            assert out.shape[1:] == self.sample_shape, (
                 "'out' must have trailing shape {}".format(self.sample_shape))
             count = out.shape[0]
 
-        # TODO: should this just return the maximum possible?
         if count > samples_left:
             raise EOFError("cannot read from beyond end of input.")
 
@@ -315,24 +314,45 @@ class Base:
         sample = 0
         while sample < count:
             # For current position, get frame plus offset in that frame.
-            frame_index, sample_offset = divmod(self.offset,
-                                                self._samples_per_frame)
-
-            if frame_index != self._frame_index:
-                # Read the frame required.  Set offset at the start so
-                # that _read_frame can count on tell() being correct.
-                self.offset = frame_index * self._samples_per_frame
-                self._frame = self._read_frame(frame_index)
-                self._frame_index = frame_index
-
-            nsample = min(count - sample, len(self._frame) - sample_offset)
-            data = self._frame[sample_offset:sample_offset + nsample]
+            frame, sample_offset = self._get_frame(self.offset)
+            nsample = min(count - sample, len(frame) - sample_offset)
+            data = frame[sample_offset:sample_offset + nsample]
             # Copy to relevant part of output.
             out[sample:sample + nsample] = data
             sample += nsample
+            # Explicitly set offset (leaving get_frame free to adjust it).
             self.offset = offset0 + sample
 
         return out
+
+    def _get_frame(self, offset):
+        """Get a frame that includes given offset.
+
+        Finds the index corresponding to the needed frame, assuming frames
+        are all the same length.  If not already cached, it retrieves a
+        frame by calling ``self._read_frame(index)``.
+
+        Parameters
+        ----------
+        offset : int
+            Offset in the stream for which a frame should be found.
+
+        Returns
+        -------
+        frame : `~baseband.base.frame.FrameBase`
+            Frame holding the sample at ``offset``.
+        sample_offset : int
+            Offset within the frame corresponding to ``offset``.
+        """
+        frame_index, sample_offset = divmod(offset, self.samples_per_frame)
+        if frame_index != self._frame_index:
+            # Read the frame required. Set offset to start so that _read_frame
+            # can count on tell() being correct.
+            self.offset = frame_index * self.samples_per_frame
+            self._frame = self._read_frame(frame_index)
+            self._frame_index = frame_index
+
+        return self._frame, sample_offset
 
     def __enter__(self):
         return self
@@ -413,9 +433,9 @@ class BaseTaskBase(Base):
         if polarization is None:
             polarization = getattr(ih, 'polarization', None)
         # Sanity check on shape.
-        nframes = (shape[0] // samples_per_frame) * samples_per_frame
+        nframes = shape[0] // samples_per_frame
         assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes,) + shape[1:]
+        shape = (nframes * samples_per_frame,) + shape[1:]
 
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
@@ -449,7 +469,7 @@ class SetAttribute(BaseTaskBase):
 
     The class reads directly from the underlying stream, which means it has
     very little performance impact, but also that one cannot change the
-    ``shape``, ``frames_per_sample``, or ``dtype`` of the underlying stream.
+    ``shape``, ``samples_per_frames``, or ``dtype`` of the underlying stream.
 
     By default, all parameters are taken from the underlying stream.
 
@@ -570,7 +590,7 @@ class TaskBase(BaseTaskBase):
         # Read data from underlying filehandle.
         self.ih.seek(frame_index * self._raw_samples_per_frame)
         data = self.ih.read(self._raw_samples_per_frame)
-        # Apply function to the data.  Note that the read() function
+        # Apply function to the data.  Note that the _get_frame() function
         # in base ensures that our offset pointer is correct.
         return self.task(data)
 
