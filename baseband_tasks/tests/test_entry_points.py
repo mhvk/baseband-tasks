@@ -4,32 +4,19 @@ import types
 import importlib
 
 import pytest
+import entrypoints
 
 from .. import io, dispersion
 
 
-def needs_entrypoints(func=None):
-    # Guaranteed to be available for baseband >= 4.0.
-    try:
-        import entrypoints
-        skip = False
-    except ImportError:
-        skip = True
+# needs_entrypoints is imported in io/hdf5/tests/test_hdf5.
+needs_entrypoints = pytest.mark.xfail(
+    'hdf5' not in entrypoints.get_group_named('baseband.io')
+    and os.path.exists(os.path.join(os.path.dirname(__file__),
+                                    '..', '..', 'setup.cfg')),
+    reason="Source checkout without entrypoints; needs 'egg_info'.")
 
-    # If we're in a source checkout in which not even setup.py egg_info has
-    # been run, the entry points cannot be found so we should skip tests.
-    if (not skip and 'hdf5' not in entrypoints.get_group_named('baseband.io')
-        and os.path.exists(os.path.join(os.path.dirname(__file__),
-                                        '..', '..', 'setup.cfg'))):
-        mark = pytest.mark.xfail(reason=(
-            "Source checkout without entrypoints; needs 'egg_info'."))
-    else:
-        mark = pytest.mark.skipif(skip, reason="entrypoints not available")
-
-    return mark(func) if func else mark
-
-
-pytestmark = needs_entrypoints()
+pytestmark = needs_entrypoints
 
 
 def fake_module(group):

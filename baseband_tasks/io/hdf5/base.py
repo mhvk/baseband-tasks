@@ -7,16 +7,7 @@ keywords describing the start time, sample rate, etc., and the payload
 consisting of either plain numpy data, or data encoded following the
 VDIF standard.
 """
-try:
-    from baseband.base.base import StreamReaderBase, StreamWriterBase
-except ImportError:
-    BASEBAND_LT_4 = True
-    from baseband.vlbi_base.base import (
-        VLBIStreamReaderBase as StreamReaderBase,
-        VLBIStreamWriterBase as StreamWriterBase)
-else:
-    BASEBAND_LT_4 = False
-
+from baseband.base.base import StreamReaderBase, StreamWriterBase
 from .header import HDF5Header
 from .payload import HDF5Payload
 from .frame import HDF5Frame
@@ -28,14 +19,6 @@ __all__ = ['HDF5StreamBase', 'HDF5StreamReader', 'HDF5StreamWriter',
 
 class HDF5StreamBase:
     def __init__(self, fh_raw, header0, **kwargs):
-        if BASEBAND_LT_4:
-            kwargs.update(sample_rate=header0.sample_rate,
-                          samples_per_frame=header0.samples_per_frame,
-                          unsliced_shape=header0.sample_shape)
-            kwargs.setdefault('subset', ())
-            kwargs.setdefault('fill_value', 0.)
-            kwargs.setdefault('verify', True)
-
         if hasattr(header0, 'bps'):
             bps = header0.bps
             complex_data = header0.complex_data
@@ -122,10 +105,6 @@ class HDF5StreamWriter(HDF5StreamBase, StreamWriterBase):
         self.header0.tofile(self.fh_raw)
         payload = HDF5Payload.fromfile(self.fh_raw, self.header0)
         return HDF5Frame(self.header0, payload)
-
-    # For baseband <4.0
-    def _write_frame(self, frame, valid=True):
-        assert valid, 'cannot deal with invalid data yet'
 
     @property
     def shape(self):

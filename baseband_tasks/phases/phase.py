@@ -5,80 +5,17 @@
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import Angle, Longitude
-from astropy.time.utils import two_sum, two_product
-from astropy.utils import minversion
+from astropy.time.utils import day_frac
 
 
 __all__ = ['Phase', 'FractionalPhase']
 
-
-NUMPY_LT_1_16 = not minversion('numpy', '1.16')
 
 FRACTION_UFUNCS = {np.cos, np.sin, np.tan, np.spacing}
 
 COMPARISON_UFUNCS = {
     np.equal, np.not_equal,
     np.less, np.less_equal, np.greater, np.greater_equal}
-
-
-def day_frac(val1, val2, factor=None, divisor=None):
-    """Return the sum of ``val1`` and ``val2`` as two float64s.
-
-    The returned floats are an integer part and the fractional remainder,
-    with the latter guaranteed to be within -0.5 and 0.5 (inclusive on
-    either side, as the integer is rounded to even).
-
-    The arithmetic is all done with exact floating point operations so no
-    precision is lost to rounding error.  It is assumed the sum is less
-    than about 1e16, otherwise the remainder will be greater than 1.0.
-
-    Parameters
-    ----------
-    val1, val2 : array of float
-        Values to be summed.
-    factor : float, optional
-        If given, multiply the sum by it.
-    divisor : float, optional
-        If given, divide the sum by it.
-
-    Returns
-    -------
-    day, frac : float64
-        Integer and fractional part of val1 + val2.
-    """
-    # Note that the version of astropy >=3.2;
-    # See https://github.com/astropy/astropy/pull/8763
-    # TODO: remove when we only support astropy >=3.2.
-    #
-    # Add val1 and val2 exactly, returning the result as two float64s.
-    # The first is the approximate sum (with some floating point error)
-    # and the second is the error of the float64 sum.
-    sum12, err12 = two_sum(val1, val2)
-
-    if factor is not None:
-        sum12, carry = two_product(sum12, factor)
-        carry += err12 * factor
-        sum12, err12 = two_sum(sum12, carry)
-
-    if divisor is not None:
-        q1 = sum12 / divisor
-        p1, p2 = two_product(q1, divisor)
-        d1, d2 = two_sum(sum12, -p1)
-        d2 += err12
-        d2 -= p2
-        q2 = (d1 + d2) / divisor  # 3-part float fine here; nothing can be lost
-        sum12, err12 = two_sum(q1, q2)
-
-    # get integer fraction
-    day = np.around(sum12)
-    extra, frac = two_sum(sum12, -day)
-    frac += extra + err12
-    # This part was missed in astropy...
-    excess = np.around(frac)
-    day += excess
-    extra, frac = two_sum(sum12, -day)
-    frac += extra + err12
-    return day, frac
 
 
 def _parse_string(s):
@@ -538,19 +475,7 @@ class Phase(Angle):
         if indices.ndim == self.ndim - 1:
             indices = np.expand_dims(indices, axis)
 
-        if NUMPY_LT_1_16:
-            ndim = self.ndim
-            if axis < 0:
-                axis = axis + ndim
-
-            ai = tuple([
-                (indices if i == axis else
-                 np.arange(s).reshape((1,)*i + (s,) + (1,)*(ndim-i-1)))
-                for i, s in enumerate(self.shape)])
-            result = self[ai]
-
-        else:
-            result = np.take_along_axis(self, indices, axis)
+        result = np.take_along_axis(self, indices, axis)
 
         return result if keepdims else result.squeeze(axis)
 
@@ -708,11 +633,8 @@ class Phase(Angle):
                 return NotImplemented
 
             if phases[0].imaginary == phases[1].imaginary:
-                # Going with values allows us to properly override out,
-                # while if we stick with a Quantity, we run into a bug; see
-                # https://github.com/astropy/astropy/issues/8764
-                v0, v1 = phases[0].view(np.ndarray), phases[1].view(np.ndarray)
-                diff = (v0['int'] - v1['int']) + (v0['frac'] - v1['frac'])
+                diff = ((phases[0]['int'] - phases[1]['int'])
+                        + (phases[0]['frac'] - phases[1]['frac']))
                 return getattr(function, method)(diff, 0, **kwargs)
 
         elif ((function is np.multiply

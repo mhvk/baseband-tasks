@@ -419,8 +419,6 @@ class TestHDF5(StreamSetup):
 
 
 @needs_h5py
-@pytest.mark.skipif(not hasattr(baseband, 'io'),
-                    reason='io entry point became available in baseband 4.0')
 @needs_entrypoints
 class TestBasebandEntrypoint(StreamSetup):
     def test_open_stream(self, tmpdir):

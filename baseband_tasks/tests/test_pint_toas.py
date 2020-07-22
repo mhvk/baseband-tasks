@@ -15,8 +15,6 @@ def needs_pint(func=None):
     except ImportError:
         skip = True
     else:
-        from .iers_up_to_date import get_iers_up_to_date
-        get_iers_up_to_date(Time('J2019'))
         skip = False
 
     skipif = pytest.mark.skipif(skip, reason='pint not available')
