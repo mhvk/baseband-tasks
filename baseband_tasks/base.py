@@ -96,7 +96,6 @@ class Base:
         self._shape = shape
         self._start_time = start_time
         self._samples_per_frame = operator.index(samples_per_frame)
-        assert shape[0] % samples_per_frame == 0
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
         if frequency is not None or sideband is not None:
@@ -439,10 +438,6 @@ class BaseTaskBase(Base):
             sideband = getattr(ih, 'sideband', None)
         if polarization is None:
             polarization = getattr(ih, 'polarization', None)
-        # Sanity check on shape.
-        nframes = shape[0] // samples_per_frame
-        assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes * samples_per_frame,) + shape[1:]
 
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
@@ -588,6 +583,7 @@ class TaskBase(BaseTaskBase):
             ih_samples_per_frame = int(ih_samples_per_frame)
 
         n_sample = (ih.shape[0] // ih_samples_per_frame) * samples_per_frame
+        assert n_sample >= 1, "time per frame larger than total time in stream"
 
         if shape is None:
             shape = (n_sample,) + ih.shape[1:]
@@ -746,7 +742,10 @@ class PaddedTaskBase(BaseTaskBase):
                               "per frame, more ({}) will be added for padding."
                               .format(samples_per_frame, pad))
 
-        shape = (ih.shape[0] - pad,) + ih.sample_shape
+        n_sample = (((ih.shape[0] - pad) // samples_per_frame)
+                    * samples_per_frame)
+        assert n_sample >= 1, "time per frame larger than total time in stream"
+        shape = (n_sample,) + ih.sample_shape
         start_time = ih.start_time + self._pad_start / ih.sample_rate
         super().__init__(ih, ih_samples_per_frame=ih_samples_per_frame,
                          shape=shape, samples_per_frame=samples_per_frame,
