@@ -533,10 +533,14 @@ class TaskBase(BaseTaskBase):
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.  If
-        not given, or if the first entry equals ``-1``, the number of
-        complete samples is inferred from the number of frames implied
-        ``ih_samples_per_frame``, combined with ``samples_per_frame``.
-        The default for the sample shape is that of the underlying stream.
+        not given, the sample shape is that of the underlying stream,
+        and the number of complete samples is inferred from the number
+        of frames implied by ``ih_samples_per_frame``, combined with
+        ``samples_per_frame``. The latter inference also happens if
+        the first entry is ``-1``. If a shape inconsistent with an
+        integer number of frames is given, the task should be able to
+        deal with a partial frame (which, when the sample rate is reduced,
+        will always contain an integer multiple of the reduction factor).
     sample_rate : `~astropy.units.Quantity`, optional
         With units of a rate.  If not given, taken from the underlying
         stream.
@@ -583,14 +587,17 @@ class TaskBase(BaseTaskBase):
                          shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          **kwargs)
+        alignment = max(1, int(sample_rate_ratio))
+        self._ih_stop = (self.ih.shape[0] // alignment) * alignment
 
     def _seek_frame(self, frame_index):
-        self.ih.seek(frame_index * self._ih_samples_per_frame)
+        return self.ih.seek(frame_index * self._ih_samples_per_frame)
 
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.
-        self._seek_frame(frame_index)
-        data = self.ih.read(self._ih_samples_per_frame)
+        start = self._seek_frame(frame_index)
+        stop = min(start + self._ih_samples_per_frame, self._ih_stop)
+        data = self.ih.read(stop-start)
         # Apply function to the data.  Note that the _get_frame() function
         # in base ensures that our offset pointer is correct.
         return self.task(data)
@@ -740,4 +747,4 @@ class PaddedTaskBase(TaskBase):
                          start_time=start_time, **kwargs)
 
     def _seek_frame(self, frame_index):
-        self.ih.seek(frame_index * self.samples_per_frame)
+        return self.ih.seek(frame_index * self.samples_per_frame)
