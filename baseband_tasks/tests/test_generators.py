@@ -70,6 +70,21 @@ class TestGenerator(StreamBase):
             assert np.all(sh.sideband == sideband)
             assert np.all(sh.polarization == polarization)
 
+    def test_sample_slice(self):
+        sh = StreamGenerator(self.my_source,
+                             shape=self.shape, start_time=self.start_time,
+                             sample_rate=self.sample_rate,
+                             samples_per_frame=1)
+        sliced = sh[-400:]
+        assert sliced.shape == (400,)+sh.sample_shape
+        assert abs(sliced.stop_time - sh.stop_time) < 1.*u.ns
+        assert abs(sliced.start_time
+                   - (sh.stop_time - 400/sh.sample_rate)) < 1.*u.ns
+        sh.seek(-400, 2)
+        expected = sh.read()
+        data = sliced.read()
+        assert np.all(data == expected)
+
     def test_exceptions(self):
         with StreamGenerator(self.my_source,
                              shape=self.shape, start_time=self.start_time,
@@ -258,6 +273,17 @@ class TestNoise:
             # This used to fail, as the state was reset.  Regression test.
             assert not np.any(d2 == d4)
             assert np.all(d3 == d3_2)
+
+    @pytest.mark.parametrize('item', [slice(-400, None), slice(5, 15)])
+    def test_sample_slice(self, item):
+        sh = NoiseGenerator(seed=self.seed,
+                            shape=self.shape, start_time=self.start_time,
+                            sample_rate=self.sample_rate,
+                            samples_per_frame=10, dtype=np.complex128)
+        expected = sh.read()[item]
+        sliced = sh[item]
+        data = sliced.read()
+        assert np.all(data == expected)
 
     def test_use_as_source(self):
         """Test that noise routine with squarer gives expected levels."""

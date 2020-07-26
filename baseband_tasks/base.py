@@ -353,6 +353,11 @@ class Base:
 
         return self._frame, sample_offset
 
+    def __getitem__(self, item):
+        from .shaping import GetSlice
+
+        return GetSlice(self, item)
+
     def __enter__(self):
         return self
 
