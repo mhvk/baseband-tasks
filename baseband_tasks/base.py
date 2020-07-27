@@ -96,7 +96,6 @@ class Base:
         self._shape = shape
         self._start_time = start_time
         self._samples_per_frame = operator.index(samples_per_frame)
-        assert shape[0] % samples_per_frame == 0
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
         if frequency is not None or sideband is not None:
@@ -387,6 +386,8 @@ class BaseTaskBase(Base):
     ----------
     ih : stream handle
         Handle of a stream reader or another task.
+    ih_samples_per_frame : int, optional
+        Number of input samples which should be dealt with in one go.
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
         of complete samples, and the remainder the sample shape.
@@ -395,7 +396,8 @@ class BaseTaskBase(Base):
     sample_rate : `~astropy.units.Quantity`, optional
         With units of a rate.
     samples_per_frame : int, optional
-        Number of samples to be read and processed in one go.
+        Number of output samples produced per frame.  By default, equal
+        to the number of input samples.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.
@@ -411,11 +413,15 @@ class BaseTaskBase(Base):
 
     """
 
-    def __init__(self, ih, *,
+    def __init__(self, ih, *, ih_samples_per_frame=None,
                  start_time=None, shape=None, sample_rate=None,
                  samples_per_frame=None, frequency=None, sideband=None,
                  polarization=None, dtype=None):
         self.ih = ih
+        if ih_samples_per_frame is None:
+            ih_samples_per_frame = ih.samples_per_frame
+        self._ih_samples_per_frame = ih_samples_per_frame
+
         if shape is None:
             shape = ih.shape
         if start_time is None:
@@ -423,7 +429,7 @@ class BaseTaskBase(Base):
         if sample_rate is None:
             sample_rate = ih.sample_rate
         if samples_per_frame is None:
-            samples_per_frame = ih.samples_per_frame
+            samples_per_frame = self._ih_samples_per_frame
         if dtype is None:
             dtype = ih.dtype
         if frequency is None:
@@ -432,10 +438,6 @@ class BaseTaskBase(Base):
             sideband = getattr(ih, 'sideband', None)
         if polarization is None:
             polarization = getattr(ih, 'polarization', None)
-        # Sanity check on shape.
-        nframes = shape[0] // samples_per_frame
-        assert nframes > 0, "time per frame larger than total time in stream"
-        shape = (nframes * samples_per_frame,) + shape[1:]
 
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
@@ -524,72 +526,78 @@ class TaskBase(BaseTaskBase):
     ----------
     ih : stream handle
         Handle of a stream reader or another task.
+    ih_samples_per_frame : int, optional
+        Number of input samples which should be dealt with in one go.
+        If not given, inferred from ``samples_per_frame``; if that
+        is also not given, taken from the underlying stream.
     shape : tuple, optional
         Overall shape of the stream, with first entry the total number
-        of complete samples, and the remainder the sample shape.  By
-        default, identical to the shape of the underlying stream.
+        of complete samples, and the remainder the sample shape.  If
+        not given, the sample shape is that of the underlying stream,
+        and the number of complete samples is inferred from the number
+        of frames implied by ``ih_samples_per_frame``, combined with
+        ``samples_per_frame``. The latter inference also happens if
+        the first entry is ``-1``. If a shape inconsistent with an
+        integer number of frames is given, the task should be able to
+        deal with a partial frame (which, when the sample rate is reduced,
+        will always contain an integer multiple of the reduction factor).
     sample_rate : `~astropy.units.Quantity`, optional
         With units of a rate.  If not given, taken from the underlying
         stream.
     samples_per_frame : int, optional
-        Number of samples the task should handle in one go.  If given,
-        ``shape`` will be adjusted to make the total number of samples
-        an integer multiple of ``samples_per_frame``.  If not given,
-        the number from the underlying stream.
-    frequency : `~astropy.units.Quantity`, optional
-        Frequencies for each channel.  Should be broadcastable to the
-        sample shape.  Default: taken from the underlying stream, if available.
-    sideband : array, optional
-        Whether frequencies are upper (+1) or lower (-1) sideband.
-        Should be broadcastable to the sample shape.
-        Default: taken from the underlying stream, if available.
-    polarization : array or (nested) list of char, optional
-        Polarization labels.  Should broadcast to the sample shape,
-        i.e., the labels are in the correct axis.  For instance,
-        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: taken from the
-        underlying stream, if available.
-    dtype : `~numpy.dtype`, optional
-        Output dtype.  If not given, the dtype of the underlying stream.
+        Number of samples the task produces per frame.  If not given,
+        inferred from the input number of samples using the ratio of
+        the ``sample_rate`` passed in and that of the underlying stream.
+    **kwargs
+        Possible further arguments; see `~baseband_tasks.base.BaseTaskBase`.
     """
 
-    def __init__(self, ih, *,
+    def __init__(self, ih, *, ih_samples_per_frame=None,
                  shape=None, sample_rate=None, samples_per_frame=None,
-                 frequency=None, sideband=None, polarization=None,
-                 dtype=None):
+                 **kwargs):
+
         if sample_rate is None:
             sample_rate = ih.sample_rate
             sample_rate_ratio = 1.
         else:
             sample_rate_ratio = (ih.sample_rate / sample_rate).to(1).value
         if samples_per_frame is None:
-            (samples_per_frame, r) = divmod(ih.samples_per_frame
-                                            / sample_rate_ratio, 1.)
-            assert r == 0, "inferred samples per frame must be integer"
+            if ih_samples_per_frame is None:
+                ih_samples_per_frame = ih.samples_per_frame
+            samples_per_frame = ih_samples_per_frame / sample_rate_ratio
+            assert samples_per_frame % 1 == 0, (
+                "inferred samples per frame must be integer")
             samples_per_frame = int(samples_per_frame)
-            self._raw_samples_per_frame = ih.samples_per_frame
-        else:
-            (raw_samples_per_frame, r) = divmod(samples_per_frame
-                                                * sample_rate_ratio, 1.)
-            assert r == 0, "inferred raw samples per frame must be integer"
-            self._raw_samples_per_frame = int(raw_samples_per_frame)
 
-        nraw_frames = ih.shape[0] // self._raw_samples_per_frame
-        if shape is None:
-            shape = (nraw_frames * samples_per_frame,) + ih.shape[1:]
-        else:
-            assert shape[0] <= nraw_frames * samples_per_frame, \
-                "passed in shape[0] too large"
+        elif ih_samples_per_frame is None:
+            ih_samples_per_frame = samples_per_frame * sample_rate_ratio
+            assert ih_samples_per_frame % 1 == 0, (
+                "inferred input samples per frame must be integer")
+            ih_samples_per_frame = int(ih_samples_per_frame)
 
-        super().__init__(ih=ih, shape=shape,
-                         sample_rate=sample_rate,
+        assert ih_samples_per_frame <= ih.shape[0], (
+            "time per frame larger than total time in stream")
+
+        if shape is None or shape[0] == -1:
+            ns = ((ih.shape[0] // ih_samples_per_frame)
+                  * samples_per_frame)
+            shape = (ns,) + (ih.shape[1:] if shape is None else shape[1:])
+
+        super().__init__(ih=ih, ih_samples_per_frame=ih_samples_per_frame,
+                         shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization, dtype=dtype)
+                         **kwargs)
+        alignment = max(1, int(sample_rate_ratio))
+        self._ih_stop = (self.ih.shape[0] // alignment) * alignment
+
+    def _seek_frame(self, frame_index):
+        return self.ih.seek(frame_index * self._ih_samples_per_frame)
 
     def _read_frame(self, frame_index):
         # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self._raw_samples_per_frame)
-        data = self.ih.read(self._raw_samples_per_frame)
+        start = self._seek_frame(frame_index)
+        stop = min(start + self._ih_samples_per_frame, self._ih_stop)
+        data = self.ih.read(stop-start)
         # Apply function to the data.  Note that the _get_frame() function
         # in base ensures that our offset pointer is correct.
         return self.task(data)
@@ -681,7 +689,7 @@ class Task(TaskBase):
         super().__init__(ih, **kwargs)
 
 
-class PaddedTaskBase(BaseTaskBase):
+class PaddedTaskBase(TaskBase):
     """Base for tasks which need more points than they produce.
 
     Like `~baseband_tasks.base.TaskBase`, subclasses should define:
@@ -699,8 +707,8 @@ class PaddedTaskBase(BaseTaskBase):
     pad_start, pad_end : int
         Padding to apply at the start and end.  Default: 0.
     samples_per_frame : int, optional
-        Number of samples which should be dealt with in one go. The number of
-        output samples per frame will be smaller by the amount of padding.
+        Number of output samples which should be produced in each frame.
+        The number of input samples will be larger by the padding.
         If not given, the minimum power of 2 needed to get at least 75%
         efficiency.
     **kwargs
@@ -720,26 +728,23 @@ class PaddedTaskBase(BaseTaskBase):
             if samples_per_frame is None:
                 # Calculate the number of samples that ensures >75% efficiency:
                 # use 4 times power of two just above pad.
-                samples_per_frame = 2 ** (int((np.ceil(np.log2(pad)))) + 2)
-            elif pad >= samples_per_frame:
-                raise ValueError("need more than {} samples per frame to have "
-                                 "enough padding.".format(pad))
-            elif pad > samples_per_frame / 2.:
-                warnings.warn("task will be inefficient since of {} samples "
-                              "per frame, {} will be lost due to padding."
+                ih_samples_per_frame = 2**(int((np.ceil(np.log2(pad))))+2)
+                samples_per_frame = ih_samples_per_frame - pad
+            else:
+                ih_samples_per_frame = samples_per_frame + pad
+
+            if pad > samples_per_frame:
+                warnings.warn("task will be inefficient; for {} samples "
+                              "per frame, more ({}) will be added for padding."
                               .format(samples_per_frame, pad))
 
-            # Subtract padding since that's actually produced per frame.
-            samples_per_frame -= pad
+        n_sample = (((ih.shape[0] - pad) // samples_per_frame)
+                    * samples_per_frame)
+        shape = (n_sample,) + ih.sample_shape
+        start_time = ih.start_time + self._pad_start / ih.sample_rate
+        super().__init__(ih, ih_samples_per_frame=ih_samples_per_frame,
+                         shape=shape, samples_per_frame=samples_per_frame,
+                         start_time=start_time, **kwargs)
 
-        shape = (ih.shape[0] - pad,) + ih.sample_shape
-        super().__init__(ih, shape=shape, samples_per_frame=samples_per_frame,
-                         **kwargs)
-        self._padded_samples_per_frame = self.samples_per_frame + pad
-        self._start_time += self._pad_start / ih.sample_rate
-
-    def _read_frame(self, frame_index):
-        # Read data from underlying filehandle.
-        self.ih.seek(frame_index * self.samples_per_frame)
-        data = self.ih.read(self._padded_samples_per_frame)
-        return self.task(data)
+    def _seek_frame(self, frame_index):
+        return self.ih.seek(frame_index * self.samples_per_frame)

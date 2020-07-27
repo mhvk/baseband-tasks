@@ -62,7 +62,7 @@ class TestResampleReal:
                               10.*u.ms, 0.015*u.s,
                               Time('2010-11-12T13:14:15.013')))
     def test_resample(self, offset):
-        ih = Resample(self.part_fh, offset, samples_per_frame=512)
+        ih = Resample(self.part_fh, offset, samples_per_frame=511)
         # Always lose 1 sample per frame.
         assert ih.shape == ((self.part_fh.shape[0] - 1,)
                             + self.part_fh.sample_shape)

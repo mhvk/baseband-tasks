@@ -18,14 +18,14 @@ class ReshapeTime(TaskBase):
     `ReshapeTime` simply reshapes blocks of baseband data into frames.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1, **kwargs):
+    def __init__(self, ih, n, samples_per_frame=1, fix_shape=False,
+                 **kwargs):
 
         n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
         sample_rate = ih.sample_rate / n
-
-        nsample = samples_per_frame * (ih.shape[0] // n // samples_per_frame)
-        super().__init__(ih, shape=(nsample, n) + ih.shape[1:],
+        sh0 = ih.shape[0] // n if fix_shape else -1
+        super().__init__(ih, shape=(sh0, n) + ih.shape[1:],
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame, **kwargs)
 
@@ -56,10 +56,10 @@ class SquareHat(PaddedTaskBase):
     `SquareHat` simply convolves with a set of 1s of given length.
     """
 
-    def __init__(self, ih, n, offset=0, samples_per_frame=None):
+    def __init__(self, ih, n, offset=0, **kwargs):
         self._n = n
         super().__init__(ih, pad_start=n-1-offset, pad_end=offset,
-                         samples_per_frame=samples_per_frame)
+                         **kwargs)
 
     def task(self, data):
         size = data.shape[0]
@@ -153,17 +153,24 @@ class TestTaskBase(UseVDIFSample):
     def convert_time_offset(offset, sample_rate):
         return int((offset * sample_rate).to(u.one).round())
 
-    @pytest.mark.parametrize(('n', 'samples_per_frame'),
-                             tuple(itertools.product([256, 337], [1, 7, 16])))
-    def test_taskbase(self, n, samples_per_frame):
+    @pytest.mark.parametrize(('n', 'samples_per_frame', 'fix_shape'),
+                             tuple(itertools.product(
+                                 [256, 337],
+                                 [1, 7, 16],
+                                 [True, False])))
+    def test_taskbase(self, n, samples_per_frame, fix_shape):
         """Test properties and methods of TaskBase, including
-        self-consistency with varying ``n`` and ``samples_per_frame``.
+        self-consistency with varying ``n`` and ``samples_per_frame``,
+        and checking that we can get the full data if we fix the shape.
         """
         fh = self.fh
-        rt = ReshapeTime(fh, n, samples_per_frame=samples_per_frame)
+        rt = ReshapeTime(fh, n, samples_per_frame=samples_per_frame,
+                         fix_shape=fix_shape)
         # Check sample pointer.
         assert rt.sample_rate == fh.sample_rate / n
-        nsample = samples_per_frame * (fh.shape[0] // n // samples_per_frame)
+        nsample = fh.shape[0] // n
+        if not fix_shape:
+            nsample = (nsample // samples_per_frame) * samples_per_frame
         assert rt.shape == (nsample, n) + fh.sample_shape
         assert rt.size == np.prod(rt.shape)
         assert rt.ndim == fh.ndim + 1
@@ -421,7 +428,5 @@ class TestPaddedTaskBase(UseVDIFSample):
             SquareHat(self.fh, -1)
         with pytest.raises(ValueError):
             SquareHat(self.fh, 10, offset=-1)
-        with pytest.raises(ValueError):
-            SquareHat(self.fh, 10, samples_per_frame=9)
         with pytest.warns(UserWarning, match='inefficient'):
-            SquareHat(self.fh, 10, samples_per_frame=11)
+            SquareHat(self.fh, 10, samples_per_frame=8)

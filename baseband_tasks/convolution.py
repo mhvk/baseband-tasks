@@ -25,17 +25,17 @@ class ConvolveSamples(PaddedTaskBase):
         of 0, a given sample has the same time as the convolution of the filter
         with all preceding samples.
     samples_per_frame : int, optional
-        Number of samples which should be convolved in one go. The number of
-        output convolved samples per frame will be smaller to avoid wrapping.
-        If not given, the minimum power of 2 needed to get at least 75%
-        efficiency.
+        Number of convolved samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
 
     See Also
     --------
     Convolve : convolution in the Fourier domain (usually faster)
     """
 
-    def __init__(self, ih, response, offset=0, samples_per_frame=None):
+    def __init__(self, ih, response, *, offset=0, samples_per_frame=None):
         if response.ndim == 1 and ih.ndim > 1:
             response = response.reshape(response.shape[:1]
                                         + (1,) * (ih.ndim - 1))
@@ -77,10 +77,10 @@ class Convolve(ConvolveSamples):
         of 0, a given sample has the same time as the convolution of the filter
         with all preceding samples.
     samples_per_frame : int, optional
-        Number of samples which should be convolved in one go. The number of
-        output convolved samples per frame will be smaller to avoid wrapping.
-        If not given, the minimum power of 2 needed to get at least 75%
-        efficiency.
+        Number of convolved samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
 
     See Also
     --------
@@ -93,14 +93,14 @@ class Convolve(ConvolveSamples):
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.
         self._FFT = fft_maker.get()
-        self._fft = self._FFT(shape=(self._padded_samples_per_frame,)
+        self._fft = self._FFT(shape=(self._ih_samples_per_frame,)
                               + self.ih.sample_shape, dtype=self.ih.dtype,
                               sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
 
     @lazyproperty
     def _ft_response(self):
-        long_response = np.zeros((self._padded_samples_per_frame,)
+        long_response = np.zeros((self._ih_samples_per_frame,)
                                  + self._response.shape[1:], self.dtype)
         long_response[:self._response.shape[0]] = self._response
         fft = self._FFT(shape=long_response.shape, dtype=self.dtype)

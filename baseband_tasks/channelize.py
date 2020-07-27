@@ -58,8 +58,7 @@ class Channelize(TaskBase):
                               ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
         sample_rate = ih.sample_rate / n
-        n_frames = (ih.shape[0] // n // samples_per_frame) * samples_per_frame
-        shape = (n_frames,) + self._fft.frequency_shape[1:]
+        shape = (-1,) + self._fft.frequency_shape[1:]
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
@@ -102,8 +101,9 @@ class Dechannelize(TaskBase):
         for complex output data, the same as the number of channels.
         For real output data, the number has to be passed in.
     samples_per_frame : int, optional
-        Number of complete output samples per frame.  Default: inferred from
-        underlying stream, i.e., ``ih.samples_per_frame * ih.shape[1]``.
+        Number of output samples to produce in one go.  Rounded to the
+        nearest multiple of ``n``. Default: inferred from underlying stream,
+        i.e., ``ih.samples_per_frame * n``.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each output channel.  Default: inferred from ``ih``
         (if available).
@@ -138,18 +138,23 @@ class Dechannelize(TaskBase):
         else:
             n = operator.index(n)
 
+        if samples_per_frame is None:
+            ih_samples_per_frame = ih.samples_per_frame
+        else:
+            ih_samples_per_frame = max(int(round(samples_per_frame / n)), 1)
+
         # Initialize dechannelizer.
         self._FFT = fft_maker.get()
-        self._ifft = self._FFT((ih.samples_per_frame, n) + ih.sample_shape[1:],
+        self._ifft = self._FFT((ih_samples_per_frame, n) + ih.sample_shape[1:],
                                dtype=dtype, axis=1, direction='backward')
 
         sample_rate = ih.sample_rate * n
         if frequency is None and hasattr(ih, 'frequency'):
             frequency = ih.frequency[0]
 
-        super().__init__(ih, shape=(ih.shape[0] * n,) + ih.shape[2:],
+        super().__init__(ih, shape=(-1,) + ih.shape[2:],
                          sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame,
+                         ih_samples_per_frame=ih_samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          dtype=self._ifft.time_dtype)
 

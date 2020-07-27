@@ -26,10 +26,10 @@ class Disperse(PaddedTaskBase):
         Frequency to which the data should be dispersed.  Can be an array.
         By default, the mean frequency.
     samples_per_frame : int, optional
-        Number of samples which should be dispersed in one go. The number of
-        output dispersed samples per frame will be smaller to avoid wrapping.
-        If not given, the minimum power of 2 needed to get at least 75%
-        efficiency.
+        Number of dispersed samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih`` (channelized frequencies will
         be calculated).  Default: taken from ``ih`` (if available).
@@ -42,7 +42,7 @@ class Disperse(PaddedTaskBase):
     baseband_tasks.fourier.fft_maker : to select the FFT package used.
     """
 
-    def __init__(self, ih, dm, reference_frequency=None,
+    def __init__(self, ih, dm, *, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None):
         dm = DispersionMeasure(dm)
         if frequency is None:
@@ -97,7 +97,7 @@ class Disperse(PaddedTaskBase):
 
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
-        self._fft = fft_maker(shape=(self._padded_samples_per_frame,)
+        self._fft = fft_maker(shape=(self._ih_samples_per_frame,)
                               + self.ih.sample_shape, dtype=self.ih.dtype,
                               sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
@@ -106,7 +106,7 @@ class Disperse(PaddedTaskBase):
         self._sample_offset = sample_offset
         self._start_time += sample_offset / ih.sample_rate
         self._pad_slice = slice(self._pad_start,
-                                self._padded_samples_per_frame - self._pad_end)
+                                self._pad_start + self.samples_per_frame)
 
     @lazyproperty
     def phase_factor(self):
@@ -153,10 +153,10 @@ class Dedisperse(Disperse):
         By default, the mean frequency.  If one doesn't want to change the
         start time, choose the maximum frequency.
     samples_per_frame : int, optional
-        Number of samples which should be dedispersed in one go. The number of
-        output dedispersed samples per frame will be smaller to avoid wrapping.
-        If not given, the minimum power of 2 needed to get at least 75%
-        efficiency.
+        Number of dedispersed samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih`` (channelized frequencies will
         be calculated).  Default: taken from ``ih`` (if available).
@@ -172,5 +172,6 @@ class Dedisperse(Disperse):
 
     def __init__(self, ih, dm, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None):
-        super().__init__(ih, -dm, reference_frequency, samples_per_frame,
-                         frequency, sideband)
+        super().__init__(ih, -dm, reference_frequency=reference_frequency,
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband)

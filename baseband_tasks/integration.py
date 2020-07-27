@@ -118,7 +118,7 @@ class Integrate(BaseTaskBase):
                 step = ih_n_sample
 
             sample_rate = ih.sample_rate / step
-            shape = (ih_n_sample // step,) + ih.sample_shape
+            n_sample = ih_n_sample // step
             # Initialize values for _get_offsets.
             self._mean_offset_size = 1. / step
 
@@ -137,10 +137,13 @@ class Integrate(BaseTaskBase):
 
             sample_rate = 1. / step
             n_sample = ((stop - start) / step).to_value(u.one)
-            shape = (int(n_sample),) + ih.sample_shape
             # Initialize values for _get_offsets.
             self._mean_offset_size = n_sample / ih_n_sample
             self._start = start
+
+        n_sample = (n_sample // samples_per_frame) * samples_per_frame
+        assert n_sample >= 1, "time per frame larger than total time in stream"
+        shape = (int(n_sample),) + ih.sample_shape
 
         if dtype is None:
             if average:
