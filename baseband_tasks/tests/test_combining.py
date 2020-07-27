@@ -34,7 +34,8 @@ class TestConcatenate(UseVDIFSampleWithAttrs):
         assert_array_equal(data, expected_data)
         ch.close()
 
-    def test_time_offsets(self):
+    @pytest.mark.parametrize('samples_per_frame', [None, 10, 10000])
+    def test_time_offsets(self, samples_per_frame):
         fh = self.fh
         s1 = GetItem(fh, slice(None, 4))
         s2 = SetAttribute(GetItem(fh, slice(4, None)),
@@ -42,9 +43,13 @@ class TestConcatenate(UseVDIFSampleWithAttrs):
         fh_data = self.fh.read()
         expected_data = np.concatenate((fh_data[10:, :4], fh_data[:-10, 4:]),
                                        axis=1)
-        ch = Concatenate([s1, s2], samples_per_frame=10)
+        ch = Concatenate([s1, s2], samples_per_frame=samples_per_frame)
         assert ch.start_time == s2.start_time
         assert ch.shape == (fh.shape[0] - 10,) + fh.sample_shape
+        if samples_per_frame is None:
+            assert ch.samples_per_frame == s1.samples_per_frame
+        else:
+            assert ch.samples_per_frame == samples_per_frame
         assert ch.sample_rate == fh.sample_rate
         assert ch.dtype == fh.dtype
         assert_array_equal(ch.frequency, fh.frequency)
