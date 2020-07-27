@@ -22,21 +22,23 @@ class ChangeSampleShapeBase(TaskBase):
     ----------
     ih : task or `baseband` stream reader
         Input data stream.
+    **kwargs
+        Possible further arguments; see `~baseband_tasks.base.TaskBase`.
     """
 
-    def __init__(self, ih):
+    def __init__(self, ih, **kwargs):
         # Check operation is possible
         a = np.empty((7,) + ih.sample_shape, dtype='?')
         try:
             a = self.task(a)
         except Exception as exc:
-            exc.args += ("stream samples with shape {} cannot be changed as "
-                         "required".format(ih.sample_shape),)
+            exc.args += ("stream samples with shape {} cannot be changed "
+                         "as required".format(ih.sample_shape),)
             raise
         if a.shape[0] != 7:
-            raise ValueError("change in shape affected the sample axis (0).")
+            raise ValueError("shape change affected the sample axis (0).")
 
-        super().__init__(ih, shape=ih.shape[:1] + a.shape[1:])
+        super().__init__(ih, shape=ih.shape[:1] + a.shape[1:], **kwargs)
 
     def _check_shape(self, value):
         """Broadcast value to the sample shape and apply shape changes.
@@ -105,11 +107,6 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
         array(1, dtype=int8)
         >>> fh.close()
     """
-    # Override __init__ only to get rid of kwargs of Task, since these cannot
-    # be passed on to ChangeSampleShapeBase anyway.
-
-    def __init__(self, ih, task, method=None):
-        super().__init__(ih, task, method=method)
 
 
 class Reshape(ChangeSampleShapeBase):
