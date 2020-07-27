@@ -301,6 +301,20 @@ class TestHDF5(StreamSetup):
             data = f5r.read()
             assert_array_equal(data, self.data)
 
+    def test_stream_as_input(self, tmpdir):
+        # This is not perfect, since unless one gives a template, a writer
+        # tries to unsqueeze data by default, which the wrapper cannot handle.
+        # But as a proof of principle it works.  TODO: improve!
+        stream = self.wrapped
+        filename = str(tmpdir.join('copy.hdf5'))
+        with hdf5.open(filename, 'w', template=stream) as f5w:
+            f5w.write(stream)
+
+        with hdf5.open(filename, 'r') as f5r:
+            self.check(stream, f5r)
+            data = f5r.read()
+            assert_array_equal(data, self.data)
+
     def test_stream_as_f2(self, tmpdir):
         stream = self.wrapped
         filename = str(tmpdir.join('copy.hdf5'))
