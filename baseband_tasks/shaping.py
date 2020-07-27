@@ -5,7 +5,8 @@ from .base import TaskBase, Task, check_broadcast_to, simplify_shape
 
 
 __all__ = ['ChangeSampleShapeBase', 'ChangeSampleShape',
-           'Reshape', 'Transpose', 'ReshapeAndTranspose', 'GetItem']
+           'Reshape', 'Transpose', 'ReshapeAndTranspose', 'GetItem',
+           'GetSlice']
 
 
 class ChangeSampleShapeBase(TaskBase):
@@ -21,21 +22,23 @@ class ChangeSampleShapeBase(TaskBase):
     ----------
     ih : task or `baseband` stream reader
         Input data stream.
+    **kwargs
+        Possible further arguments; see `~baseband_tasks.base.TaskBase`.
     """
 
-    def __init__(self, ih):
+    def __init__(self, ih, **kwargs):
         # Check operation is possible
         a = np.empty((7,) + ih.sample_shape, dtype='?')
         try:
             a = self.task(a)
         except Exception as exc:
-            exc.args += ("stream samples with shape {} cannot be changed as "
-                         "required".format(ih.sample_shape),)
+            exc.args += ("stream samples with shape {} cannot be changed "
+                         "as required".format(ih.sample_shape),)
             raise
         if a.shape[0] != 7:
-            raise ValueError("change in shape affected the sample axis (0).")
+            raise ValueError("shape change affected the sample axis (0).")
 
-        super().__init__(ih, shape=ih.shape[:1] + a.shape[1:])
+        super().__init__(ih, shape=ih.shape[:1] + a.shape[1:], **kwargs)
 
     def _check_shape(self, value):
         """Broadcast value to the sample shape and apply shape changes.
@@ -75,6 +78,7 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
     Transpose : to transpose sample axes
     ReshapeAndTranspose : to reshape the samples and transpose the axes
     GetItem : index or slice the samples
+    GetSlice : slice the time axis and index or slice the samples
 
     Examples
     --------
@@ -103,11 +107,6 @@ class ChangeSampleShape(Task, ChangeSampleShapeBase):
         array(1, dtype=int8)
         >>> fh.close()
     """
-    # Override __init__ only to get rid of kwargs of Task, since these cannot
-    # be passed on to ChangeSampleShapeBase anyway.
-
-    def __init__(self, ih, task, method=None):
-        super().__init__(ih, task, method=method)
 
 
 class Reshape(ChangeSampleShapeBase):
@@ -128,6 +127,7 @@ class Reshape(ChangeSampleShapeBase):
     Transpose : to transpose sample axes
     ReshapeAndTranspose : to reshape the samples and transpose the axes
     GetItem : index or slice the samples
+    GetSlice : slice the time axis and index or slice the samples
     ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
@@ -186,6 +186,7 @@ class Transpose(ChangeSampleShapeBase):
     Reshape : to reshape the samples
     ReshapeAndTranspose : to reshape the samples and transpose the axes
     GetItem : index or slice the samples
+    GetSlice : slice the time axis and index or slice the samples
     ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
@@ -251,6 +252,7 @@ class ReshapeAndTranspose(Reshape):
     Reshape : to just reshape the samples
     Transpose : to just transpose sample axes
     GetItem : index or slice the samples
+    GetSlice : slice the time axis and index or slice the samples
     ChangeSampleShape : to change the samples with a user-supplied function.
 
     Examples
@@ -302,6 +304,7 @@ class GetItem(ChangeSampleShapeBase):
 
     See Also
     --------
+    GetSlice : slice the time axis and index or slice the samples
     Reshape : to reshape the samples
     Transpose : to transpose sample axes
     ReshapeAndTranspose : to reshape the samples and transpose the axes
@@ -341,3 +344,60 @@ class GetItem(ChangeSampleShapeBase):
     def task(self, data):
         """Get the preset item from the data."""
         return data[self._item]
+
+
+class GetSlice(GetItem):
+    """Slice a stream and index or slice its samples.
+
+    Useful to select part of a stream, possibly in combination with selecting,
+    e.g., a specific frequency band or polariazation.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream.
+    item : slice or tuple of slice, int, or array of int
+        Anything that can slice a numpy array.  Should be a slice for the
+        time axis.
+
+    See Also
+    --------
+    GetItem : index or slice the samples, without slicing the time axis
+    Reshape : to reshape the samples
+    Transpose : to transpose sample axes
+    ReshapeAndTranspose : to reshape the samples and transpose the axes
+    ChangeSampleShape : to change the samples with a user-supplied function.
+
+    Examples
+    --------
+    The VDIF example file from ``Baseband`` has 8 threads.  To ignore the
+    first and last 10 samples, one could do::
+
+        >>> import numpy as np, astropy.units as u, baseband
+        >>> from baseband_tasks.shaping import GetSlice
+        >>> fh = baseband.open(baseband.data.SAMPLE_VDIF)
+        >>> gsh = GetSlice(fh, slice(10, -10))
+        >>> gsh.shape
+        (39980, 8)
+        >>> fh.close()
+    """
+
+    def __init__(self, ih, item):
+        if not isinstance(item, tuple):
+            item = (item,)
+        assert isinstance(item[0], slice), "only support slice for time axis"
+        start, stop, step = item[0].indices(ih.shape[0])
+        assert step == 1, "do not support step for time slice"
+        assert stop > start, "empty time slice"
+
+        super().__init__(ih, item[1:])
+        if not item[1:]:
+            # Override task to avoid needless view taking.
+            self.task = lambda data: data
+
+        self._start = start
+        self._start_time = self.start_time + start / self.sample_rate
+        self._shape = (stop-start,)+self.shape[1:]
+
+    def _get_frame(self, offset):
+        return super()._get_frame(self._start + offset)

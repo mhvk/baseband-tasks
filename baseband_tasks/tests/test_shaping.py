@@ -7,7 +7,7 @@ import astropy.units as u
 
 from ..base import SetAttribute
 from ..shaping import (Reshape, Transpose, ReshapeAndTranspose,
-                       ChangeSampleShape, GetItem)
+                       ChangeSampleShape, GetItem, GetSlice)
 
 from .common import UseVDIFSampleWithAttrs
 
@@ -217,3 +217,19 @@ class TestGetItem(UseVDIFSampleWithAttrs):
             GetItem(self.fh, 10)
         with pytest.raises(IndexError):
             GetItem(self.fh, (1, 1))
+
+
+class TestGetSlice(UseVDIFSampleWithAttrs):
+    # Quite a few more tests in test_base for __getitem__.
+
+    def test_example(self):
+        """Selecting time and from both axes of two-dimensional samples."""
+        rh = Reshape(self.fh, (4, 2))  # freq, pol
+        gsh = GetSlice(rh, (slice(10, -10), slice(None, 2), 0))
+        assert gsh.shape == (rh.shape[0] - 20, 2)
+        assert abs(gsh.start_time
+                   - (rh.start_time + 10/rh.sample_rate)) < 1.*u.ns
+        assert gsh.frequency.shape == (2,)
+        assert_array_equal(gsh.frequency, rh.frequency[:2].squeeze())
+        assert gsh.polarization.shape == ()
+        assert_array_equal(gsh.polarization, rh.polarization[0])

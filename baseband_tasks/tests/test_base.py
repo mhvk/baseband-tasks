@@ -430,3 +430,44 @@ class TestPaddedTaskBase(UseVDIFSample):
             SquareHat(self.fh, 10, offset=-1)
         with pytest.warns(UserWarning, match='inefficient'):
             SquareHat(self.fh, 10, samples_per_frame=8)
+
+
+class TestSlicing(UseVDIFSample):
+    @pytest.mark.parametrize('cls,kwargs', [
+        (Multiply, dict(factor=2)),
+        (ReshapeTime, dict(n=5, samples_per_frame=2, fix_shape=True)),
+        (ReshapeTime, dict(n=5, samples_per_frame=2, fix_shape=False)),
+        (SquareHat, dict(n=3)),
+        (SetAttribute,
+         dict(frequency=311.25*u.MHz + (np.arange(8.)//2)*16.*u.MHz,
+              sideband=np.tile([-1, +1], 4))),
+    ])
+    @pytest.mark.parametrize('item', [
+        slice(20, 40),
+        slice(500),
+        slice(-20, None),
+        slice(None),
+        slice(-20, -10)])
+    def test_sample_slice(self, item, cls, kwargs):
+        fh = self.fh
+        instance = cls(fh, **kwargs)
+        expected = instance.read()[item]
+        sliced = instance[item]
+
+        start, stop, _ = item.indices(instance.shape[0])
+        assert sliced.tell() == 0
+        assert sliced.time == sliced.start_time
+        assert sliced.sample_rate == instance.sample_rate
+        assert abs(sliced.start_time - (
+            instance.start_time + start/instance.sample_rate)) < 1.*u.ns
+        assert abs(sliced.stop_time - (
+            instance.start_time + stop/instance.sample_rate)) < 1.*u.ns
+        assert sliced.shape == expected.shape
+        if isinstance(instance, SetAttribute):
+            assert np.all(sliced.sideband == np.tile([-1, +1], 4))
+
+        data = sliced.read()
+        assert np.all(data == expected)
+        sliced.seek(-5, 2)
+        data2 = sliced.read()
+        assert np.all(data2 == expected[-5:])

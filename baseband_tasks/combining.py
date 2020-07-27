@@ -27,11 +27,14 @@ class CombineStreamsBase(TaskBase):
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
-        Useful mostly in case the stream readers have time offsets, since
-        the output stream will be shortened by an integer number of frames.
+        Useful mostly to change a possibly very large number.
+    **kwargs
+        Additional arguments to be passed on to the base class.
     """
 
-    def __init__(self, ihs, atol=None, samples_per_frame=None):
+    # Implementation detail: kwargs allows easier combining with Task below.
+
+    def __init__(self, ihs, *, atol=None, samples_per_frame=None, **kwargs):
         try:
             ih0 = ihs[0]
         except (TypeError, IndexError) as exc:
@@ -39,7 +42,6 @@ class CombineStreamsBase(TaskBase):
             raise
 
         # Check consistency of the streams, and determine common time.
-        self.ihs = ihs
         start_time = ih0.start_time
         stop_time = ih0.stop_time
         for ih in ihs[1:]:
@@ -48,19 +50,15 @@ class CombineStreamsBase(TaskBase):
             start_time = max(start_time, ih.start_time)
             stop_time = min(stop_time, ih.stop_time)
 
-        n_sample = ih0.seek(stop_time) - ih0.seek(start_time)
-
-        # Calculate offsets for each file and check they are aligned well.
-        # TODO: use future Resample class to lift this restriction?
-        self._start_offsets = []
+        # Extract relevant parts of each file, checking they are aligned well.
+        # TODO: use future Resample class to lift alignment restriction?
+        ihs = [ih[ih.seek(start_time):ih.seek(stop_time)] for ih in ihs]
+        max_offset = max(abs(ih.start_time - start_time) for ih in ihs)
         if atol is None:
             atol = min(1. * u.ns, 0.01 / ih0.sample_rate)
-        for ih in ihs:
-            offset = ih.seek(start_time)
-            if abs(ih.time - start_time) > atol:
-                raise ValueError("streams only aligned to {}, not within {}"
-                                 .format((ih.time-start_time).to(u.ns), atol))
-            self._start_offsets.append(offset)
+        if max_offset > atol:
+            raise ValueError(f"streams only aligned to {max_offset}, "
+                             f"not within {atol}.")
 
         # Check that the stream samples can be combined.
         fakes = [np.empty((7,) + ih.sample_shape, ih.dtype) for ih in ihs]
@@ -73,16 +71,14 @@ class CombineStreamsBase(TaskBase):
         if a.shape[0] != 7:
             raise ValueError("combination affected the sample axis (0).")
 
-        # Calculate the combined shape and attributes.
-        shape = (n_sample,) + a.shape[1:]
-        attrs = {attr: self._combine_attr(attr)
-                 for attr in ('frequency', 'sideband', 'polarization')}
-        super().__init__(ih0, shape=shape, samples_per_frame=samples_per_frame,
-                         **attrs)
-        # Could just pass in start_time above if we based ourselves on
-        # BaseTaskBase, which is more logical, but then cannot mixin Task
-        # below.  TODO: remove TaskBase intermediary?
-        self._start_time = start_time
+        self.ihs = ihs
+        shape = ihs[0].shape[:1] + a.shape[1:]
+        for attr in ('frequency', 'sideband', 'polarization'):
+            if attr not in kwargs:
+                kwargs[attr] = self._combine_attr(attr)
+
+        super().__init__(ihs[0], start_time=start_time, shape=shape,
+                         samples_per_frame=samples_per_frame, **kwargs)
 
     def _combine_attr(self, attr):
         """Combine the given attribute from all streams.
@@ -119,12 +115,16 @@ class CombineStreamsBase(TaskBase):
         for ih in self.ihs[1:]:
             ih.close()
 
+    def _seek_frame(self, frame_index):
+        for ih in self.ihs:
+            ih.seek(frame_index * self._ih_samples_per_frame)
+        return ih.tell()
+
     def _read_frame(self, frame_index):
         """Read and combine data from the underlying filehandles."""
-        data = []
-        for ih, start_offset in zip(self.ihs, self._start_offsets):
-            ih.seek(start_offset + frame_index * self._samples_per_frame)
-            data.append(ih.read(self._samples_per_frame))
+        start = self._seek_frame(frame_index)
+        stop = min(start + self._ih_samples_per_frame, self._ih_stop)
+        data = [ih.read(stop-start) for ih in self.ihs]
         return self.task(data)
 
 
@@ -149,21 +149,13 @@ class CombineStreams(Task, CombineStreamsBase):
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
-        Useful mostly in case the stream readers have time offsets, since
-        the output stream will be shortened by an integer number of frames.
+        Useful mostly to change a possibly very large number.
 
     See Also
     --------
     Concatenate : to concatenate streams along an existing axis
     Stack : to stack streams together along a new axis
     """
-    # Override __init__ only to get rid of kwargs of Task, since these cannot
-    # be passed on to ChangeSampleShapeBase anyway.
-
-    def __init__(self, ihs, task, method=None, atol=None,
-                 samples_per_frame=None):
-        super().__init__(ihs, task, method=method, atol=atol,
-                         samples_per_frame=samples_per_frame)
 
 
 class Concatenate(CombineStreamsBase):
@@ -182,8 +174,7 @@ class Concatenate(CombineStreamsBase):
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
-        Useful mostly in case the stream readers have time offsets, since
-        the output stream will be shortened by an integer number of frames.
+        Useful mostly to change a possibly very large number.
 
     See Also
     --------
@@ -191,7 +182,7 @@ class Concatenate(CombineStreamsBase):
     CombineStreams : to combine streams with a user-supplied function
     """
 
-    def __init__(self, ihs, axis=1, atol=None, samples_per_frame=None):
+    def __init__(self, ihs, axis=1, *, atol=None, samples_per_frame=None):
         self.axis = axis
         super().__init__(ihs, atol=atol, samples_per_frame=samples_per_frame)
 
@@ -221,8 +212,7 @@ class Stack(CombineStreamsBase):
     samples_per_frame : int, optional
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the first underlying file.
-        Useful mostly in case the stream readers have time offsets, since
-        the output stream will be shortened by an integer number of frames.
+        Useful mostly to change a possibly very large number.
 
     See Also
     --------
@@ -230,7 +220,7 @@ class Stack(CombineStreamsBase):
     CombineStreams : to combine streams with a user-supplied function
     """
 
-    def __init__(self, ihs, axis=1, atol=None, samples_per_frame=None):
+    def __init__(self, ihs, axis=1, *, atol=None, samples_per_frame=None):
         self.axis = axis
         super().__init__(ihs, atol=atol, samples_per_frame=samples_per_frame)
 
