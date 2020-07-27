@@ -5,6 +5,12 @@ This release will depend on ``baseband`` 4.0 as one can then assume
 (and document) the existence of ``baseband.tasks``.  Like baseband 4.0,
 it will also require python 3.7, astropy 4.0, and numpy 1.17.
 
+New Features
+------------
+
+- Streams can now be sliced, returning a new stream for a more limited
+  time span and/or sample shape. [#192]
+
 Other Changes and Additions
 ---------------------------
 
