@@ -729,19 +729,21 @@ class PaddedTaskBase(TaskBase):
             raise ValueError("padding values must be 0 or positive.")
 
         pad = self._pad_start + self._pad_end
-        if pad > 0:
-            if samples_per_frame is None:
-                # Calculate the number of samples that ensures >75% efficiency:
-                # use 4 times power of two just above pad.
-                ih_samples_per_frame = 2**(int((np.ceil(np.log2(pad))))+2)
-                samples_per_frame = ih_samples_per_frame - pad
-            else:
-                ih_samples_per_frame = samples_per_frame + pad
+        if samples_per_frame is None:
+            # Calculate the number of samples that ensures >75% efficiency:
+            # use 4 times power of two just above pad.
+            ih_samples_per_frame = ih.samples_per_frame
+            if pad > 0:
+                ih_samples_per_frame = max(ih_samples_per_frame, 2 ** (
+                    int((np.ceil(np.log2(pad)))) + 2))
+            samples_per_frame = ih_samples_per_frame - pad
+        else:
+            ih_samples_per_frame = samples_per_frame + pad
 
-            if pad > samples_per_frame:
-                warnings.warn("task will be inefficient; for {} samples "
-                              "per frame, more ({}) will be added for padding."
-                              .format(samples_per_frame, pad))
+        if pad > samples_per_frame:
+            warnings.warn("task will be inefficient; for {} samples "
+                          "per frame, more ({}) will be added for padding."
+                          .format(samples_per_frame, pad))
 
         n_sample = (((ih.shape[0] - pad) // samples_per_frame)
                     * samples_per_frame)

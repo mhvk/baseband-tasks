@@ -2,7 +2,6 @@
 
 import pytest
 import numpy as np
-from numpy.testing import assert_array_equal
 import astropy.units as u
 from astropy.time import Time
 
@@ -67,7 +66,8 @@ class TestConvolveNoise:
         ct2 = convolve_task(self.nh, np.ones((3, 2)), offset=offset)
         ct2.seek(5)
         data2 = ct2.read(5)
-        assert_array_equal(data2, data1[5:])
+        # PyFFTW doesn't seem to quite guarantee full reproducibility.
+        assert np.allclose(data2, data1[5:], rtol=0, atol=1e-15)
 
     @pytest.mark.parametrize('convolve_task', (ConvolveSamples, Convolve))
     def test_different_response(self, convolve_task):

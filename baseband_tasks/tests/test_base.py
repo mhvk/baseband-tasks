@@ -408,16 +408,20 @@ class TestTasks(UseVDIFSample):
 
 
 class TestPaddedTaskBase(UseVDIFSample):
-    def test_basics(self):
+    @pytest.mark.parametrize('n', [3, 1])
+    def test_basics(self, n):
         fh = self.fh
-        sh = SquareHat(fh, 3)
-        expected_size = ((fh.shape[0] - 2) // 4) * 4
+        sh = SquareHat(fh, n)
+        expected_size = ((fh.shape[0] - n + 1) // 4) * 4
         assert sh.sample_rate == fh.sample_rate
         assert sh.shape == (expected_size,) + fh.shape[1:]
         assert abs(sh.start_time
-                   - fh.start_time - 2. / fh.sample_rate) < 1. * u.ns
-        raw = fh.read(12)
-        expected = raw[:-2] + raw[1:-1] + raw[2:]
+                   - fh.start_time - (n-1) / fh.sample_rate) < 1. * u.ns
+        if n == 3:
+            raw = fh.read(12)
+            expected = raw[:-2] + raw[1:-1] + raw[2:]
+        elif n == 1:
+            expected = fh.read(10)
         data = sh.read(10)
         assert np.all(data == expected)
         sh.close()
