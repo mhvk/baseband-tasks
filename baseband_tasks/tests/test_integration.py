@@ -3,6 +3,7 @@
 
 import pytest
 import numpy as np
+from numpy.testing import assert_array_equal
 import astropy.units as u
 from astropy.time import Time
 
@@ -114,6 +115,8 @@ class TestIntegrate(TestFakePulsarBase):
         assert ip.sample_rate == self.sh.sample_rate / n
 
         ip.seek(121)
+        assert abs(ip.time - (self.sh.start_time
+                              + 121 / ip.sample_rate)) < 1. * u.ns
         integrated = ip.read(10)
         data = integrated['data']
         count = integrated['count']
@@ -140,6 +143,9 @@ class TestIntegrate(TestFakePulsarBase):
         data = integrated['data']
         count = integrated['count']
         assert ip.tell() == 10
+        assert abs(ip.time - (self.sh.start_time
+                              + 131 * n / self.sh.sample_rate)) < 1. * u.ns
+
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
@@ -161,6 +167,8 @@ class TestIntegrate(TestFakePulsarBase):
         data = integrated['data']
         count = integrated['count']
         assert ip.tell() == 161
+        assert abs(ip.time - (self.sh.start_time
+                              + 161 * n / self.sh.sample_rate)) < 1. * u.ns
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
@@ -208,6 +216,7 @@ class TestIntegrate(TestFakePulsarBase):
         data = integrated['data']
         count = integrated['count']
         assert ip.tell() == 8
+        assert abs(ip.time - (ip.start_time + 8 / ip.sample_rate)) < 1.*u.ns
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
@@ -217,14 +226,14 @@ class TestIntegrate(TestFakePulsarBase):
         start_time = self.start_time + step
         ip = Integrate(st, step, start=start_time, average=False,
                        samples_per_frame=samples_per_frame)
-        assert ip.start_time == start_time
+        assert abs(ip.start_time - start_time) < 1*u.ns
         integrated2 = ip.read(7)
         assert np.all(integrated2 == integrated[1:])
 
         start_time = self.start_time + 3 * step
         ip = Integrate(st, step, start=start_time, average=False,
                        samples_per_frame=samples_per_frame)
-        assert ip.start_time == start_time
+        assert abs(ip.start_time - start_time) < 1.*u.ns
         integrated2 = ip.read(5)
         assert np.all(integrated2 == integrated[3:])
 
@@ -421,6 +430,8 @@ class TestStack(TestFakePulsarBase):
         assert fh.stop_time == self.sh.stop_time
         assert fh.sample_rate == 1. / u.cycle
         assert fh.samples_per_frame == samples_per_frame
+        fh.seek(5)
+        assert abs(fh.time - (self.sh.start_time + 5 / self.F0)) < 1.*u.ns
 
         data = fh.read(2)
         assert np.all(data == ref_data[:2])
@@ -443,8 +454,33 @@ class TestStack(TestFakePulsarBase):
         data = fh.read(2)
         assert np.all(data == ref_data[:2])
         fh.seek(10)
+        assert abs(fh.time - self.start_time - 124 / self.sample_rate
+                   - 10 / self.F0) < 1. * u.ns
         data = fh.read()
         assert np.all(data == ref_data[10:])
+
+    @pytest.mark.parametrize('item', [
+        slice(10, 100), slice(-10, None), slice(None, 10), slice(None),
+        (slice(10, 100), 0)])
+    def test_slice(self, item):
+        fh = Stack(self.sh, 25, self.phase, start=124)
+        sliced = fh[item]
+        if not isinstance(item, tuple):
+            item = (item,)
+        start, stop, _ = item[0].indices(fh.shape[0])
+        expected = self.start_time + 124 / self.sample_rate + start / self.F0
+        assert abs(sliced.start_time - expected) < 1.*u.ns
+        assert abs(sliced.time - expected) < 1.*u.ns
+        expected = self.start_time + 124 / self.sample_rate + stop / self.F0
+        assert abs(sliced.stop_time - expected) < 1.*u.ns
+        sliced.seek(5)
+        expected = sliced.start_time + 5 / self.F0
+        assert abs(sliced.time - expected) < 1.*u.ns
+        sliced.seek(0)
+        ref_data = self.raw_data[124:-1].reshape(-1, 25, 5, 2).mean(2)[item]
+        assert sliced.shape == ref_data.shape
+        data = sliced.read()
+        assert_array_equal(data, ref_data)
 
     def test_integrate_stack(self):
         fh = Stack(self.sh, 25, self.phase)
@@ -452,7 +488,5 @@ class TestStack(TestFakePulsarBase):
         ih = Integrate(fh, 3)
         data2 = ih.read(1)
         assert np.all(data2 == data.mean(0))
-
-        # But not everything works, like asking for the time...
-        with pytest.raises(Exception):
-            ih.time
+        assert ih.tell() == 1
+        assert abs(ih.time - (self.sh.start_time + 3 / self.F0)) < 1.*u.ns

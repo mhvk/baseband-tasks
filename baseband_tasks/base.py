@@ -170,7 +170,9 @@ class Base:
 
         See also `time` and `stop_time`.
         """
-        return self._start_time
+        # We don't just return self._start_time so classes like Integrate
+        # can get correct results by just overriding _tell_time.
+        return self._tell_time(0)
 
     @property
     def time(self):
@@ -178,7 +180,7 @@ class Base:
 
         See also `start_time` and `stop_time`.
         """
-        return self.tell(unit='time')
+        return self._tell_time(self.offset)
 
     @property
     def stop_time(self):
@@ -186,7 +188,7 @@ class Base:
 
         See also `start_time` and `time`.
         """
-        return self.start_time + self.shape[0] / self.sample_rate
+        return self._tell_time(self.shape[0])
 
     @property
     def frequency(self):
@@ -269,9 +271,19 @@ class Base:
 
         # "isinstance" avoids costly comparisons of an actual unit with 'time'.
         if not isinstance(unit, u.UnitBase) and unit == 'time':
-            return self.start_time + self.tell(unit=u.s)
+            return self._tell_time(self.offset)
 
         return (self.offset / self.sample_rate).to(unit)
+
+    def _tell_time(self, offset):
+        """Calculate time for given offset.
+
+        Used for ``start_time``, ``time``, ``stop_time`` and
+        ``tell(unit='time')``.  Simple implementation is present mostly so
+        subclasses like Integration and Stack can override as appropriate.
+
+        """
+        return self._start_time + offset / self.sample_rate
 
     def read(self, count=None, out=None):
         """Read a number of complete samples.

@@ -6,7 +6,8 @@ import warnings
 
 import numpy as np
 from astropy import units as u
-from astropy.utils import ShapedLikeNDArray, lazyproperty
+from astropy.time import Time
+from astropy.utils import ShapedLikeNDArray
 
 from .base import BaseTaskBase
 
@@ -109,42 +110,47 @@ class Integrate(BaseTaskBase):
         if ih_start < 0 or ih_n_sample < 0:
             raise ValueError("'start' is not within the underlying stream.")
 
-        if phase is None and (step is None or is_index(step)):
-            # For integer step, avoid calculating time if possible,
-            # since if a Stack was run before, start_time and stop_time
-            # are no longer reliable.
-            start_time = False
-            if step is None:
-                step = ih_n_sample
-
-            sample_rate = ih.sample_rate / step
-            n_sample = ih_n_sample // step
-            # Initialize values for _get_offsets.
-            self._mean_offset_size = 1. / step
-
+        if isinstance(start, Time):
+            # We may not be at an integer sample.
+            ih_start += ((start - ih.time)
+                         * ih.sample_rate).to_value(u.one)
         else:
-            try:
-                # We may not be at an integer sample.
-                ih_start += ((start - ih.time)
-                             * ih.sample_rate).to_value(u.one)
-            except TypeError:  # start is not a Time
-                start = ih.time
-            start_time = start
+            start = ih.time
+
+        if step is None:
+            step = ih_n_sample
+
+        if is_index(step):
+            assert phase is None, 'cannot pass in phase and integer step'
+            sample_rate = ih.sample_rate / step
+            n_sample = ih_n_sample / step
+        else:
             stop = ih.stop_time
             if phase is not None:
                 start = phase(start)
                 stop = phase(stop)
 
-            sample_rate = 1. / step
-            n_sample = ((stop - start) / step).to_value(u.one)
-            # Initialize values for _get_offsets.
-            self._mean_offset_size = n_sample / ih_n_sample
-            self._start = start
+            sample_rate = 1 / step
+            n_sample = ((stop - start) * sample_rate).to_value(u.one)
 
-        n_sample = (n_sample // samples_per_frame) * samples_per_frame
+        # Initialize value for _get_offsets.
+        self._mean_offset_size = n_sample / ih_n_sample
+        self._start = start
+
+        # Calculate output shape.
+        n_sample = (int(n_sample + 0.5*self._mean_offset_size)
+                    // samples_per_frame) * samples_per_frame
         assert n_sample >= 1, "time per frame larger than total time in stream"
-        shape = (int(n_sample),) + ih.sample_shape
+        shape = (n_sample,) + ih.sample_shape
 
+        # Set start_time or indicate time should be inferred from ih.
+        # (see _tell_time).
+        if isinstance(start, Time) and sample_rate.unit.is_equivalent(u.Hz):
+            start_time = start
+        else:
+            start_time = False
+
+        # Output dtype.  TODO: upgrade by default?
         if dtype is None:
             if average:
                 dtype = ih.dtype
@@ -158,42 +164,11 @@ class Integrate(BaseTaskBase):
         self._phase = phase
         self._ih_start = ih_start
 
-    def _ih_time(self, offset):
-        """Get time in underlying stream for given offset.
-
-        Ensures the offset is put back, and adds a hopefully helpful
-        note to any exception.
-        """
-        ih_offset = self.ih.tell()
-        try:
-            self.ih.seek(offset)
-            return self.ih.time
-        except Exception as exc:
-            exc.args += ('cannot calculate time; this can happen if '
-                         'integrating a pulse stack',)
-            raise exc
-        finally:
-            self.ih.seek(ih_offset)
-
-    @lazyproperty
-    def start_time(self):
-        """Start time of the output, left edge of the first sample.
-
-        See also `time` and `stop_time`.
-        """
+    def _tell_time(self, offset):
         if self._start_time:
-            return self._start_time
+            return super()._tell_time(offset)
         else:
-            return self._ih_time(self._ih_start)
-
-    @lazyproperty
-    def stop_time(self):
-        """Time at the end of the output, just after the last sample.
-
-        See also `start_time` and `time`.
-        """
-        raw_stop = self._get_offsets(self.shape[0])
-        return self._ih_time(raw_stop)
+            return self.ih._tell_time(self._get_offsets(offset))
 
     def _get_offsets(self, samples, precision=1.e-3, max_iter=10):
         """Get offsets in the underlying stream nearest to samples.
@@ -494,7 +469,5 @@ class Stack(BaseTaskBase):
         out = self.ih._read_frame(frame_index)
         return out.reshape((self.samples_per_frame,) + self.sample_shape)
 
-    @property
-    def stop_time(self):
-        """Time at the end of the output, just after the last sample."""
-        return self.ih.stop_time
+    def _tell_time(self, offset):
+        return self.ih._tell_time(offset * self.n_phase)
