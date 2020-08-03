@@ -9,8 +9,8 @@ import numpy as np
 from astropy import units as u
 
 
-__all__ = ['Base', 'BaseTaskBase', 'SetAttribute', 'TaskBase',
-           'Task', 'PaddedTaskBase']
+__all__ = ['Base', 'BaseTaskBase', 'TaskBase', 'PaddedTaskBase',
+           'SetAttribute', 'Task']
 
 
 def check_broadcast_to(value, sample_shape):
@@ -571,6 +571,69 @@ class TaskBase(BaseTaskBase):
         return self.task(data)
 
 
+class PaddedTaskBase(TaskBase):
+    """Base for tasks which need more points than they produce.
+
+    Like `~baseband_tasks.base.TaskBase`, subclasses should define:
+
+      ``task(self, data)`` : return processed data from one frame.
+
+    Where ``data`` will contain extra padding.  The ``task`` method has to
+    ensure the right selection is returned, and can use the ``_pad_start``
+    and ``_pad_end`` attributes for this purpose.
+
+    Parameters
+    ----------
+    ih : stream handle
+        Handle of a stream reader or another task.
+    pad_start, pad_end : int
+        Padding to apply at the start and end.  Default: 0.
+    samples_per_frame : int, optional
+        Number of output samples which should be produced in each frame.
+        The number of input samples will be larger by the padding.
+        If not given, the minimum power of 2 needed to get at least 75%
+        efficiency.
+    **kwargs
+        Possible further arguments; see `~baseband_tasks.base.BaseTaskBase`.
+
+    """
+
+    def __init__(self, ih, pad_start=0, pad_end=0, *,
+                 samples_per_frame=None, **kwargs):
+        self._pad_start = operator.index(pad_start)
+        self._pad_end = operator.index(pad_end)
+        if self._pad_start < 0 or self._pad_end < 0:
+            raise ValueError("padding values must be 0 or positive.")
+
+        pad = self._pad_start + self._pad_end
+        if samples_per_frame is None:
+            # Calculate the number of samples that ensures >75% efficiency:
+            # use 4 times power of two just above pad.
+            ih_samples_per_frame = ih.samples_per_frame
+            if pad > 0:
+                ih_samples_per_frame = max(ih_samples_per_frame, 2 ** (
+                    int((np.ceil(np.log2(pad)))) + 2))
+            samples_per_frame = ih_samples_per_frame - pad
+        else:
+            ih_samples_per_frame = samples_per_frame + pad
+
+        if pad > samples_per_frame:
+            warnings.warn("task will be inefficient; for {} samples "
+                          "per frame, more ({}) will be added for padding."
+                          .format(samples_per_frame, pad))
+
+        n_sample = (((ih.shape[0] - pad) // samples_per_frame)
+                    * samples_per_frame)
+        shape = (n_sample,) + ih.sample_shape
+        start_time = ih.start_time + self._pad_start / ih.sample_rate
+        super().__init__(ih, ih_samples_per_frame=ih_samples_per_frame,
+                         shape=shape, samples_per_frame=samples_per_frame,
+                         start_time=start_time, **kwargs)
+
+    def _seek_frame(self, frame_index):
+        return self.ih.seek(frame_index * self.samples_per_frame)
+
+
 class Task(TaskBase):
     """Apply a user-supplied callable to a stream.
 
@@ -655,69 +718,6 @@ class Task(TaskBase):
             self.task = task
 
         super().__init__(ih, **kwargs)
-
-
-class PaddedTaskBase(TaskBase):
-    """Base for tasks which need more points than they produce.
-
-    Like `~baseband_tasks.base.TaskBase`, subclasses should define:
-
-      ``task(self, data)`` : return processed data from one frame.
-
-    Where ``data`` will contain extra padding.  The ``task`` method has to
-    ensure the right selection is returned, and can use the ``_pad_start``
-    and ``_pad_end`` attributes for this purpose.
-
-    Parameters
-    ----------
-    ih : stream handle
-        Handle of a stream reader or another task.
-    pad_start, pad_end : int
-        Padding to apply at the start and end.  Default: 0.
-    samples_per_frame : int, optional
-        Number of output samples which should be produced in each frame.
-        The number of input samples will be larger by the padding.
-        If not given, the minimum power of 2 needed to get at least 75%
-        efficiency.
-    **kwargs
-        Possible further arguments; see `~baseband_tasks.base.BaseTaskBase`.
-
-    """
-
-    def __init__(self, ih, pad_start=0, pad_end=0, *,
-                 samples_per_frame=None, **kwargs):
-        self._pad_start = operator.index(pad_start)
-        self._pad_end = operator.index(pad_end)
-        if self._pad_start < 0 or self._pad_end < 0:
-            raise ValueError("padding values must be 0 or positive.")
-
-        pad = self._pad_start + self._pad_end
-        if samples_per_frame is None:
-            # Calculate the number of samples that ensures >75% efficiency:
-            # use 4 times power of two just above pad.
-            ih_samples_per_frame = ih.samples_per_frame
-            if pad > 0:
-                ih_samples_per_frame = max(ih_samples_per_frame, 2 ** (
-                    int((np.ceil(np.log2(pad)))) + 2))
-            samples_per_frame = ih_samples_per_frame - pad
-        else:
-            ih_samples_per_frame = samples_per_frame + pad
-
-        if pad > samples_per_frame:
-            warnings.warn("task will be inefficient; for {} samples "
-                          "per frame, more ({}) will be added for padding."
-                          .format(samples_per_frame, pad))
-
-        n_sample = (((ih.shape[0] - pad) // samples_per_frame)
-                    * samples_per_frame)
-        shape = (n_sample,) + ih.sample_shape
-        start_time = ih.start_time + self._pad_start / ih.sample_rate
-        super().__init__(ih, ih_samples_per_frame=ih_samples_per_frame,
-                         shape=shape, samples_per_frame=samples_per_frame,
-                         start_time=start_time, **kwargs)
-
-    def _seek_frame(self, frame_index):
-        return self.ih.seek(frame_index * self.samples_per_frame)
 
 
 class SetAttribute(TaskBase):
