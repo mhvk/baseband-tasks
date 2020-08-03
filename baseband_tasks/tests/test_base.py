@@ -436,7 +436,7 @@ class TestPaddedTaskBase(UseVDIFSample):
             SquareHat(self.fh, 10, samples_per_frame=8)
 
 
-class TestSlicing(UseVDIFSample):
+class TestSlicingAndArray(UseVDIFSample):
     @pytest.mark.parametrize('cls,kwargs', [
         (Multiply, dict(factor=2)),
         (ReshapeTime, dict(n=5, samples_per_frame=2, fix_shape=True)),
@@ -470,8 +470,26 @@ class TestSlicing(UseVDIFSample):
         if isinstance(instance, SetAttribute):
             assert np.all(sliced.sideband == np.tile([-1, +1], 4))
 
-        data = sliced.read()
-        assert np.all(data == expected)
         sliced.seek(-5, 2)
         data2 = sliced.read()
         assert np.all(data2 == expected[-5:])
+        # Also test interpretation as array.
+        data = np.array(sliced)
+        assert np.all(data == expected)
+
+    def test_asanyarray(self):
+        expected = self.fh.read() * 4
+        sh = Multiply(self.fh, factor=4.)
+        data = np.asanyarray(sh)
+        assert np.all(data == expected)
+
+    def test_no_implicit_array(self):
+        sh = Multiply(self.fh, factor=4.)
+        # Test that we do not just transform to an array
+        # (picking functions unlikely ever to be whitelisted)
+        with pytest.raises(TypeError):
+            np.array(1.) | sh
+        with pytest.raises(TypeError):
+            np.sin(sh)
+        with pytest.raises(TypeError):
+            np.rot90(sh)

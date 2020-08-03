@@ -11,6 +11,9 @@ New Features
 - Streams can now be sliced, returning a new stream for a more limited
   time span and/or sample shape. [#192]
 
+- Streams can be turned into arrays by calling ``np.asarray(stream)``.
+  No sanity check on amount of memory is done. [#194]
+
 Other Changes and Additions
 ---------------------------
 

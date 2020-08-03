@@ -358,6 +358,20 @@ class Base:
 
         return GetSlice(self, item)
 
+    def __array__(self, dtype=None):
+        old_offset = self.tell()
+        try:
+            self.seek(0)
+            return np.array(self.read(), dtype=dtype, copy=False)
+        finally:
+            self.seek(old_offset)
+
+    def __array_ufunc__(self, *args, **kwargs):
+        return NotImplemented
+
+    def __array_function__(self, *args, **kwargs):
+        return NotImplemented
+
     def __enter__(self):
         return self
 

@@ -100,8 +100,10 @@ class HDF5StreamReader(HDF5StreamBase, StreamReaderBase):
 
 
 class HDF5StreamWriter(HDF5StreamBase, StreamWriterBase):
-    def __init__(self, fh_raw, header0=None, squeeze=True,
-                 template=None, **kwargs):
+    def __init__(self, fh_raw, header0=None, template=None, **kwargs):
+        # By default, do not squeeze if we're basing off a template.
+        # Presumably, we will pass in data exactly like it!
+        squeeze = kwargs.pop('squeeze', template is None)
         if header0 is None:
             header0 = HDF5Header.fromvalues(template=template, **kwargs)
         super().__init__(fh_raw, header0, squeeze=squeeze)
@@ -156,8 +158,8 @@ def open(filename, mode='r', **kwargs):
         Header for the first frame, holding time information, etc.  Can instead
         give a ``template`` or keyword arguments to construct a header from.
     squeeze : bool, optional
-        If `True` (default), writer accepts squeezed arrays as input, and adds
-        any dimensions of length unity.
+        If `True`, writer accepts squeezed arrays as input, and adds any
+        dimensions of length unity. Default: `True` unless a template is given.
     template : header or stream template, optional
         Must have attributes defining the required header keywords (see below).
     whole : bool, optional
