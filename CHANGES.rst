@@ -17,6 +17,13 @@ New Features
 - ``SetAttribute`` can now also be used to change ``samples_per_frame``,
   ``shape`` or ``dtype``. [#195]
 
+Bug Fixes
+---------
+
+- Time will now be reported correctly also for ``Stack`` and ``Integrate``
+  even if their sample rate is not in Hz. Times will be accurate to the
+  nearest sample of the underlying stream. [#197]
+
 Other Changes and Additions
 ---------------------------
 

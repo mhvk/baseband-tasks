@@ -396,8 +396,10 @@ class GetSlice(GetItem):
             self.task = lambda data: data
 
         self._start = start
-        self._start_time = self.start_time + start / self.sample_rate
         self._shape = (stop-start,)+self.shape[1:]
+
+    def _tell_time(self, offset):
+        return self.ih._tell_time(self._start + offset)
 
     def _get_frame(self, offset):
         return super()._get_frame(self._start + offset)
