@@ -476,57 +476,6 @@ class BaseTaskBase(Base):
         del self.ih
 
 
-class SetAttribute(BaseTaskBase):
-    """Wrapper for streams that allows one to set or change attributes.
-
-    Can be used to add ``frequency``, ``sideband`` and ``polarization``
-    attributes, which most baseband readers do not provide, checking that
-    the values broadcast properly to the sample shape.
-
-    Can also be used to apply a clock correction by changing ``start_time``.
-
-    The ``sample_rate`` can also be set, but no check is done to ensure it
-    remains consistent with the ``frequency``.
-
-    The class reads directly from the underlying stream, which means it has
-    very little performance impact, but also that one cannot change the
-    ``shape``, ``samples_per_frames``, or ``dtype`` of the underlying stream.
-
-    By default, all parameters are taken from the underlying stream.
-
-    Parameters
-    ----------
-    ih : stream handle
-        Handle of a stream reader or another task.
-    start_time : `~astropy.time.Time`, optional
-        Start time of the stream.
-    sample_rate : `~astropy.units.Quantity`, optional
-        With units of a rate.
-    frequency : `~astropy.units.Quantity`, optional
-        Frequencies for each channel.  Should be broadcastable to the
-        sample shape.
-    sideband : array, optional
-        Whether frequencies are upper (+1) or lower (-1) sideband.
-        Should be broadcastable to the sample shape.
-    polarization : array or (nested) list of char, optional
-        Polarization labels.  Should broadcast to the sample shape,
-        i.e., the labels are in the correct axis.  For instance,
-        ``['X', 'Y']``, or ``[['L'], ['R']]``.
-
-    """
-
-    def __init__(self, ih, *, start_time=None, sample_rate=None,
-                 frequency=None, sideband=None, polarization=None):
-        super().__init__(ih, start_time=start_time, sample_rate=sample_rate,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization)
-
-    def read(self, *args, **kwargs):
-        """Read data from the underlying stream at the current offset."""
-        self.ih.seek(self.offset)
-        return self.ih.read(*args, **kwargs)
-
-
 class TaskBase(BaseTaskBase):
     """Base class of all tasks.
 
@@ -769,3 +718,64 @@ class PaddedTaskBase(TaskBase):
 
     def _seek_frame(self, frame_index):
         return self.ih.seek(frame_index * self.samples_per_frame)
+
+
+class SetAttribute(TaskBase):
+    """Wrapper for streams that allows one to set or change attributes.
+
+    Can be used to add ``frequency``, ``sideband`` and ``polarization``
+    attributes, which most baseband readers do not provide, checking that
+    the values broadcast properly to the sample shape.
+
+    Can also be used to apply a clock correction by changing ``start_time``.
+
+    The ``sample_rate`` can also be set, but no check is done to ensure it
+    remains consistent with the ``frequency``.
+
+    One can also change the ``shape``, ``samples_per_frames``, or ``dtype``
+    but that will be slightly slower, as the class can then not read directly
+    from the underlying stream.
+
+    By default, all parameters are taken from the underlying stream.
+
+    Parameters
+    ----------
+    ih : stream handle
+        Handle of a stream reader or another task.
+    start_time : `~astropy.time.Time`, optional
+        Start time of the stream.
+    sample_rate : `~astropy.units.Quantity`, optional
+        With units of a rate.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel.  Should be broadcastable to the
+        sample shape.
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Should be broadcastable to the sample shape.
+    polarization : array or (nested) list of char, optional
+        Polarization labels.  Should broadcast to the sample shape,
+        i.e., the labels are in the correct axis.  For instance,
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.
+    **kwargs
+        Any other parameters.  See `~baseband_tasks.base.TaskBase`.
+    """
+
+    def __init__(self, ih, *, start_time=None, sample_rate=None,
+                 frequency=None, sideband=None, polarization=None,
+                 **kwargs):
+        super().__init__(ih, start_time=start_time, sample_rate=sample_rate,
+                         frequency=frequency, sideband=sideband,
+                         polarization=polarization, **kwargs)
+        if not kwargs:
+            # No overrides of anything related to data, so can use read of
+            # underlying file directly.
+            self.read = self.simple_read
+
+    def simple_read(self, *args, **kwargs):
+        """Read data from the underlying stream at the current offset."""
+        # Used as ``read`` if the data aspects are not changed. See above.
+        self.ih.seek(self.offset)
+        return self.ih.read(*args, **kwargs)
+
+    def task(self, data):
+        return data

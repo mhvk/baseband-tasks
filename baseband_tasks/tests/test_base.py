@@ -124,6 +124,28 @@ class TestSetAttribute(UseVDIFSample):
         with pytest.raises(ValueError):
             SetAttribute(self.fh, sideband=sideband)
 
+    def test_samples_per_frame(self):
+        expected = self.fh.read()
+        sa = SetAttribute(self.fh, samples_per_frame=11111)
+        assert sa.shape == (33333, 8)
+        data = sa.read()
+        assert np.all(data == expected[:33333])
+
+        sa2 = SetAttribute(self.fh, samples_per_frame=11111,
+                           shape=self.fh.shape)
+        assert sa2.shape == self.fh.shape
+        data2 = sa2.read()
+        assert np.all(data2 == expected)
+
+    def test_dtype(self):
+        expected = self.fh.read()
+        sa = SetAttribute(self.fh, dtype='f2')
+        assert isinstance(sa.dtype, np.dtype)
+        assert sa.dtype == 'f2'
+        data = sa.read()
+        assert data.dtype == 'f2'
+        assert np.all(data == expected.astype('f2'))
+
 
 class TestTaskBase(UseVDIFSample):
     def test_basetaskbase(self):

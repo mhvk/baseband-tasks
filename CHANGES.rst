@@ -14,6 +14,9 @@ New Features
 - Streams can be turned into arrays by calling ``np.asarray(stream)``.
   No sanity check on amount of memory is done. [#194]
 
+- ``SetAttribute`` can now also be used to change ``samples_per_frame``,
+  ``shape`` or ``dtype``. [#195]
+
 Other Changes and Additions
 ---------------------------
 
