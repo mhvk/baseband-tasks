@@ -57,3 +57,6 @@ def test_tasks_entry_points():
     # Presumably, we'll always want to import Base
     # classes from bt.base.
     assert not hasattr(bt, 'Base')
+    # But we do want to be able to use Task and SetAttribute
+    assert hasattr(bt, 'SetAttribute')
+    assert hasattr(bt, 'Task')
