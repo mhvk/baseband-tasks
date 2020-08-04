@@ -67,7 +67,7 @@ class TestSquareAttrPropagation(UseVDIFSample):
             st.polarization
 
 
-class TestPoweDADAr(UseDADASample):
+class TestPower(UseDADASample):
     """Test getting polarized intensities using Baseband's sample DADA file."""
 
     def test_power(self):
@@ -80,7 +80,7 @@ class TestPoweDADAr(UseDADASample):
                              r0 * r1 + i0 * i1,
                              i0 * r1 - r0 * i1), axis=1)
 
-        pt = Power(fh, polarization=['L', 'R'])
+        pt = Power(fh, polarization=['LL', 'RR', 'LR', 'RL'])
         assert np.all(pt.polarization == np.array(['LL', 'RR', 'LR', 'RL']))
 
         # Square everything.
@@ -108,11 +108,15 @@ class TestPoweDADAr(UseDADASample):
         # Check it also works in other axes, or with an overly detailed array.
         # Use a fake stream a bit like the VDIF one, but with complex data.
         eh = EmptyStreamGenerator((10000, 2, 4), sample_rate=1.*u.Hz,
-                                  start_time=Time('2018-01-01'))
-        pt = Power(eh, polarization=[['L'], ['R']])
+                                  start_time=Time('2018-01-01'),
+                                  polarization=[['L'], ['R']])
+        pt = Power(eh)
         expected = np.array([['LL'], ['RR'], ['LR'], ['RL']])
         assert np.all(pt.polarization == expected)
-        pt = Power(eh, polarization=np.array([['L'] * 4, ['R'] * 4]))
+        pt = Power(eh, polarization=np.array([['LL'] * 4,
+                                              ['RR'] * 4,
+                                              ['LR'] * 4,
+                                              ['RL'] * 4]))
         assert np.all(pt.polarization == expected)
         pt.close()
 
@@ -124,8 +128,13 @@ class TestPoweDADAr(UseDADASample):
         # Create a fake stream a bit like the VDIF one, but with complex data.
         eh = EmptyStreamGenerator((10000, 4, 2), sample_rate=1.*u.Hz,
                                   start_time=Time('2018-01-01'),
-                                  frequency=frequency, sideband=sideband)
-        pt = Power(eh, polarization=polarization)
+                                  frequency=frequency, sideband=sideband,
+                                  polarization=polarization)
+        pt = Power(eh)
+        assert_array_equal(pt.polarization, np.array(['RR', 'LL', 'RL', 'LR']))
+        assert_array_equal(pt.frequency, eh.frequency)
+        assert_array_equal(pt.sideband, eh.sideband)
+        pt = Power(eh, polarization=pt.polarization)
         assert_array_equal(pt.polarization, np.array(['RR', 'LL', 'RL', 'LR']))
         assert_array_equal(pt.frequency, eh.frequency)
         assert_array_equal(pt.sideband, eh.sideband)
@@ -138,20 +147,21 @@ class TestPoweDADAr(UseDADASample):
         with pytest.raises(ValueError):  # Only one.
             Power(self.fh, polarization=['L'])
         with pytest.raises(ValueError):  # Duplication (same error as above)
-            Power(self.fh, polarization=['L', 'L'])
+            Power(self.fh, polarization=['L', 'L', 'R', 'R'])
         with pytest.raises(ValueError):  # Wrong axis.
-            Power(self.fh, polarization=[['L'], ['R']])
+            Power(self.fh, polarization=[['LL'], ['RR'], ['LR'], ['RL']])
 
     def test_power_needs_complex(self):
         eh = EmptyStreamGenerator((10000, 2, 4), sample_rate=1.*u.Hz,
-                                  start_time=Time('2018-01-01'), dtype='f4')
+                                  start_time=Time('2018-01-01'), dtype='f4',
+                                  polarization=[['L'], ['R']])
         with pytest.raises(ValueError):  # Real timestream
-            Power(eh, polarization=[['L'], ['R']])
+            Power(eh)
 
     def test_frequency_sideband_mismatch(self):
         frequency = np.array([[320.25], [320.25], [336.25], [336.25]]) * u.MHz
         sideband = np.array([[-1], [1], [-1], [1]])
-        polarization = ['R', 'L']
+        polarization = ['RR', 'LL', 'RL', 'LR']
         # Create a fake stream a bit like the VDIF one, but with complex data.
         bad_freq = np.array([[320, 320], [320, 320],
                              [336, 336], [336, 337]]) * u.MHz
