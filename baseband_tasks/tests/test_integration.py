@@ -82,6 +82,11 @@ class TestIntegrate(TestFakePulsarBase):
         data = ip.read()
         assert np.allclose(data, ref_data)
 
+        r = repr(ip)
+        assert r.startswith('Integrate(ih')
+        assert 'start=151' in r
+        assert 'step' not in r
+
     def test_integrate_all_no_average(self):
         # Load baseband file and get reference intensities.
         ref_data = self.raw_power.sum(0)
@@ -125,6 +130,10 @@ class TestIntegrate(TestFakePulsarBase):
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
         assert np.all(count == n)
+
+        r = repr(ip)
+        assert f"step={n}" in r
+        assert 'average=False' in r
 
     @pytest.mark.parametrize('samples_per_frame', (1, 4, 10))
     @pytest.mark.parametrize('n', (1, 3))

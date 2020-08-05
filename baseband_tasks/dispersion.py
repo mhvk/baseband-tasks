@@ -101,7 +101,7 @@ class Disperse(PaddedTaskBase):
                               + self.ih.sample_shape, dtype=self.ih.dtype,
                               sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
-        self.dm = dm
+        self._dm = dm
         self.reference_frequency = reference_frequency
         self._sample_offset = sample_offset
         self._start_time += sample_offset / ih.sample_rate
@@ -112,7 +112,7 @@ class Disperse(PaddedTaskBase):
     def phase_factor(self):
         """Phase offsets of the Fourier-transformed frame."""
         frequency = self.frequency + self._fft.frequency * self.sideband
-        phase_delay = self.dm.phase_delay(frequency, self.reference_frequency)
+        phase_delay = self._dm.phase_delay(frequency, self.reference_frequency)
         phase_delay *= self.sideband
         # Correct for any time offset applied because the reference frequency
         # was out of range.
@@ -123,6 +123,10 @@ class Disperse(PaddedTaskBase):
         phase_factor = phase_factor.astype(self._fft.frequency_dtype,
                                            copy=False)
         return phase_factor
+
+    @property
+    def dm(self):
+        return self._dm
 
     def task(self, data):
         ft = self._fft(data)
@@ -175,3 +179,7 @@ class Dedisperse(Disperse):
         super().__init__(ih, -dm, reference_frequency=reference_frequency,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband)
+
+    @property
+    def dm(self):
+        return -self._dm

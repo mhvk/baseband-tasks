@@ -17,6 +17,16 @@ New Features
 - ``SetAttribute`` can now also be used to change ``samples_per_frame``,
   ``shape`` or ``dtype``. [#195]
 
+- All streams now have useful ``repr``. For tasks, this includes information
+  on the underlying streams. [#198]
+
+API Changes
+-----------
+
+- For consistency with usage everywhere else, the ``polarization`` argument
+  for ``Power`` and ``Square`` now refers to the output  polarization.
+  This allows it to be set to whatever the user wants. [#198]
+
 Bug Fixes
 ---------
 

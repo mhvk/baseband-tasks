@@ -27,8 +27,9 @@ class ConvolveSamples(PaddedTaskBase):
     samples_per_frame : int, optional
         Number of convolved samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the minimum power of 2 of input
-        samples that yields at least 75% efficiency.
+        If not given, as produced by the larger of the input samples per frame
+        minus padding or the minimum power of 2 of input samples that yields at
+        least 75% efficiency.
 
     See Also
     --------
@@ -79,8 +80,9 @@ class Convolve(ConvolveSamples):
     samples_per_frame : int, optional
         Number of convolved samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the minimum power of 2 of input
-        samples that yields at least 75% efficiency.
+        If not given, as produced by the larger of the input samples per frame
+        minus padding or the minimum power of 2 of input samples that yields at
+        least 75% efficiency.
 
     See Also
     --------
@@ -88,7 +90,7 @@ class Convolve(ConvolveSamples):
     baseband_tasks.fourier.fft_maker : to select the FFT package used.
     """
 
-    def __init__(self, ih, response, offset=0, samples_per_frame=None):
+    def __init__(self, ih, response, *, offset=0, samples_per_frame=None):
         super().__init__(ih, response=response, offset=offset,
                          samples_per_frame=samples_per_frame)
         # Initialize FFTs for fine channelization and the inverse.

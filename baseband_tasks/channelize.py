@@ -50,7 +50,7 @@ class Channelize(TaskBase):
     def __init__(self, ih, n, samples_per_frame=1,
                  frequency=None, sideband=None):
 
-        n = operator.index(n)
+        self._n = n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
         # Initialize channelizer.
         self._FFT = fft_maker.get()
@@ -157,6 +157,7 @@ class Dechannelize(TaskBase):
                          ih_samples_per_frame=ih_samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          dtype=self._ifft.time_dtype)
+        self._n = n
 
     def task(self, data):
         return self._ifft(data).reshape((-1,) + self.sample_shape)

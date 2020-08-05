@@ -62,10 +62,6 @@ class TestChannelizeReal(UseVDIFSample):
         with pytest.raises(EOFError):
             ct.read(10)
 
-        # Quick test of channel sanity check in __init__.
-        with pytest.raises(AssertionError):
-            ct = Channelize(self.fh, 400001)
-
         ct.close()
         assert ct.closed
         with pytest.raises(ValueError):
@@ -115,9 +111,21 @@ class TestChannelizeReal(UseVDIFSample):
         data2 = dt2.read()
         assert np.all(data2 == data)
 
-        # For real data, need to pass in `n`
-        with pytest.raises(ValueError):
-            Dechannelize(ct, dtype=self.fh_freq.dtype)
+    def test_size_check(self):
+        # Quick test of channel sanity check in __init__.
+        with pytest.raises(AssertionError):
+            Channelize(self.fh, 400001)
+
+    def test_repr(self):
+        """Test channelization task."""
+        ct = Channelize(self.fh, self.n)
+        cr = repr(ct)
+        assert cr.startswith('Channelize(ih')
+        assert f"n={self.n}" in cr
+        dt = Dechannelize(ct, self.n)
+        dr = repr(dt)
+        assert dr.startswith('Dechannelize(ih')
+        assert f"n={self.n}" in dr
 
     def test_missing_frequency_sideband(self):
         with Channelize(self.fh, self.n) as ct:
@@ -125,6 +133,12 @@ class TestChannelizeReal(UseVDIFSample):
                 ct.frequency
             with pytest.raises(AttributeError):
                 ct.sideband
+
+    def test_dechannelize_real_needs_n(self):
+        # For real data, need to pass in `n`
+        ct = Channelize(self.fh_freq, self.n)
+        with pytest.raises(ValueError):
+            Dechannelize(ct, dtype=self.fh_freq.dtype)
 
 
 class TestChannelizeComplex(UseDADASample):

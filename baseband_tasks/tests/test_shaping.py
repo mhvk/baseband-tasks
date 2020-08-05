@@ -27,6 +27,9 @@ class TestReshape(UseVDIFSampleWithAttrs):
         data = rt.read()
         assert_array_equal(data, ref_data)
 
+        r = repr(rt)
+        assert r.startswith(f'Reshape(ih, sample_shape={sample_shape})')
+
     def test_frequency_sideband_polarization_propagation1(self):
         fh = self.fh
         rt = Reshape(fh, (4, 2))
@@ -77,6 +80,11 @@ class TestTranspose(UseVDIFSampleWithAttrs):
         data = tt.read()
         assert_array_equal(data, ref_data)
 
+    def test_repr(self):
+        r = repr(self.get_reshape_and_transpose(self.fh, (4, 2), (2, 1)))
+        assert r.startswith('Transpose(ih, sample_axes=(2, 1))')
+        assert 'Reshape(ih, sample_shape=(4, 2)' in r
+
     def test_frequency_sideband_polarization_propagation1(self):
         tt = self.get_reshape_and_transpose(self.fh, (4, 2), (2, 1))
         assert tt.frequency.shape == (4,)
@@ -119,6 +127,12 @@ class TestReshapeAndTranspose(TestTranspose):
     """
     get_reshape_and_transpose = ReshapeAndTranspose
 
+    def test_repr(self):
+        r = repr(self.get_reshape_and_transpose(self.fh, (4, 2), (2, 1)))
+        assert r.startswith('ReshapeAndTranspose(ih')
+        assert 'sample_shape=(4, 2)' in r
+        assert 'sample_axes=(2, 1))' in r
+
 
 class TestChangeSampleShape(TestTranspose):
     """Test custom shaping using a reshape and transpose function.
@@ -135,6 +149,12 @@ class TestChangeSampleShape(TestTranspose):
             return data.reshape(new_shape).transpose(new_axes)
 
         return ChangeSampleShape(fh, task)
+
+    def test_repr(self):
+        r = repr(self.get_reshape_and_transpose(self.fh, (4, 2), (2, 1)))
+        assert r.startswith('ChangeSampleShape(ih')
+        assert 'task=' in r
+        assert 'shape=' in r
 
     def test_swap_axes(self):
         fh = self.fh

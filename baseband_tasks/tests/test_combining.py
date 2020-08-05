@@ -32,6 +32,10 @@ class TestConcatenate(UseVDIFSampleWithAttrs):
 
         data = ch.read()
         assert_array_equal(data, expected_data)
+
+        r = repr(ch)
+        assert r.startswith('Concatenate(ihs)')
+        assert f"ihs: {len(fhs)} streams" in r
         ch.close()
 
     @pytest.mark.parametrize('samples_per_frame', [None, 10, 10000])
@@ -154,5 +158,10 @@ class TestCombineStreams(UseVDIFSampleWithAttrs):
         data = ch.read()
         expected_data = expected.read()
         assert_array_equal(data, expected_data)
+
+        r = repr(ch)
+        assert r.startswith('CombineStreams(ihs')
+        assert 'ihs: 8 streams' in r
+
         ch.close()
         expected.close()

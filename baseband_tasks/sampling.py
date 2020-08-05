@@ -106,6 +106,9 @@ class Resample(PaddedTaskBase):
     def __init__(self, ih, offset, whence='start', *,
                  samples_per_frame=None):
 
+        self._offset = offset
+        self._whence = whence
+
         ih_offset = float_offset(ih, offset, whence)
         rounded_offset = np.around(ih_offset)
         fraction = ih_offset - rounded_offset
@@ -153,3 +156,8 @@ class Resample(PaddedTaskBase):
         del self.phase_factor
         del self._fft
         del self._ifft
+
+    def _repr_item(self, key, default, value=None):
+        if key == 'offset':
+            value = self._offset
+        return super()._repr_item(key, default=default, value=value)

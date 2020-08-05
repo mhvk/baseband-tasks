@@ -219,6 +219,7 @@ class Transpose(ChangeSampleShapeBase):
     """
 
     def __init__(self, ih, sample_axes):
+        self._sample_axes = sample_axes
         self._axes = (0,) + sample_axes
         super().__init__(ih)
 
@@ -281,12 +282,19 @@ class ReshapeAndTranspose(Reshape):
     """
 
     def __init__(self, ih, sample_shape, sample_axes):
+        self._sample_shape = sample_shape
+        self._sample_axes = sample_axes
         self._axes = (0,) + sample_axes
         super().__init__(ih, sample_shape=sample_shape)
 
     def task(self, data):
         """Reshape and transpose the axes of data."""
         return data.reshape(self._new_shape).transpose(self._axes)
+
+    def _repr_item(self, key, default, value=None):
+        if key == 'sample_shape':
+            value = self._sample_shape
+        return super()._repr_item(key, default=default, value=value)
 
 
 class GetItem(ChangeSampleShapeBase):
@@ -336,17 +344,18 @@ class GetItem(ChangeSampleShapeBase):
 
     def __init__(self, ih, item):
         if isinstance(item, tuple):
-            self._item = (slice(None),) + item
+            self._task_item = (slice(None),) + item
         else:
-            self._item = (slice(None), item)
+            self._task_item = (slice(None), item)
         super().__init__(ih)
+        self._item = item
 
     def task(self, data):
         """Get the preset item from the data."""
-        return data[self._item]
+        return data[self._task_item]
 
 
-class GetSlice(GetItem):
+class GetSlice(ChangeSampleShapeBase):
     """Slice a stream and index or slice its samples.
 
     Useful to select part of a stream, possibly in combination with selecting,
@@ -383,18 +392,20 @@ class GetSlice(GetItem):
     """
 
     def __init__(self, ih, item):
-        if not isinstance(item, tuple):
-            item = (item,)
-        assert isinstance(item[0], slice), "only support slice for time axis"
-        start, stop, step = item[0].indices(ih.shape[0])
+        self._item = item
+        if isinstance(item, tuple):
+            if any(i != slice(None) for i in item[1:]):
+                # Override task to also take sample items.
+                self._task_item = (slice(None),)+item[1:]
+                self.task = lambda data: data[self._task_item]
+            item = item[0]
+
+        assert isinstance(item, slice), "only support slice for time axis"
+        start, stop, step = item.indices(ih.shape[0])
         assert step == 1, "do not support step for time slice"
         assert stop > start, "empty time slice"
 
-        super().__init__(ih, item[1:])
-        if not item[1:]:
-            # Override task to avoid needless view taking.
-            self.task = lambda data: data
-
+        super().__init__(ih)
         self._start = start
         self._shape = (stop-start,)+self.shape[1:]
 
@@ -403,3 +414,11 @@ class GetSlice(GetItem):
 
     def _get_frame(self, offset):
         return super()._get_frame(self._start + offset)
+
+    def task(self, data):
+        """No-op task for default case of no sample slicing.
+
+        Is overridden in initializer if sample slicing is needed.
+
+        """
+        return data

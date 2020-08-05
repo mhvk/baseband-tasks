@@ -86,6 +86,12 @@ class TestResampleReal:
         expected = self.full_fh.read()[int(fraction*4):-(4-int(fraction*4)):4]
         assert_allclose(data, expected, atol=self.atol, rtol=0)
 
+    def test_repr(self):
+        ih = Resample(self.part_fh, 0.5, samples_per_frame=511)
+        r = repr(ih)
+        assert r.startswith('Resample(ih')
+        assert 'offset=0.5' in r
+
 
 class TestResampleComplex(TestResampleReal):
 

@@ -44,6 +44,9 @@ def test_real_to_complex_delta():
     assert real2complex.frequency == 400.5 * u.kHz
     assert real2complex.sideband == 1
 
+    r = repr(real2complex)
+    assert r.startswith('Real2Complex(ih)')
+
 
 def test_expected_failures():
     with pytest.raises(ValueError):

@@ -21,7 +21,7 @@ class ReshapeTime(TaskBase):
     def __init__(self, ih, n, samples_per_frame=1, fix_shape=False,
                  **kwargs):
 
-        n = operator.index(n)
+        self._n = n = operator.index(n)
         samples_per_frame = operator.index(samples_per_frame)
         sample_rate = ih.sample_rate / n
         sh0 = ih.shape[0] // n if fix_shape else -1
@@ -283,6 +283,25 @@ class TestTaskBase(UseVDIFSample):
             assert np.all(rt.sideband == sideband_in)
             assert np.all(rt.frequency == frequency_in)
 
+    def test_repr_str(self):
+        fh = self.fh
+        # Add frequency and sideband information by hand, broadcasting it.
+        # (Note: sideband is incorrect; just for testing purposes)
+        frequency_in = 311.25 * u.MHz + (np.arange(8.) // 2) * 16. * u.MHz
+        sideband_in = np.tile([-1, +1], 4)
+        rt = ReshapeTime(fh, 256, frequency=frequency_in,
+                         sideband=sideband_in)
+        r = repr(rt)
+        assert r.startswith('ReshapeTime(ih,')
+        assert 'n=256' in r
+        assert 'frequency=' in r
+        assert 'sideband=' in r
+        assert 'ih: <VDIF' in r
+
+        s = str(rt)
+        # String only keeps named arguments.
+        assert s == 'ReshapeTime(ih, n=256)'
+
     def test_taskbase_exceptions(self):
         """Test exceptions in TaskBase."""
         fh = self.fh
@@ -405,6 +424,26 @@ class TestTasks(UseVDIFSample):
 
         assert np.all(data1 == ref_data)
         assert ft.closed
+
+    def test_task_function_repr(self):
+        ft = Task(self.fh, zero_channel_4)
+        r = repr(ft)
+        assert r.startswith('Task(ih')
+        assert 'task=' in r
+        assert 'zero_channel_4' in r
+        pre, post = r.split('\nih')
+        assert 'samples_per_frame' not in pre
+        assert 'VDIFStream' in post
+
+    def test_task_method_repr(self):
+        ft = Task(self.fh, zero_every_8th_complex)
+        r = repr(ft)
+        assert r.startswith('Task(ih')
+        assert 'task=' in r
+        assert 'zero_every_8th' in r
+        pre, post = r.split('\nih')
+        assert 'samples_per_frame' not in pre
+        assert 'VDIFStream' in post
 
     def test_invalid(self):
         with pytest.raises(Exception):  # Cannot determine function/method.

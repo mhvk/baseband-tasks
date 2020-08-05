@@ -1,7 +1,7 @@
 # Licensed under the GPLv3 - see LICENSE
 import numpy as np
 
-from .base import TaskBase, check_broadcast_to, simplify_shape
+from .base import TaskBase, simplify_shape
 
 
 __all__ = ['Square', 'Power']
@@ -23,22 +23,32 @@ class Square(TaskBase):
     ih : task or `baseband` stream reader
         Input data stream.
     polarization : array or (nested) list of char, optional
-        Polarization labels.  Should broadcast to the sample shape,
+        Output polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
-        ``['X', 'Y']``, or ``[['L'], ['R']]``.  By default, taken
-        from the underlying stream (and ignored if not given).
-        Output labels will have the polarization labels doubled,
-        i.e., ``['XX', 'YY']``, ``[['LL'], ['RR']]``, etc.
+        ``['XX', 'YY']``, or ``[['LL'], ['RR']]``.  By default, doubled
+        labels from the underlying stream (and ignored if not given).
     """
 
     def __init__(self, ih, polarization=None):
+        if polarization is None:
+            polarization = self._default_polarization(ih)
+
         ih_dtype = np.dtype(ih.dtype)
         self.task = complex_square if ih_dtype.kind == 'c' else np.square
         dtype = self.task(np.zeros(1, dtype=ih_dtype)).dtype
+
         super().__init__(ih, dtype=dtype, polarization=polarization)
-        if self._polarization is not None:
-            self._polarization = np.core.defchararray.add(
-                self._polarization, self._polarization)
+
+    def _default_polarization(self, ih):
+        if not hasattr(ih, 'polarization'):
+            return None
+
+        return np.core.defchararray.add(ih.polarization, ih.polarization)
+
+    def _repr_item(self, key, default, value=None):
+        if key == 'polarization':
+            default = self._default_polarization(self.ih)
+        return super()._repr_item(key, default=default, value=value)
 
 
 class Power(TaskBase):
@@ -60,10 +70,10 @@ class Power(TaskBase):
     ih : task or `baseband` stream reader
         Input data stream.
     polarization : array or (nested) list of char, optional
-        Polarization labels.  Should broadcast to the sample shape,
-        i.e., the labels are in the correct axis.  For instance,
-        ``['X', 'Y']``, or ``[['L'], ['R']]``.  By default, taken
-        from the underlying stream.
+        Output polarization labels.  Should broadcast to the output sample
+        shape, i.e., the labels are in the correct axis.  For instance,
+        ``['LL', 'RR', 'LR', 'RL']``.  By default, inferred from the
+        underlying stream, using the scheme described above.
 
     Raises
     ------
@@ -76,23 +86,18 @@ class Power(TaskBase):
 
     def __init__(self, ih, polarization=None):
         if polarization is None:
-            polarization = ih.polarization
+            polarization = self._default_polarization(ih)
         else:
-            # Check that input has consistent shape
-            broadcast = check_broadcast_to(polarization, ih.sample_shape)
-            polarization = simplify_shape(broadcast)
+            polarization = simplify_shape(np.asanyarray(polarization))
+            if not (polarization.size == 4 == len(np.unique(polarization))
+                    and 4 in polarization.shape):
+                raise ValueError('output polarizations should have 4 unique '
+                                 'elements along one axis.')
 
-        if polarization.size != 2:
-            raise ValueError("need exactly 2 polarizations.  Reshape stream "
-                             "appropriately.")
-        # polarization is guaranteed to have 2 distinct items.
-        pol_axis = polarization.shape.index(2)
-        pol_swap = polarization.swapaxes(0, pol_axis)
-        pol_swap = np.core.defchararray.add(pol_swap[[0, 1, 0, 1]],
-                                            pol_swap[[0, 1, 1, 0]])
-        polarization = pol_swap.swapaxes(0, pol_axis)
-
-        self._axis = ih.ndim - polarization.ndim + pol_axis
+        self._axis = ih.ndim - polarization.ndim + polarization.shape.index(4)
+        if ih.shape[self._axis] != 2:
+            raise ValueError(f"input shape should be 2 along polarization axis"
+                             f" ({self._axis}), not {ih.shape[self._axis]}.")
         shape = ih.shape[:self._axis] + (4,) + ih.shape[self._axis+1:]
 
         ih_dtype = np.dtype(ih.dtype)
@@ -102,6 +107,22 @@ class Power(TaskBase):
 
         super().__init__(ih, shape=shape, polarization=polarization,
                          dtype=dtype)
+
+    def _default_polarization(self, ih):
+        if ih.polarization.size != 2:
+            raise ValueError("stream should have exactly 2 polarizations. "
+                             "Reshape appropriately.")
+
+        # Given check_shape, ih.polarization is guaranteed to have 2 distinct
+        # items, which are guaranteed to be along first axis.
+        return np.core.defchararray.add(ih.polarization[[0, 1, 0, 1]],
+                                        ih.polarization[[0, 1, 1, 0]])
+
+    def _repr_item(self, key, default, value=None):
+        if (key == 'polarization' and hasattr(self.ih, 'polarization')
+                and default is None):
+            default = self._default_polarization(self.ih)
+        return super()._repr_item(key, default=default, value=value)
 
     def task(self, data):
         """Calculate the polarization powers and cross terms for one frame."""

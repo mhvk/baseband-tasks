@@ -105,6 +105,8 @@ class Integrate(BaseTaskBase):
 
     def __init__(self, ih, step=None, phase=None, *,
                  start=0, average=True, samples_per_frame=1, dtype=None):
+        self._start = start
+        self._step = step
         ih_start = ih.seek(start)
         ih_n_sample = ih.shape[0] - ih_start
         if ih_start < 0 or ih_n_sample < 0:
@@ -135,7 +137,7 @@ class Integrate(BaseTaskBase):
 
         # Initialize value for _get_offsets.
         self._mean_offset_size = n_sample / ih_n_sample
-        self._start = start
+        self._sample_start = start
 
         # Calculate output shape.
         n_sample = (int(n_sample + 0.5*self._mean_offset_size)
@@ -211,8 +213,8 @@ class Integrate(BaseTaskBase):
             ih_time = self.ih.start_time + old_offsets / self.ih.sample_rate
             # TODO: the conversion is necessary because Quantity(Phase)
             # doesn't convert the two doubles to float internally.
-            ih_phase[mask] = (self._phase(ih_time)
-                              - self._start).astype(ih_phase.dtype, copy=False)
+            ih_phase[mask] = ((self._phase(ih_time) - self._sample_start)
+                              .astype(ih_phase.dtype, copy=False))
             # Next, interpolate in known phases to get improved offsets.
             offsets[mask] = np.interp(phase[mask], all_ih_phase, all_offsets)
             # Finally, update mask.

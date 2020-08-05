@@ -113,6 +113,63 @@ class Base:
         self._sideband = sideband
         self._polarization = polarization
 
+    def _repr_item(self, key, default, value=None):
+        """Representation of one argument.
+
+        Subclasses can override this, either to return something else than
+        the base key=value or to set a different default for specific keys.
+
+        """
+
+        if value is None:
+            value = getattr(self, key, None)
+            if value is None:
+                value = getattr(self, '_' + key, None)
+                if value is None:
+                    return None
+
+        if default is not inspect._empty:
+            try:
+                if np.all(value == default):
+                    return None
+            except Exception:
+                pass
+
+        return f"{key}={value}".replace('\n', ',')
+
+    def __str__(self):
+        name = self.__class__.__name__
+        pars = inspect.signature(self.__class__).parameters
+        overrides = [self._repr_item(key, par.default)
+                     for key, par in pars.items()]
+
+        overrides = ', '.join([override for override in overrides if override])
+        return f"{name}({overrides})"
+
+    def __repr__(self):
+        """Representation which lists non-default arguments.
+
+        Finds possible arguments by inspection of the whole class hierarchy
+        (as long as kwargs are passed along) and creates a list of all whose
+        values on the instance are different from the default. Subclasses
+        can override the assumed default and what to return in _repr_item.
+
+        """
+        name = self.__class__.__name__
+        pars = {}
+        for cls in self.__class__.__mro__:
+            for key, par in inspect.signature(cls).parameters.items():
+                pars.setdefault(key, par)
+            if 'kwargs' not in pars:
+                break
+
+        overrides = [self._repr_item(key, par.default)
+                     for key, par in pars.items()]
+
+        overrides = (',\n '+' '*len(name)).join(
+            [override for override in overrides if override])
+        return f"{name}({overrides})"
+
     def _check_shape(self, value):
         """Check that value can be broadcast to the sample shape."""
         broadcast = check_broadcast_to(value, self.sample_shape)
@@ -476,6 +533,27 @@ class BaseTaskBase(Base):
                          frequency=frequency, sideband=sideband,
                          polarization=polarization, dtype=dtype)
 
+    def _repr_item(self, key, default, value=None):
+        if key == 'ih':
+            return 'ih'
+        if default is None:
+            if key == 'samples_per_frame':
+                default = self._ih_samples_per_frame
+            elif key == 'ih_samples_per_frame':
+                default = self.ih.samples_per_frame
+            else:
+                default = getattr(self.ih, key, None)
+
+        return super()._repr_item(key, default=default, value=value)
+
+    def __repr__(self):
+        base = super().__repr__()
+        if base.count('\n') == 1:
+            base = ' '.join(b.strip() for b in base.split('\n'))
+        return (base
+                + "\nih: "
+                + "\n    ".join(repr(self.ih).split('\n')))
+
     def close(self):
         """Close task.
 
@@ -730,6 +808,11 @@ class Task(TaskBase):
             self.task = task
 
         super().__init__(ih, **kwargs)
+
+    def _repr_item(self, key, default, value=None):
+        if key == 'task' and isinstance(self.task, types.MethodType):
+            value = self.task.__func__
+        return super()._repr_item(key, default=default, value=value)
 
 
 class SetAttribute(TaskBase):
