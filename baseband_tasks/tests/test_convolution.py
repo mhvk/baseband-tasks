@@ -80,6 +80,14 @@ class TestConvolveNoise:
         data1 = ct.read()
         assert np.allclose(data1, expected[:data1.shape[0]])
 
+    def test_repr(self):
+        ct = ConvolveSamples(self.nh, self.response)
+        r = repr(ct)
+        assert r.startswith('ConvolveSamples(ih')
+        assert 'response=' in r
+        assert 'offset=' not in r
+        assert 'samples_per_frame' in r  # since different from input.
+
     @pytest.mark.parametrize('convolve_task', (ConvolveSamples, Convolve))
     def test_wrong_response(self, convolve_task):
         with pytest.raises(ValueError):

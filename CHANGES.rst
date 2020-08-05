@@ -17,6 +17,9 @@ New Features
 - ``SetAttribute`` can now also be used to change ``samples_per_frame``,
   ``shape`` or ``dtype``. [#195]
 
+- All streams now have useful ``repr``. For tasks, this includes information
+  on the underlying streams. [#198]
+
 API Changes
 -----------
 

@@ -89,6 +89,9 @@ class TestPower(UseDADASample):
                    - fh.start_time - fh.shape[0] / fh.sample_rate) < 1*u.ns
         assert pt.dtype is ref_data.dtype is data1.dtype
         assert np.allclose(ref_data, data1)
+
+        r = repr(pt)
+        assert r.startswith('Power(ih, polarization=')
         pt.close()
 
     def test_polarization_propagation(self):
@@ -97,6 +100,7 @@ class TestPower(UseDADASample):
                           polarization=np.array(['L', 'R']))
         pt = Power(fh)
         assert np.all(pt.polarization == np.array(['LL', 'RR', 'LR', 'RL']))
+        assert repr(pt).startswith('Power(ih)\n')
         # Swap order.
         fh2 = SetAttribute(self.fh,
                            polarization=np.array(['R', 'L']))

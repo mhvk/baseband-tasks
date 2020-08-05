@@ -57,6 +57,22 @@ class TestGenerator(StreamBase):
             with pytest.raises(AttributeError):
                 sh.polarization
 
+    def test_repr(self):
+        frequency = np.array([320., 350., 380., 410.])[:, np.newaxis] * u.MHz
+        sideband = np.array([-1, 1])
+        with StreamGenerator(self.my_source,
+                             frequency=frequency, sideband=sideband,
+                             shape=self.shape, start_time=self.start_time,
+                             sample_rate=self.sample_rate,
+                             samples_per_frame=1) as sh:
+            r = repr(sh)
+
+        assert r.startswith('StreamGenerator(')
+        assert 'start_time=' in r
+        assert 'samples_per_frame' not in r  # has default
+        assert 'frequency=' in r
+        assert 'polarization' not in r
+
     def test_frequency_sideband_polarization_setting(self):
         frequency = np.array([320., 320., 350., 350.])[:, np.newaxis] * u.MHz
         sideband = np.array([-1, 1, -1, 1])[:, np.newaxis]
@@ -84,6 +100,10 @@ class TestGenerator(StreamBase):
         expected = sh.read()
         data = sliced.read()
         assert np.all(data == expected)
+
+        r = repr(sliced)
+        assert r.startswith('GetSlice(ih, item=')
+        assert '\nih: StreamGenerator(' in r
 
     def test_exceptions(self):
         with StreamGenerator(self.my_source,

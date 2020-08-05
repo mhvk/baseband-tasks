@@ -91,3 +91,8 @@ class Real2Complex(TaskBase):
 
         z = z[::2]
         return z
+
+    def _repr_item(self, key, default, value=None):
+        if key == 'samples_per_frame' and default is None:
+            default = self.ih.samples_per_frame // 2
+        return super()._repr_item(key, default=default, value=value)

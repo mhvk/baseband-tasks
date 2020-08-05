@@ -127,6 +127,16 @@ class CombineStreamsBase(TaskBase):
         data = [ih.read(stop-start) for ih in self.ihs]
         return self.task(data)
 
+    def _repr_item(self, key, default, value=None):
+        if key == 'ihs':
+            return 'ihs'
+        else:
+            return super()._repr_item(key, default=default, value=value)
+
+    def __repr__(self):
+        extra = f"\nihs: {len(self.ihs)} streams of which the first is:\n    "
+        return super().__repr__().replace('\nih: ', extra)
+
 
 class CombineStreams(Task, CombineStreamsBase):
     """Combining streams using a callable.
@@ -156,6 +166,11 @@ class CombineStreams(Task, CombineStreamsBase):
     Concatenate : to concatenate streams along an existing axis
     Stack : to stack streams together along a new axis
     """
+    # Override init just to change name of ih to ihs.
+    def __init__(self, ihs, task, method=None, *,
+                 atol=None, samples_per_frame=None):
+        super().__init__(ihs, task, method=method,
+                         atol=atol, samples_per_frame=samples_per_frame)
 
 
 class Concatenate(CombineStreamsBase):

@@ -45,6 +45,11 @@ class Square(TaskBase):
 
         return np.core.defchararray.add(ih.polarization, ih.polarization)
 
+    def _repr_item(self, key, default, value=None):
+        if key == 'polarization':
+            default = self._default_polarization(self.ih)
+        return super()._repr_item(key, default=default, value=value)
+
 
 class Power(TaskBase):
     """Calculate powers and cross terms for two polarizations.
@@ -112,6 +117,12 @@ class Power(TaskBase):
         # items, which are guaranteed to be along first axis.
         return np.core.defchararray.add(ih.polarization[[0, 1, 0, 1]],
                                         ih.polarization[[0, 1, 1, 0]])
+
+    def _repr_item(self, key, default, value=None):
+        if (key == 'polarization' and hasattr(self.ih, 'polarization')
+                and default is None):
+            default = self._default_polarization(self.ih)
+        return super()._repr_item(key, default=default, value=value)
 
     def task(self, data):
         """Calculate the polarization powers and cross terms for one frame."""
