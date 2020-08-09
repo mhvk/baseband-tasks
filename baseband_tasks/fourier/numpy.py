@@ -38,7 +38,10 @@ class NumpyFFTBase(FFTBase):
             self._time_dtype, copy=False)
 
     def _rfft(self, a):
-        return np.fft.rfft(a, axis=self.axis, norm=self._norm).astype(
+        # return np.fft.rfft(a, axis=self.axis, norm=self._norm).astype(
+        #     self._frequency_dtype, copy=False)
+
+        return np.fft.rfft(a, axis=self.axis).astype(
             self._frequency_dtype, copy=False)
 
     # irfft needs explicit length for odd-numbered outputs.

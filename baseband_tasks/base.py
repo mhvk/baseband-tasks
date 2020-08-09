@@ -13,6 +13,9 @@ __all__ = ['Base', 'BaseTaskBase', 'TaskBase', 'PaddedTaskBase',
            'SetAttribute', 'Task']
 
 
+Empty = np.empty
+
+
 def check_broadcast_to(value, sample_shape):
     """Broadcast values to the given shape.
 
@@ -369,7 +372,7 @@ class Base:
             if count is None or count < 0:
                 count = max(0, samples_left)
 
-            out = np.empty((count,) + self.sample_shape, dtype=self.dtype)
+            out = Empty((count,) + self.sample_shape, dtype=self.dtype)
         else:
             assert out.shape[1:] == self.sample_shape, (
                 "'out' must have trailing shape {}".format(self.sample_shape))
@@ -391,7 +394,7 @@ class Base:
             # Explicitly set offset (leaving get_frame free to adjust it).
             self.offset = offset0 + sample
 
-        return out
+        return out if isinstance(out, np.ndarray) else getattr(out, 'array', out)
 
     def _get_frame(self, offset):
         """Get a frame that includes given offset.
@@ -655,7 +658,17 @@ class TaskBase(BaseTaskBase):
         # Read data from underlying filehandle.
         start = self._seek_frame(frame_index)
         stop = min(start + self._ih_samples_per_frame, self._ih_stop)
-        data = self.ih.read(stop-start)
+        # Temporary workaround
+        if (isinstance(self.ih, SetAttribute)
+                and self.ih.read.__func__ is self.ih.simple_read.__func__
+                and not isinstance(self.ih.ih, Base)
+                and Empty is not np.empty):
+            from dask import array as da
+            data = da.from_array(self.ih[start:stop],
+                                 chunks=(-1,)+(1,)*(self.ndim-1),
+                                 lock=True, asarray=True)
+        else:
+            data = self.ih.read(stop-start)
         # Apply function to the data.  Note that the _get_frame() function
         # in base ensures that our offset pointer is correct.
         return self.task(data)

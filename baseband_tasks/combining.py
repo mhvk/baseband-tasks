@@ -242,8 +242,9 @@ class Stack(CombineStreamsBase):
     def task(self, data):
         """Stack the pieces of data."""
         # Reuse frame for in-place output if possible.
-        if getattr(self._frame, 'shape', [-1])[0] == data[0].shape[0]:
-            out = self._frame
-        else:
-            out = None
-        return np.stack(data, axis=self.axis, out=out)
+        # if getattr(self._frame, 'shape', [-1])[0] == data[0].shape[0]:
+        #     out = self._frame
+        # else:
+        #     out = None
+        # return np.stack(data, axis=self.axis, out=out)
+        return np.stack(data, axis=self.axis)
