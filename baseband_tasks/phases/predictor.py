@@ -160,7 +160,7 @@ class Polyco(QTable):
         """
         _user_defined_index = index is not None
         time = Time(time, format='mjd', scale='utc')
-        
+
         try:  # This also catches index=None
             index = index.__index__()
         except (AttributeError, TypeError):
