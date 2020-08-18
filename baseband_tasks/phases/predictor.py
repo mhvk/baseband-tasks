@@ -125,7 +125,7 @@ class Polyco(QTable):
                     fh.write(' ' + ' '.join([coeff_fmt(c)
                                              for c in coeff[i:i+3]]) + '\n')
 
-    def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=None):
+    def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=u.s):
         """Predict phase or frequency (derivatives) for given mjd (array)
 
         Parameters
@@ -158,9 +158,9 @@ class Polyco(QTable):
             A phase if ``deriv=0`` and ``rphase=None`` to preserve precision;
             otherwise, a quantity with units of ``cycle / time_unit**deriv``.
         """
-        time_unit = time_unit or u.s
-        if not hasattr(time, 'mjd'):
-            time = Time(time, format='mjd', scale='utc')
+        _user_defined_index = index is not None
+        time = Time(time, format='mjd', scale='utc')
+        
         try:  # This also catches index=None
             index = index.__index__()
         except (AttributeError, TypeError):
@@ -168,6 +168,10 @@ class Polyco(QTable):
 
         # Convert offsets to minutes for later use in polynomial evaluation.
         dt = (time - self['mjd_mid'][index]).to(u.min)
+
+        if not _user_defined_index:
+            if np.any(np.abs(dt) > (self['span'][index] + 1 * u.ms) / 2):
+                raise ValueError('(some) MJD outside of polyco range')
 
         # Check whether we need to add the reference phase at the end.
         do_phase = (deriv == 0 and rphase is None)
