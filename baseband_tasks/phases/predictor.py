@@ -61,6 +61,7 @@ Example tempo2 call to produce one:
 """
 
 from collections import OrderedDict
+import os
 
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -78,15 +79,9 @@ __all__ = ['Polyco']
 
 
 class Polyco(QTable):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, data, *args, **kwargs):
         """Read in polyco file as Table, and set up class."""
-        if len(args):
-            data = args[0]
-            args = args[1:]
-        else:
-            data = kwargs.pop('data', None)
-
-        if isinstance(data, str):
+        if isinstance(data, (str, bytes, os.PathLike)):
             data = polyco2table(data)
 
         super().__init__(data, *args, **kwargs)
@@ -130,7 +125,7 @@ class Polyco(QTable):
                     fh.write(' ' + ' '.join([coeff_fmt(c)
                                              for c in coeff[i:i+3]]) + '\n')
 
-    def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=None):
+    def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=u.s):
         """Predict phase or frequency (derivatives) for given mjd (array)
 
         Parameters
@@ -163,9 +158,9 @@ class Polyco(QTable):
             A phase if ``deriv=0`` and ``rphase=None`` to preserve precision;
             otherwise, a quantity with units of ``cycle / time_unit**deriv``.
         """
-        time_unit = time_unit or u.s
-        if not hasattr(time, 'mjd'):
-            time = Time(time, format='mjd', scale='utc')
+        _user_defined_index = index is not None
+        time = Time(time, format='mjd', scale='utc')
+
         try:  # This also catches index=None
             index = index.__index__()
         except (AttributeError, TypeError):
@@ -173,8 +168,10 @@ class Polyco(QTable):
 
         # Convert offsets to minutes for later use in polynomial evaluation.
         dt = (time - self['mjd_mid'][index]).to(u.min)
-        if np.any(dt > self['span'][index]/2):
-            raise ValueError('(some) MJD outside of polyco range')
+
+        if not _user_defined_index:
+            if np.any(np.abs(dt) > (self['span'][index] + 1 * u.ms) / 2):
+                raise ValueError('(some) MJD outside of polyco range')
 
         # Check whether we need to add the reference phase at the end.
         do_phase = (deriv == 0 and rphase is None)
