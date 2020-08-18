@@ -61,6 +61,7 @@ Example tempo2 call to produce one:
 """
 
 from collections import OrderedDict
+import os
 
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -78,15 +79,9 @@ __all__ = ['Polyco']
 
 
 class Polyco(QTable):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, data, *args, **kwargs):
         """Read in polyco file as Table, and set up class."""
-        if len(args):
-            data = args[0]
-            args = args[1:]
-        else:
-            data = kwargs.pop('data', None)
-
-        if isinstance(data, str):
+        if isinstance(data, (str, bytes, os.PathLike)):
             data = polyco2table(data)
 
         super().__init__(data, *args, **kwargs)
@@ -173,8 +168,6 @@ class Polyco(QTable):
 
         # Convert offsets to minutes for later use in polynomial evaluation.
         dt = (time - self['mjd_mid'][index]).to(u.min)
-        if np.any(dt > self['span'][index]/2):
-            raise ValueError('(some) MJD outside of polyco range')
 
         # Check whether we need to add the reference phase at the end.
         do_phase = (deriv == 0 and rphase is None)
