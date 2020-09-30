@@ -158,7 +158,9 @@ class TestTaskBase(UseVDIFSample):
         assert mh.ndim == fh.ndim
         assert mh.tell() == 0
         assert mh.tell(unit='time') == mh.time == mh.start_time
-        assert mh.stop_time == fh.stop_time
+        # stop_time is calculated via frame_rate in baseband and via
+        # sample_rate here, so can be slightly different.
+        assert abs(mh.stop_time - fh.stop_time) <= 2**-51 * u.day
 
         expected = fh.read() * 2.
         data = mh.read()
