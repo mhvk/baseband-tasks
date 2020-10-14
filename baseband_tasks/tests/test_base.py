@@ -165,7 +165,7 @@ class TestTaskBase(UseVDIFSample):
         expected = fh.read() * 2.
         data = mh.read()
         assert np.all(data == expected)
-        assert mh.time == fh.stop_time
+        assert mh.time == mh.stop_time
         # Check closing.
         mh.close()
         with pytest.raises(ValueError):
