@@ -94,20 +94,15 @@ jobs:
         - name: big-endian s390x architecture with apt
           stage: Cron tests
           arch: s390x
+          dist: focal
           language: c
           addons:
             apt:
-              sources:
-              - sourceline: 'deb http://ftp.us.debian.org/debian testing main'
-                key_url: 'https://ftp-master.debian.org/keys/archive-key-10.asc'
               packages:
               - python3-astropy
               - python3-pyfftw
               - python3-h5py
               - python3-yaml
-              - python3-attr  # too old in bionic
-              - python3-h5py-serial  # not needed on amd64; weird.
-              - libhdf5-hl-100  # not needed on amd64; weird.
           env: SETUP_METHOD='apt'
 
 install:
