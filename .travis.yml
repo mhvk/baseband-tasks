@@ -103,6 +103,7 @@ jobs:
               - python3-pyfftw
               - python3-h5py
               - python3-yaml
+              - python3-pip
           env: SETUP_METHOD='apt'
 
 install:
@@ -112,7 +113,7 @@ install:
     - if [[ $SETUP_METHOD == 'tox' ]]; then
         pip install tox;
       else
-        /usr/bin/pip3 install --user baseband;
+        python3 -m pip install --user baseband;
       fi
 
     - if [[ $TOXENV == *-cov ]]; then
