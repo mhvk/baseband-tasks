@@ -28,7 +28,7 @@ class HDF5Payload:
 
     Parameters
     ----------
-    words : `~h5py:Dataset`
+    words : `~h5py.Dataset`
         Array containg data as stored in the HDF5 file, which possibly
         are encoded similar to a VDIF payload.
     header : `~baseband_tasks.io.hdf5.HDF5Header`, optional
@@ -57,7 +57,7 @@ class HDF5Payload:
 
         Parameters
         ----------
-        fh : `~h5py:File` or `~h5py:Group`
+        fh : `~h5py.File` or `~h5py.Group`
             Handle to the HDF5 file/group which has an 'payload' dataset.
             If the payload does not exist, it will be created.
         header : `~baseband_tasks.io.hdf5.HDF5Header`, optional
