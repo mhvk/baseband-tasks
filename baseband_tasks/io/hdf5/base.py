@@ -1,8 +1,8 @@
 # Licensed under the GPLv3 - see LICENSE
 """Interfaces for reading and writing from an internal HDF5 format.
 
-In this format, each HDF5 `~h5py:File` has 'header' and 'payload'
-`h5py:Dataset` instances, with the header consisting of yaml-encoded
+In this format, each HDF5 `~h5py.File` has 'header' and 'payload'
+`h5py.Dataset` instances, with the header consisting of yaml-encoded
 keywords describing the start time, sample rate, etc., and the payload
 consisting of either plain numpy data, or data encoded following the
 VDIF standard.
@@ -134,7 +134,7 @@ def open(filename, mode='r', **kwargs):
 
     Parameters
     ----------
-    name : str, `~h5py:File`, of `~h5py:Group`
+    name : str, `~h5py.File`, of `~h5py.Group`
         File name, filehandle, or group containing header and payload.
     mode : {'r', 'w'}, optional
         Whether to open for reading (default) or writing.
