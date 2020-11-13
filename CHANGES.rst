@@ -34,6 +34,9 @@ Bug Fixes
   even if their sample rate is not in Hz. Times will be accurate to the
   nearest sample of the underlying stream. [#197]
 
+- Fix bug where times just on the border of polycos sometimes were wrongly
+  considered outside of the valid range. [#206]
+
 Other Changes and Additions
 ---------------------------
 
