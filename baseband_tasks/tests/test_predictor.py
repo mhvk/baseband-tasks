@@ -82,7 +82,15 @@ class TestPredictor:
         assert len(pa2) == len(time)
         assert u.allclose(pa2, pa)
 
+    def test_polyco_interpolation_index_helper(self):
+        # Test that for finely spaced times, a single item can get index.
+        time = self.start_time + np.linspace(0, 30) * 5. * u.ms
+        # Test scalar input
+        p1 = self.polyco(time)
+        p2 = self.polyco(time, index=time[15])
+        assert np.all(p1 == p2)
+
     def test_over_range(self):
         time = self.start_time + 10 * u.day
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='outside of polyco range'):
             self.polyco(time)

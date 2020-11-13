@@ -62,6 +62,7 @@ Example tempo2 call to produce one:
 
 from collections import OrderedDict
 import os
+import operator
 
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -158,20 +159,21 @@ class Polyco(QTable):
             A phase if ``deriv=0`` and ``rphase=None`` to preserve precision;
             otherwise, a quantity with units of ``cycle / time_unit**deriv``.
         """
-        _user_defined_index = index is not None
         time = Time(time, format='mjd', scale='utc')
-
         try:  # This also catches index=None
-            index = index.__index__()
-        except (AttributeError, TypeError):
-            index = self.searchclosest(time)
+            index = operator.index(index)
+        except TypeError:
+            if index is None:
+                if np.any((time < (self['mjd_mid']-self['span']/2.).min())
+                          | (time > (self['mjd_mid']+self['span']/2.).max())):
+                    raise ValueError(
+                        '(some) MJD outside of polyco range') from None
+                index = self.searchclosest(time)
+            else:
+                index = self.searchclosest(index)
 
         # Convert offsets to minutes for later use in polynomial evaluation.
-        dt = (time - self['mjd_mid'][index]).to(u.min)
-
-        if not _user_defined_index:
-            if np.any(np.abs(dt) > (self['span'][index] + 1 * u.ms) / 2):
-                raise ValueError('(some) MJD outside of polyco range')
+        dt = (time - self['mjd_mid'][index]).to_value(u.min)
 
         # Check whether we need to add the reference phase at the end.
         do_phase = (deriv == 0 and rphase is None)
@@ -180,12 +182,12 @@ class Polyco(QTable):
             rphase = 'ignore'
 
         if time.isscalar:
-            result = self.polynomial(index, rphase, deriv)(dt.value)
+            result = self.polynomial(index, rphase, deriv)(dt)
         else:
             result = np.zeros(time.shape)
             for j in np.unique(index):
                 sel = index == j
-                result[sel] = self.polynomial(j, rphase, deriv)(dt[sel].value)
+                result[sel] = self.polynomial(j, rphase, deriv)(dt[sel])
 
         # Apply units from the polynomials.
         result = result << u.cycle/u.min**deriv
@@ -228,8 +230,8 @@ class Polyco(QTable):
         out_unit = out_unit or time_unit
 
         try:
-            index = index.__index__()
-        except (AttributeError, TypeError):
+            index = operator.index(index)
+        except TypeError:
             index = self.searchclosest(index)
         window = np.array([-1, 1]) * self['span'][index]/2
 
