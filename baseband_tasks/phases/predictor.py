@@ -61,6 +61,8 @@ Example tempo2 call to produce one:
 """
 
 from collections import OrderedDict
+import os
+import operator
 
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -78,15 +80,9 @@ __all__ = ['Polyco']
 
 
 class Polyco(QTable):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, data, *args, **kwargs):
         """Read in polyco file as Table, and set up class."""
-        if len(args):
-            data = args[0]
-            args = args[1:]
-        else:
-            data = kwargs.pop('data', None)
-
-        if isinstance(data, str):
+        if isinstance(data, (str, bytes, os.PathLike)):
             data = polyco2table(data)
 
         super().__init__(data, *args, **kwargs)
@@ -130,7 +126,7 @@ class Polyco(QTable):
                     fh.write(' ' + ' '.join([coeff_fmt(c)
                                              for c in coeff[i:i+3]]) + '\n')
 
-    def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=None):
+    def __call__(self, time, index=None, rphase=None, deriv=0, time_unit=u.s):
         """Predict phase or frequency (derivatives) for given mjd (array)
 
         Parameters
@@ -163,18 +159,21 @@ class Polyco(QTable):
             A phase if ``deriv=0`` and ``rphase=None`` to preserve precision;
             otherwise, a quantity with units of ``cycle / time_unit**deriv``.
         """
-        time_unit = time_unit or u.s
-        if not hasattr(time, 'mjd'):
-            time = Time(time, format='mjd', scale='utc')
+        time = Time(time, format='mjd', scale='utc')
         try:  # This also catches index=None
-            index = index.__index__()
-        except (AttributeError, TypeError):
-            index = self.searchclosest(time)
+            index = operator.index(index)
+        except TypeError:
+            if index is None:
+                if np.any((time < (self['mjd_mid']-self['span']/2.).min())
+                          | (time > (self['mjd_mid']+self['span']/2.).max())):
+                    raise ValueError(
+                        '(some) MJD outside of polyco range') from None
+                index = self.searchclosest(time)
+            else:
+                index = self.searchclosest(index)
 
         # Convert offsets to minutes for later use in polynomial evaluation.
-        dt = (time - self['mjd_mid'][index]).to(u.min)
-        if np.any(dt > self['span'][index]/2):
-            raise ValueError('(some) MJD outside of polyco range')
+        dt = (time - self['mjd_mid'][index]).to_value(u.min)
 
         # Check whether we need to add the reference phase at the end.
         do_phase = (deriv == 0 and rphase is None)
@@ -183,12 +182,12 @@ class Polyco(QTable):
             rphase = 'ignore'
 
         if time.isscalar:
-            result = self.polynomial(index, rphase, deriv)(dt.value)
+            result = self.polynomial(index, rphase, deriv)(dt)
         else:
             result = np.zeros(time.shape)
             for j in np.unique(index):
                 sel = index == j
-                result[sel] = self.polynomial(j, rphase, deriv)(dt[sel].value)
+                result[sel] = self.polynomial(j, rphase, deriv)(dt[sel])
 
         # Apply units from the polynomials.
         result = result << u.cycle/u.min**deriv
@@ -231,8 +230,8 @@ class Polyco(QTable):
         out_unit = out_unit or time_unit
 
         try:
-            index = index.__index__()
-        except (AttributeError, TypeError):
+            index = operator.index(index)
+        except TypeError:
             index = self.searchclosest(index)
         window = np.array([-1, 1]) * self['span'][index]/2
 
