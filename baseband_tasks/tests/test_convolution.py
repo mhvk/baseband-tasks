@@ -67,7 +67,7 @@ class TestConvolveNoise:
         ct2.seek(5)
         data2 = ct2.read(5)
         # PyFFTW doesn't seem to quite guarantee full reproducibility.
-        assert np.allclose(data2, data1[5:], rtol=0, atol=1e-15)
+        assert np.allclose(data2, data1[5:], rtol=0, atol=1e-14)
 
     @pytest.mark.parametrize('convolve_task', (ConvolveSamples, Convolve))
     def test_different_response(self, convolve_task):
