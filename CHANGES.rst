@@ -20,6 +20,11 @@ New Features
 - All streams now have useful ``repr``. For tasks, this includes information
   on the underlying streams. [#198]
 
+- The Noise generator has been upgraded to the ``Philox`` bit generator, which
+  can be reset to a previous count.  This means that noise streams no longer
+  need to carry state information for every frame, and that they are now
+  independent of the order in which frames are initially accessed.  [#209]
+
 API Changes
 -----------
 

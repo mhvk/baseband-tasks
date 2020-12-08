@@ -294,6 +294,25 @@ class TestNoise:
             assert not np.any(d2 == d4)
             assert np.all(d3 == d3_2)
 
+    def test_reproducible(self):
+        # Should be independent of order data is read in.
+        kwargs = dict(seed=self.seed,
+                      shape=self.shape, start_time=self.start_time,
+                      sample_rate=self.sample_rate,
+                      samples_per_frame=4, dtype=np.complex128)
+        with NoiseGenerator(**kwargs) as nh1:
+            reference = nh1.read(40)
+
+        with NoiseGenerator(**kwargs) as nh1:
+            # Read in reverse order, in 10 samples at time time, i.e.,
+            # on purpose not respecting frame boundaries.
+            pieces = []
+            for i in range(4):
+                nh1.seek(30-i*10)
+                pieces.append(nh1.read(10))
+            data = np.concatenate(pieces[::-1])
+        assert np.all(data == reference)
+
     @pytest.mark.parametrize('item', [slice(-400, None), slice(5, 15)])
     def test_sample_slice(self, item):
         sh = NoiseGenerator(seed=self.seed,

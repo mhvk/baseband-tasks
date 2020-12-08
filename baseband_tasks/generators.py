@@ -151,49 +151,39 @@ class Noise:
     """Helper class providing source callables for NoiseSource.
 
     When called, will provide a frame worth of normally distributed data,
-    but also keep the state of the random number generator, so that if the
-    same frame is read again, this state can be reused to ensure the same
-    data are regenerated.
+    but using the `~numpy.random.Philox` bit generator to ensure that if the
+    same frame is read again, the same random data are generated.
 
     Parameters
     ----------
     seed : int
-       Initial seed for `~numpy.random.RandomState`.
+       Initial seed for `~numpy.random.Philox`.
 
     Notes
     -----
-    Data is identical between invocations only if seeded identically *and*
-    read in the same order.
+    Data is identical between invocations only if seeded identically.
     """
 
     def __init__(self, seed=None):
-        # TODO: replace with new Generator class for numpy >=1.17.
-        self._random_state = np.random.RandomState(seed)
-        self._states = {}
+        self.seed = seed
+        self.rng = np.random.Generator(np.random.Philox(self.seed))
+        # We store a base state with no buffers set, etc., since we
+        # can use that to quickly reset the state for a new counter.
+        self.bg_state = self.rng.bit_generator.state
 
     def __call__(self, sh):
-        rs = self._random_state
-        offset = sh.tell()
-        done_this = offset in self._states
-        old_state = rs.get_state()
-        if done_this:
-            rs.set_state(self._states[offset])
-        else:
-            self._states[offset] = old_state
-
+        # We're guaranteed to be at the start of a frame here.
+        # Use the offset as the second uint64 in the counter to
+        # ensure we get independent but reproducible frame data.
+        self.bg_state['state']['counter'][1] = sh.tell()
+        self.rng.bit_generator.state = self.bg_state
         shape = (sh.samples_per_frame,) + sh.sample_shape
         if sh.complex_data:
             shape = shape[:-1] + (shape[-1] * 2,)
-        numbers = rs.normal(size=shape)
+        numbers = self.rng.normal(size=shape)
         if sh.complex_data:
             numbers = numbers.view(np.complex128)
-        numbers = numbers.astype(sh.dtype, copy=False)
-
-        # reset to old state if needed.
-        if done_this:
-            rs.set_state(old_state)
-
-        return numbers
+        return numbers.astype(sh.dtype, copy=False)
 
 
 class NoiseGenerator(StreamGenerator):
