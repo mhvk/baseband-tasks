@@ -1,17 +1,21 @@
 # Licensed under the GPLv3 - see LICENSE
 import os
+import sys
 import types
 import importlib
 
 import pytest
-import entrypoints
+if sys.version_info >= (3, 8):
+    from importlib.metadata import entry_points
+else:
+    from importlib_metadata import entry_points
 
 from .. import io, dispersion
 
 
 # needs_entrypoints is imported in io/hdf5/tests/test_hdf5.
 needs_entrypoints = pytest.mark.xfail(
-    'hdf5' not in entrypoints.get_group_named('baseband.io')
+    'hdf5' not in entry_points().get('baseband.io', [])
     and os.path.exists(os.path.join(os.path.dirname(__file__),
                                     '..', '..', 'setup.cfg')),
     reason="Source checkout without entrypoints; needs 'egg_info'.")
@@ -20,15 +24,14 @@ pytestmark = needs_entrypoints
 
 
 def fake_module(group):
-    from entrypoints import get_group_all
-
     name = group.split('.')[-1]
-    entries = get_group_all(group)
     module = types.ModuleType(name, doc=f"fake {group} module")
-    for entry in entries:
-        if entry.module_name.startswith('baseband_tasks'):
-            if entry.object_name == '__all__':
-                submod = importlib.import_module(entry.module_name)
+    for entry in entry_points().get(group, []):
+        # Only on python >= 3.9 do .module and .attr exist.
+        ep_module, _, ep_attr = entry.value.partition(':')
+        if ep_module.startswith('baseband_tasks'):
+            if ep_attr == '__all__':
+                submod = importlib.import_module(ep_module)
                 for item in entry.load():
                     setattr(module, item, getattr(submod, item))
                 if entry.name != '_':
