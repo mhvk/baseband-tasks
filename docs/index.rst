@@ -100,15 +100,15 @@ Project details
 ===============
 
 .. image:: https://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat
-    :target: https://www.astropy.org/
-    :alt: Powered by Astropy Badge
+   :target: https://www.astropy.org/
+   :alt: Powered by Astropy Badge
 
 .. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.3951543.svg
    :target: https://doi.org/10.5281/zenodo.3951543
    :alt: DOI 10.5281/zenodo.3951543
 
-.. image:: https://travis-ci.org/mhvk/baseband-tasks.svg?branch=master
-   :target: https://travis-ci.org/mhvk/baseband-tasks
+.. image:: https://github.com/mhvk/baseband-tasks/workflows/CI/badge.svg
+   :target: https://github.com/mhvk/baseband-tasks/actions
    :alt: Test Status
 
 .. image:: https://codecov.io/gh/mhvk/baseband-tasks/branch/master/graph/badge.svg
