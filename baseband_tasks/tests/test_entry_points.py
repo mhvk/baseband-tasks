@@ -15,7 +15,7 @@ from .. import io, dispersion
 
 # needs_entrypoints is imported in io/hdf5/tests/test_hdf5.
 needs_entrypoints = pytest.mark.xfail(
-    'hdf5' not in entry_points().get('baseband.io', [])
+    'hdf5' not in [ep.name for ep in entry_points().get('baseband.io', [])]
     and os.path.exists(os.path.join(os.path.dirname(__file__),
                                     '..', '..', 'setup.cfg')),
     reason="Source checkout without entrypoints; needs 'egg_info'.")
