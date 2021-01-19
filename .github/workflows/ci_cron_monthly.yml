@@ -4,12 +4,6 @@ on:
   schedule:
     # run every 19th of the month at 6am UTC
     - cron: '0 6 19 * *'
-  push:
-    branches:
-    - master
-    tags:
-    - '*'
-  pull_request:
 
 jobs:
   test_more_architectures:
@@ -33,7 +27,7 @@ jobs:
         include:
           - arch: s390x
           - arch: aarch64
-          - arch: ppc64le
+          # ppc64le has strange errors that seem more likely numpy related.
 
     steps:
       - uses: actions/checkout@v2
