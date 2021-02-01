@@ -97,31 +97,6 @@ tasks = import_module('baseband.tasks')
 dir(tasks)  # update globals to include all entry points.
 
 
-# Monkeypatch sphinx_automodapi for a bug with :allowed-package-names:
-# See https://github.com/astropy/sphinx-automodapi/pull/111
-from sphinx_automodapi import utils
-
-
-find_mod_objs_orig = utils.find_mod_objs
-
-
-def find_mod_objs(modname, onlylocals=False):
-    localnames, fqnames, objs = find_mod_objs_orig(modname, False)
-    return localnames, fqnames, objs
-    if onlylocals:
-        if isinstance(onlylocals, (tuple, list)):
-            modname = tuple(onlylocals)
-        valids = [fqn.startswith(modname) for fqn in fqnames]
-        localnames = [e for i, e in enumerate(localnames) if valids[i]]
-        fqnames = [e for i, e in enumerate(fqnames) if valids[i]]
-        objs = [e for i, e in enumerate(objs) if valids[i]]
-
-    return localnames, fqnames, objs
-
-
-utils.find_mod_objs = find_mod_objs
-
-
 # -- Options for HTML output --------------------------------------------------
 
 # A NOTE ON HTML THEMES
