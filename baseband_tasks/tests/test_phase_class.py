@@ -679,6 +679,20 @@ class TestPhaseString(PhaseSetup):
         with pytest.raises(ValueError):
             Phase.from_string(item)
 
+    @pytest.mark.parametrize('imag', (True, False))
+    def test_str_works(self, imag):
+        str(self.phase * 1j if imag else self.phase)
+
+    @pytest.mark.parametrize('imag', (True, False))
+    def test_repr_works(self, imag):
+        repr(self.phase * 1j if imag else self.phase)
+
+    @pytest.mark.parametrize('imag', (True, False))
+    def test_str(self, imag):
+        s = str(self.phase * 1j if imag else self.phase)
+        assert s.count('j') == (self.phase.size if imag else 0)
+        assert s.endswith('cycle')
+
 
 class TestFractionalPhase(PhaseSetup):
     """Since FractionalPhase is a subclass of Longitude, only limited tests."""
