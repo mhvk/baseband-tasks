@@ -313,7 +313,13 @@ class Phase(Angle):
             " * 1j" if self.imaginary else '')
 
     def __str__(self):
-        return self.to_string()
+        # Override Angle, since one cannot override the formatter for
+        # structured dtype in array2string.
+        def formatter(x):
+            return x.view(self.dtype).to_string()
+
+        return np.array2string(self.view(f"V{self.dtype.itemsize}"),
+                               formatter={'all': formatter}) + self._unitstr
 
     def __format__(self, format_spec):
         """Format a phase, special-casing the float format.
