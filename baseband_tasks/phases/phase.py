@@ -316,7 +316,8 @@ class Phase(Angle):
         # Override Angle, since one cannot override the formatter for
         # structured dtype in array2string.
         def formatter(x):
-            return x.view(self.dtype).to_string()
+            # [...] and view as self.__class__ are needed for scalar case.
+            return x[...].view(self.dtype, self.__class__).to_string()
 
         return np.array2string(self.view(f"V{self.dtype.itemsize}"),
                                formatter={'all': formatter}) + self._unitstr
