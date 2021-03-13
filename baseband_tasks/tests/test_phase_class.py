@@ -679,13 +679,15 @@ class TestPhaseString(PhaseSetup):
         with pytest.raises(ValueError):
             Phase.from_string(item)
 
+    @pytest.mark.parametrize('item', (0, (), (0, 0)))
     @pytest.mark.parametrize('imag', (True, False))
-    def test_str_works(self, imag):
-        str(self.phase * 1j if imag else self.phase)
+    def test_str_works(self, imag, item):
+        str((self.phase * 1j if imag else self.phase)[item])
 
+    @pytest.mark.parametrize('item', (0, (), (0, 0)))
     @pytest.mark.parametrize('imag', (True, False))
-    def test_repr_works(self, imag):
-        repr(self.phase * 1j if imag else self.phase)
+    def test_repr_works(self, imag, item):
+        repr((self.phase * 1j if imag else self.phase)[item])
 
     @pytest.mark.parametrize('imag', (True, False))
     def test_str(self, imag):
