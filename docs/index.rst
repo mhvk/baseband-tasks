@@ -10,10 +10,6 @@ reduction and analysis of radio baseband data.
 If you used this package in your research, please cite it via DOI
 `10.5281/zenodo.3951543 <https://doi.org/10.5281/zenodo.3951543>`_.
 
-.. note::
-   The package was recently renamed. For reproducing old scripts, see the
-   `scintillometry branch <https://github.com/mhvk/baseband-tasks/tree/scintillometry>`_.
-
 .. _overview_toc:
 
 Overview
