@@ -36,8 +36,8 @@ dependencies (or ``[io]`` for just HDF5 support).
 .. note::
    Baseband-tasks was originally developped under the name ``scintillometry``.
    It was never put on `PyPI <https://pypi.org/>`_ under that name, but
-   could be downloaded from github. If you have old scripts that depend
-   on that name and want these to work without (yet) changing imports,
+   could be downloaded from github. While we strongly recommend
+   adjusting any scripts you have, if you need to check an old result
    you can install the last version under the ``scintillometry`` name
    with::
 
