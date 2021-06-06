@@ -62,7 +62,7 @@ Example tempo2 call to produce one:
 References
 ----------
 http://tempo.sourceforge.net/ref_man_sections/tz-polyco.txt
-https://bitbucket.org/psrsoft/tempo2/
+https://bitbucket.org/psrsoft/tempo2/src/932265beb2efa443973cc0431ca7408cc718cb86/polyco.C#lines-409
 """
 
 from collections import OrderedDict
