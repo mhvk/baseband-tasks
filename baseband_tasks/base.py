@@ -712,8 +712,7 @@ class PaddedTaskBase(TaskBase):
                           "per frame, more ({}) will be added for padding."
                           .format(samples_per_frame, pad))
 
-        n_sample = (((ih.shape[0] - pad) // samples_per_frame)
-                    * samples_per_frame)
+        n_sample = ih.shape[0] - pad
         shape = (n_sample,) + ih.sample_shape
         start_time = ih.start_time + self._pad_start / ih.sample_rate
         super().__init__(ih, ih_samples_per_frame=ih_samples_per_frame,
@@ -721,7 +720,26 @@ class PaddedTaskBase(TaskBase):
                          start_time=start_time, **kwargs)
 
     def _seek_frame(self, frame_index):
-        return self.ih.seek(frame_index * self.samples_per_frame)
+        """Seek to the start of the given frame in the underlying file.
+
+        If the frame is a partial frame, then seek to the last complete
+        chunk of data, setting ``_frame_offset`` to indicate the offset used.
+
+        Returns the position in the underlying file.
+        """
+        ih_index = frame_index * self.samples_per_frame
+        max_start = self.ih.shape[0] - self._ih_samples_per_frame
+        if ih_index > max_start:
+            self._frame_offset = ih_index - max_start
+            return self.ih.seek(max_start)
+        else:
+            self._frame_offset = 0
+            return self.ih.seek(ih_index)
+
+    def _get_frame(self, offset):
+        # Override to add the possible sample offset in the last frame.
+        self._frame, sample_offset = super()._get_frame(offset)
+        return self._frame, sample_offset + self._frame_offset
 
 
 class Task(TaskBase):
