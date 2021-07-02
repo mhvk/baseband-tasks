@@ -108,24 +108,30 @@ class TestIntegrate(TestFakePulsarBase):
         assert np.allclose(data, ref_data)
         assert np.all(count == self.sh.shape[0])
 
+    @pytest.mark.parametrize('seek', [121, -10])
     @pytest.mark.parametrize('samples_per_frame', (1, 4, 10))
     @pytest.mark.parametrize('n', (1, 3))
-    def test_integrate_n(self, n, samples_per_frame):
-        ref_data = self.raw_power[121 * n:131 * n].reshape(-1, n, 2).sum(1)
+    def test_integrate_n(self, n, samples_per_frame, seek):
+        n_sample = self.raw_power.shape[0] // n
+        seek = seek if seek > 0 else n_sample+seek
+        ref_data = (self.raw_power[seek * n:(seek+10) * n]
+                        .reshape(-1, n, 2).sum(1))
 
         st = Square(self.sh)
         ip = Integrate(st, n, average=False,
                        samples_per_frame=samples_per_frame)
+        assert ip.shape[0] == n_sample
         assert ip.start_time == self.sh.start_time
         assert ip.sample_rate == self.sh.sample_rate / n
 
-        ip.seek(121)
+        ip.seek(seek)
         assert abs(ip.time - (self.sh.start_time
-                              + 121 / ip.sample_rate)) < 1. * u.ns
+                              + seek / ip.sample_rate)) < 1. * u.ns
         integrated = ip.read(10)
         data = integrated['data']
         count = integrated['count']
-        assert ip.tell() == 131
+        assert ip.tell() == seek+10
+
         assert st.dtype is ref_data.dtype is data.dtype
         assert data.shape == ref_data.shape
         assert np.allclose(data, ref_data)
@@ -253,8 +259,6 @@ class TestIntegrate(TestFakePulsarBase):
             Integrate(self.sh, start=self.start_time+3.*u.s)
         with pytest.raises(AssertionError):
             Integrate(self.sh, step=1.*u.hr)
-        with pytest.raises(AssertionError):
-            Integrate(self.sh, samples_per_frame=2)
 
 
 class TestFold(TestFakePulsarBase):
@@ -393,8 +397,6 @@ class TestFold(TestFakePulsarBase):
             Fold(self.sh, 8, self.phase, start=self.start_time + 3. * u.s)
         with pytest.raises(AssertionError):
             Fold(self.sh, 8, self.phase, step=1.*u.hr)
-        with pytest.raises(AssertionError):
-            Fold(self.sh, 8, self.phase, samples_per_frame=2)
 
 
 class TestFoldwithPhase(TestFold, UsePhaseClass):

@@ -140,8 +140,7 @@ class Integrate(BaseTaskBase):
         self._sample_start = start
 
         # Calculate output shape.
-        n_sample = (int(n_sample + 0.5*self._mean_offset_size)
-                    // samples_per_frame) * samples_per_frame
+        n_sample = int(n_sample + 0.5*self._mean_offset_size)
         assert n_sample >= 1, "time per frame larger than total time in stream"
         shape = (n_sample,) + ih.sample_shape
 
@@ -240,8 +239,9 @@ class Integrate(BaseTaskBase):
         # Get offsets in the underlying stream for the current samples (and
         # the next one to get the upper edge). For integration over time
         # intervals, these offsets are not necessarily evenly spaced.
-        samples = (frame_index * self.samples_per_frame
-                   + np.arange(self.samples_per_frame + 1))
+        sample0 = frame_index * self.samples_per_frame
+        n_sample = min(self.samples_per_frame, self.shape[0]-sample0)
+        samples = np.arange(sample0, sample0+n_sample+1)
         offsets = self._get_offsets(samples)
         self.ih.seek(offsets[0])
         offsets -= offsets[0]
@@ -252,8 +252,7 @@ class Integrate(BaseTaskBase):
         integrating_out = _FakeOutput((offsets[-1],) + self.ih.sample_shape,
                                       setitem=self._integrate)
         # Set up real output and store information used in self._integrate
-        frame = np.zeros((self.samples_per_frame,) + self.sample_shape,
-                         dtype=self.dtype)
+        frame = np.zeros((n_sample,) + self.sample_shape, dtype=self.dtype)
         if self.average:
             ndim_ih_sample = len(self.ih.sample_shape)
             self._frame = {
@@ -469,7 +468,7 @@ class Stack(BaseTaskBase):
     def _read_frame(self, frame_index):
         # Read frame in phased directly, bypassing its ``read`` method.
         out = self.ih._read_frame(frame_index)
-        return out.reshape((self.samples_per_frame,) + self.sample_shape)
+        return out.reshape((-1,) + self.sample_shape)
 
     def _tell_time(self, offset):
         return self.ih._tell_time(offset * self.n_phase)
