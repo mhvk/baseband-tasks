@@ -19,9 +19,10 @@ class TestConvolveDADA(UseDADASample):
         ref_data = fh.read()
         expected = ref_data[:-2] + ref_data[1:-1] + ref_data[2:]
 
-        # Have 16000 - 2 useful samples -> can use 842.
+        # Have 16000 - 2 useful samples -> but samples_per_frame should
+        # not influence this, so pick one unrelated.
         response = np.ones(3)
-        ct = convolve_task(fh, response, samples_per_frame=842)
+        ct = convolve_task(fh, response, samples_per_frame=1024)
         # Convolve everything.
         data1 = ct.read()
         assert ct.tell() == ct.shape[0] == fh.shape[0] - 2
@@ -56,29 +57,32 @@ class TestConvolveNoise:
     @pytest.mark.parametrize('convolve_task', (ConvolveSamples, Convolve))
     @pytest.mark.parametrize('offset', (1, 2))
     def test_offset(self, convolve_task, offset):
-        # Have 16000 - 2 useful samples -> can use 842, but add 2 for response.
-        ct = convolve_task(self.nh, self.response, offset=offset)
+        ct = convolve_task(self.nh, self.response, offset=offset,
+                           samples_per_frame=1024)
         assert abs(ct.start_time - self.start_time
                    - (2 - offset) / self.sample_rate) < 1. * u.ns
         expected = self.data[:-2] + self.data[1:-1] + self.data[2:]
-        data1 = ct.read(10)
-        assert np.allclose(data1, expected[:10])
-        ct2 = convolve_task(self.nh, np.ones((3, 2)), offset=offset)
+        data1b = ct.read(10)
+        assert np.allclose(data1b, expected[:10])
+        ct.seek(-10, 2)
+        data1e = ct.read(10)
+        assert np.allclose(data1e, expected[-10:])
+        ct2 = convolve_task(self.nh, np.ones((3, 2)), offset=offset,
+                            samples_per_frame=1024)
         ct2.seek(5)
         data2 = ct2.read(5)
-        # PyFFTW doesn't seem to quite guarantee full reproducibility.
-        assert np.allclose(data2, data1[5:], rtol=0, atol=1e-14)
+        assert np.allclose(data2, data1b[5:])
 
     @pytest.mark.parametrize('convolve_task', (ConvolveSamples, Convolve))
     def test_different_response(self, convolve_task):
         response = np.array([[1., 1., 1.], [1., 1., 0.]]).T
-        ct = convolve_task(self.nh, response, samples_per_frame=842)
+        ct = convolve_task(self.nh, response, samples_per_frame=512)
         assert abs(ct.start_time - self.start_time
                    - 2 / self.sample_rate) < 1. * u.ns
         expected = (self.data[:-2] * np.array([1, 0]) + self.data[1:-1]
                     + self.data[2:])
         data1 = ct.read()
-        assert np.allclose(data1, expected[:data1.shape[0]])
+        assert np.allclose(data1, expected)
 
     def test_repr(self):
         ct = ConvolveSamples(self.nh, self.response)
