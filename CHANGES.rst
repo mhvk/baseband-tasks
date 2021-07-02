@@ -10,6 +10,13 @@ API Changes
 Bug Fixes
 ---------
 
+Other Changes and Additions
+---------------------------
+
+- All tasks now can deal with incomplete last frames. For ``PaddedTaskFrame``,
+  the task will get a complete frame, but it will overlap with the
+  one-but-last frame and only the non-overlapping part is used. [#219]
+
 
 0.2 (2021-03-29)
 ================
