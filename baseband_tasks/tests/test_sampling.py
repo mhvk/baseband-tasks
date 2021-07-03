@@ -8,8 +8,8 @@ from numpy.testing import assert_allclose
 import astropy.units as u
 from astropy.time import Time
 
-from ..sampling import Resample, float_offset
-from ..generators import StreamGenerator
+from baseband_tasks.sampling import Resample, float_offset
+from baseband_tasks.generators import StreamGenerator
 
 
 class TestResampleReal:

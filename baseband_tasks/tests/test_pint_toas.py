@@ -6,7 +6,7 @@ import os
 import astropy.units as u
 from astropy.time import Time
 
-from ..phases import pint_toas
+from baseband_tasks.phases import pint_toas
 
 
 def needs_pint(func=None):

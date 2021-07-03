@@ -6,9 +6,9 @@ from numpy.testing import assert_array_equal
 import astropy.units as u
 from astropy.time import Time
 
-from ..base import SetAttribute
-from ..functions import Square, Power
-from ..generators import EmptyStreamGenerator
+from baseband_tasks.base import SetAttribute
+from baseband_tasks.functions import Square, Power
+from baseband_tasks.generators import EmptyStreamGenerator
 
 from .common import UseDADASample, UseVDIFSample
 

@@ -7,8 +7,8 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from ..base import (BaseTaskBase, SetAttribute, TaskBase, PaddedTaskBase,
-                    Task)
+from baseband_tasks.base import (
+    BaseTaskBase, SetAttribute, TaskBase, PaddedTaskBase, Task)
 from .common import UseVDIFSample
 
 

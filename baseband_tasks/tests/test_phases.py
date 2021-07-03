@@ -7,7 +7,7 @@ import os
 import astropy.units as u
 from astropy.time import Time
 
-from ..phases import PolycoPhase, PintPhase, Phase
+from baseband_tasks.phases import PolycoPhase, PintPhase, Phase
 from .test_pint_toas import needs_pint
 
 

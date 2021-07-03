@@ -4,9 +4,9 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from ..base import SetAttribute
-from ..channelize import Channelize, Dechannelize
-from ..fourier import fft_maker
+from baseband_tasks.base import SetAttribute
+from baseband_tasks.channelize import Channelize, Dechannelize
+from baseband_tasks.fourier import fft_maker
 
 from .common import UseVDIFSample, UseDADASample
 

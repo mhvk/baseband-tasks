@@ -5,9 +5,9 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.tests.helper import assert_quantity_allclose
 
-from ..fourier import fft_maker
-from ..dispersion import Disperse, Dedisperse, DispersionMeasure
-from ..generators import StreamGenerator
+from baseband_tasks.fourier import fft_maker
+from baseband_tasks.dispersion import Disperse, Dedisperse, DispersionMeasure
+from baseband_tasks.generators import StreamGenerator
 
 
 REFERENCE_FREQUENCIES = (

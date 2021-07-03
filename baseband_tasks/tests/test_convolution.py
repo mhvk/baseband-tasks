@@ -5,8 +5,8 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
-from ..convolution import Convolve, ConvolveSamples
-from ..generators import NoiseGenerator
+from baseband_tasks.convolution import Convolve, ConvolveSamples
+from baseband_tasks.generators import NoiseGenerator
 
 from .common import UseDADASample
 

@@ -6,7 +6,7 @@ import os
 import astropy.units as u
 from astropy.time import Time
 
-from ..phases import Polyco
+from baseband_tasks.phases import Polyco
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')

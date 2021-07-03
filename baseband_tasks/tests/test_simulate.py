@@ -5,9 +5,9 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
-from ..base import Task
-from ..generators import NoiseGenerator
-from ..functions import Square
+from baseband_tasks.base import Task
+from baseband_tasks.generators import NoiseGenerator
+from baseband_tasks.functions import Square
 
 
 class NoiseStreamBase:

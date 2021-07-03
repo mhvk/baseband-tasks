@@ -5,9 +5,10 @@ import numpy as np
 from numpy.testing import assert_array_equal
 import astropy.units as u
 
-from ..base import SetAttribute
-from ..shaping import (Reshape, Transpose, ReshapeAndTranspose,
-                       ChangeSampleShape, GetItem, GetSlice)
+from baseband_tasks.base import SetAttribute
+from baseband_tasks.shaping import (
+    Reshape, Transpose, ReshapeAndTranspose, ChangeSampleShape,
+    GetItem, GetSlice)
 
 from .common import UseVDIFSampleWithAttrs
 
