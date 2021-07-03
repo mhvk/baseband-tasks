@@ -4,9 +4,9 @@ import pytest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from ..base import SetAttribute
-from ..shaping import GetItem, Reshape
-from ..combining import Concatenate, Stack, CombineStreams
+from baseband_tasks.base import SetAttribute
+from baseband_tasks.shaping import GetItem, Reshape
+from baseband_tasks.combining import Concatenate, Stack, CombineStreams
 
 from .common import UseVDIFSampleWithAttrs
 

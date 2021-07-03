@@ -8,7 +8,7 @@ import numpy as np
 import astropy.units as u
 from astropy.coordinates import Angle
 
-from ..phases import Phase, FractionalPhase
+from baseband_tasks.phases import Phase, FractionalPhase
 
 
 def assert_equal(one, other):

@@ -4,9 +4,10 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
-from ..generators import StreamGenerator, EmptyStreamGenerator, NoiseGenerator
-from ..functions import Square
-from ..base import Task
+from baseband_tasks.generators import (
+    StreamGenerator, EmptyStreamGenerator, NoiseGenerator)
+from baseband_tasks.functions import Square
+from baseband_tasks.base import Task
 
 
 class StreamBase:

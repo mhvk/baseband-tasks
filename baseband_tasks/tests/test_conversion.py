@@ -8,8 +8,8 @@ from numpy.testing import assert_allclose
 import astropy.units as u
 from astropy.time import Time
 
-from ..conversion import Real2Complex
-from ..generators import StreamGenerator, EmptyStreamGenerator
+from baseband_tasks.conversion import Real2Complex
+from baseband_tasks.generators import StreamGenerator, EmptyStreamGenerator
 
 
 def test_real_to_complex_delta():

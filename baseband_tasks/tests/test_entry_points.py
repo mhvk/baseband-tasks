@@ -10,7 +10,7 @@ if sys.version_info >= (3, 8):
 else:
     from importlib_metadata import entry_points
 
-from .. import io, dispersion
+from baseband_tasks import io, dispersion
 
 
 # needs_entrypoints is imported in io/hdf5/tests/test_hdf5.

@@ -7,11 +7,11 @@ from numpy.testing import assert_array_equal
 import astropy.units as u
 from astropy.time import Time
 
-from ..base import Task
-from ..generators import EmptyStreamGenerator
-from ..integration import Integrate, Fold, Stack
-from ..functions import Square
-from ..phases import Phase
+from baseband_tasks.base import Task
+from baseband_tasks.generators import EmptyStreamGenerator
+from baseband_tasks.integration import Integrate, Fold, Stack
+from baseband_tasks.functions import Square
+from baseband_tasks.phases import Phase
 
 
 class TestFakePulsarBase:
