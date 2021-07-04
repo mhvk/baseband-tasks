@@ -4,6 +4,8 @@
 New Features
 ------------
 
+- Added support for applying and inverting polyphase filter banks. [#86]
+
 API Changes
 -----------
 

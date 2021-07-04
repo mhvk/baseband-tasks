@@ -40,6 +40,7 @@ but are here organized by type.
    tasks/dispersion
    tasks/functions
    tasks/integration
+   tasks/pfb
    tasks/sampling
    tasks/shaping
    tasks/base
