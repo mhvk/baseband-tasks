@@ -143,18 +143,68 @@ class PolyphaseFilterBank(PolyphaseFilterBankSamples):
 
 
 class InversePolyphaseFilterBank(PaddedTaskBase):
-    def __init__(self, ih, response, sn, n=None, samples_per_frame=None,
-                 frequency=None, sideband=None, dtype=None):
+    """Dechannelize a stream produced by a polyphase filter bank.
+
+    A polyphase filterbank attempts to make channel responses squarer, by
+    convolving an input timestream with sinc-like function before doing a
+    Fourier transform. This class attempts to deconvolve the signal, given the
+    polyphase filter response. Like in most convolutions, a polyphase filter
+    generally destroys some information, especially for frequencies near the
+    edges of the channels. Hence, the deconvolution is not exact, but is
+    optimized using Wiener deconvoluion.
+
+    The signal-to-noise ratio required for this is a combination of the
+    response-dependent quality with which any signal can be recovered and the
+    quality with which the signal was sampled. For CHIME, where channels are
+    digitized with 4 bits, simulations show that if 3 levels were covering the
+    standard deviation of the input signal, ``sn=10`` works fairly well. For
+    GUPPI, which has 8 bit digitization but a response that strongly
+    suppresses band edges, ``sn=30`` seems a good number.
+
+    The deconvolution necessarily works poorly near edges in time, so should
+    be done in overlapping blocks. Required padding is set with ``pad_start``
+    and ``pad_end`` (which are in addition to the minimum padding required by
+    the response). Numbers depend on response; from simulations, for CHIME a
+    padding of 32 on both sides seems to suffice, while for GUPPI 128 is
+    needed.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    response : `~numpy.ndarray`
+        Polyphase filter.  The first dimension is taken to be the
+        number of taps, and the second the number of channels.
+    sn : float
+        Effective signal-to-noise ratio, see note above.
+    pad_start, pad_end : int, optional
+        Extra samples to pad the frame being deconvolved, see note above.
+        Default: 128.
+    samples_per_frame : int, optional
+        Number of complete output samples per frame.  Default: inferred from
+        padding such that a minimum efficiency of 75% is reached.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each output channel.  Default: inferred from ``ih``
+        (if available).
+    sideband : array, optional
+        Whether frequencies are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available).
+
+    """
+    def __init__(self, ih, response, sn, pad_start=128, pad_end=128,
+                 samples_per_frame=None, frequency=None, sideband=None,
+                 dtype=None):
+        n_tap, n = response.shape
         self.dechannelized = Dechannelize(
             ih, n=n, samples_per_frame=None, frequency=frequency,
             sideband=sideband, dtype=dtype)
         self._FFT = self.dechannelized._FFT
-        n_tap, n = response.shape
-        pad = (n_tap - 1) * n
-        if samples_per_frame is not None:
-            samples_per_frame = samples_per_frame + pad
-        assert pad % 2 == 0
-        super().__init__(self.dechannelized, pad_start=pad//2, pad_end=pad//2,
+        pad_minimum = (n_tap - 1) * n
+        assert pad_minimum % 2 == 0
+        pad_start = pad_start * n + pad_minimum // 2
+        pad_end = pad_end * n + pad_minimum // 2
+        super().__init__(self.dechannelized,
+                         pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame)
         self._response = response
         self._reshape = ((self._ih_samples_per_frame // n, n)
@@ -182,7 +232,7 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
         ft = self._ppf_fft(data)
         ft *= self._ft_inverse_response
         result = self._ppf_ifft(ft)
-        # Remove padding.
-        result = result[self._response.shape[0]-1:]
         # Reshape as timestream
-        return result.reshape((-1,) + result.shape[2:])
+        result = result.reshape((-1,) + result.shape[2:])
+        # Remove padding.
+        return result[self._pad_start:result.shape[0]-self._pad_end]

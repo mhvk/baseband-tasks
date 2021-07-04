@@ -170,45 +170,67 @@ class TestBasics:
         # Here, we do not give samples_per_frame for the PFB, since we do
         # not need its FT (and it is exact for any value).
         n_sample = 128
-        self.nh.seek(3 * 2048)
+        pad = 48
+        self.nh.seek(pad * 2048 + 3 * 2048 // 2)
         d_in = self.nh.read(n_sample * 2048).reshape(-1, 2048)
         pfb = PolyphaseFilterBank(self.nh, self.chime_pfb)
         ipfb = InversePolyphaseFilterBank(
-            pfb, self.chime_pfb, sn=100, n=2048,
+            pfb, self.chime_pfb, sn=100, pad_start=pad, pad_end=pad,
             samples_per_frame=n_sample*2048, dtype=self.nh.dtype)
         d_out = ipfb.read(n_sample * 2048).reshape(-1, 2048)
-        assert_allclose(d_in[32:-32, :950], d_out[32:-32, :950], atol=0.01)
-        assert_allclose(d_in[32:-32, 1100:], d_out[32:-32, 1100:], atol=0.01)
+        assert_allclose(d_in[:, 50:-50], d_out[:, 50:-50], atol=0.01)
 
     def test_inversion_chime_pfb_digitized(self):
         # Now test the same, but with the actual inversion class.
         # Here, we do not give samples_per_frame for the PFB, since we do
         # not need its FT (and it is exact for any value).
         n_sample = 128
-        self.nh.seek(3 * 2048)
+        pad = 32
+        self.nh.seek(pad * 2048 + 3 * 2048 // 2)
         d_in = self.nh.read(n_sample * 2048).reshape(-1, 2048)
         pfb = PolyphaseFilterBank(self.nh, self.chime_pfb)
         dig_level = pfb.read(n_sample).real.std() / 3.
         pfb_dig = Task(pfb, task=lambda ft: digitize(ft, dig_level),
                        samples_per_frame=n_sample)
         ipfb = InversePolyphaseFilterBank(
-            pfb_dig, self.chime_pfb, sn=10, n=2048,
+            pfb_dig, self.chime_pfb, sn=10, pad_start=pad, pad_end=pad,
             samples_per_frame=n_sample*2048, dtype=self.nh.dtype)
         d_out = ipfb.read(n_sample * 2048).reshape(-1, 2048)
-        assert_allclose(d_in[32:-32], d_out[32:-32], atol=1)
+        assert np.isclose((d_out-d_in).std(), 0.125, atol=0.01)
+        assert_allclose(d_in, d_out, atol=1.1)
 
     def test_inversion_guppi_pfb(self):
-        # Now test the same, but with the actual inversion class.
-        # Here, we do not give samples_per_frame for the PFB, since we do
-        # not need its FT (and it is exact for any value).
         n_sample = 512
-        self.nh.seek(11 * 64)
+        pad = 128
+        self.nh.seek(pad * 64 + 11 * 64 // 2)
         d_in = self.nh.read(n_sample * 64).reshape(-1, 64)
         pfb = PolyphaseFilterBank(self.nh, self.guppi_pfb)
-        ipfb = InversePolyphaseFilterBank(pfb, self.guppi_pfb, sn=1e9, n=64,
-                                          samples_per_frame=n_sample*64,
-                                          dtype=self.nh.dtype)
+        ipfb = InversePolyphaseFilterBank(
+            pfb, self.guppi_pfb, sn=30, pad_start=pad, pad_end=pad,
+            samples_per_frame=n_sample*64, dtype=self.nh.dtype)
         d_out = ipfb.read(n_sample * 64).reshape(-1, 64)
-        # Note: with fewer samples, more is lost near the edges.
-        assert_allclose(d_in[64:-64, :29], d_out[64:-64, :29], atol=0.01)
-        assert_allclose(d_in[64:-64, 36:], d_out[64:-64, 36:], atol=0.01)
+        # Note that the PFB cuts off the channel edges so badly that
+        # it is not possible to reproduce the original well.
+        assert_allclose(d_in, d_out, atol=0.15)
+        # It is almost exclusively the edge samples that are bad.
+        ipfb2 = InversePolyphaseFilterBank(
+            pfb, self.guppi_pfb, sn=1e9, pad_start=pad, pad_end=pad,
+            samples_per_frame=n_sample*64, dtype=self.nh.dtype)
+        d_out2 = ipfb2.read(n_sample * 64).reshape(-1, 64)
+        assert_allclose(d_in[:, 2:-2], d_out2[:, 2:-2], atol=0.005)
+
+    def test_inversion_guppi_pfb_digitized(self):
+        n_sample = 512
+        pad = 128
+        self.nh.seek(pad * 64 + 11 * 64 // 2)
+        d_in = self.nh.read(n_sample * 64).reshape(-1, 64)
+        pfb = PolyphaseFilterBank(self.nh, self.guppi_pfb)
+        dig_level = pfb.read(n_sample).real.std() / 30.
+        pfb_dig = Task(pfb, task=lambda ft: digitize(ft, dig_level),
+                       samples_per_frame=n_sample)
+        ipfb = InversePolyphaseFilterBank(
+            pfb_dig, self.guppi_pfb, sn=30, pad_start=pad, pad_end=pad,
+            samples_per_frame=n_sample*64, dtype=self.nh.dtype)
+        d_out = ipfb.read(n_sample * 64).reshape(-1, 64)
+        # Not much effect of digitization since it introduces little noise.
+        assert_allclose(d_in, d_out, atol=0.15)
