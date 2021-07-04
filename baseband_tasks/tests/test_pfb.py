@@ -9,6 +9,7 @@ from numpy.testing import assert_allclose
 import astropy.units as u
 from astropy.time import Time
 
+from baseband_tasks.base import Task
 from baseband_tasks.generators import NoiseGenerator
 from baseband_tasks.pfb import (
     sinc_hamming, PolyphaseFilterBankSamples, PolyphaseFilterBank,
@@ -16,6 +17,10 @@ from baseband_tasks.pfb import (
 
 
 test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
+
+
+def digitize(ft, level):
+    return np.round(ft.view(float) / level).view(complex) * level
 
 
 class TestSincHamming:
@@ -95,6 +100,8 @@ class TestBasics:
         assert_allclose(ft_pfb2, ft2_hc)
 
     def test_inversion_understanding(self):
+        # From simulations, thresh = 0.05 is about right for no rounding
+        # with n_sample=128 (it is 0.03 for n_sample=1024).
         n_sample = 128
         self.nh.seek(3 * 2048)
         d_in = self.nh.read(n_sample * 2048).reshape(-1, 2048)
@@ -104,14 +111,59 @@ class TestBasics:
         # Dechannelize.
         d_pfb = np.fft.irfft(ft_pfb, axis=1)
         # Deconvolve.
-        ft_dec = np.fft.rfft(d_pfb, axis=0)
-        ft_dec /= pfb._ft_response_conj
+        ft_fine = np.fft.rfft(d_pfb, axis=0)
+        ft_resp = pfb._ft_response_conj
+        ft_dec = ft_fine / ft_resp
         d_out = np.fft.irfft(ft_dec, axis=0, n=d_pfb.shape[0])
         d_out = d_out[3:]
         # We cannot hope to deconvolve near the edges and the PFB is such
         # that we loose the middle samples.
-        assert_allclose(d_in[32:-32, :950], d_out[32:-32, :950], atol=0.01)
-        assert_allclose(d_in[32:-32, 1100:], d_out[32:-32, 1100:], atol=0.01)
+        assert_allclose(d_in[32:-32, :900], d_out[32:-32, :900], atol=0.001)
+        assert_allclose(d_in[32:-32, 1150:], d_out[32:-32, 1150:], atol=0.001)
+        # We can do better by Wiener filtering.  For no digitization noise,
+        # threshold=(d_in-d_out)[32:-32].var()~0.01 seems roughly right.
+        threshold = 0.05
+        inverse = (ft_resp.conj() / (threshold**2+np.abs(ft_resp)**2)
+                   * (1 + threshold**2))
+        ft_dec2 = ft_fine * inverse
+        d_out2 = np.fft.irfft(ft_dec2, axis=0, n=d_pfb.shape[0])
+        d_out2 = d_out2[3:]
+        # Cannot help near the edges, but middle elements are now better.
+        assert_allclose(d_in[32:-32], d_out2[32:-32], atol=0.3)
+
+    def test_inversion_understanding_digitization(self):
+        # From simulations, thresh = 0.1 is about right for rounding with
+        # levels at S/3 -> S/N ~ 10.
+        n_sample = 128
+        self.nh.seek(3 * 2048)
+        d_in = self.nh.read(n_sample * 2048).reshape(-1, 2048)
+
+        # Check effect of digitization.
+        ft_check = np.fft.rfft(d_in, axis=1)
+        ft_check_dig = digitize(ft_check, ft_check.real.std() / 3.)
+        d_check = np.fft.irfft(ft_check_dig, axis=1, n=2048)
+        assert np.isclose((d_check-d_in).std(), 0.1, atol=0.005)
+
+        pfb = PolyphaseFilterBank(self.nh, self.chime_pfb,
+                                  samples_per_frame=n_sample)
+        ft_pfb = pfb.read(n_sample+3)
+        ft_pfb_level = ft_pfb.real.std() / 3.
+        ft_pfb_dig = (np.round(ft_pfb.view(float) / ft_pfb_level).view(complex)
+                      * ft_pfb_level)
+        d_pfb = np.fft.irfft(ft_pfb_dig, axis=1)
+        # Deconvolve.
+        ft_fine = np.fft.rfft(d_pfb, axis=0)
+        ft_resp = pfb._ft_response_conj
+        threshold = 0.1
+        inverse = (ft_resp.conj() / (threshold**2+np.abs(ft_resp)**2)
+                   * (1 + threshold**2))
+        ft_dec = ft_fine * inverse
+        d_out = np.fft.irfft(ft_dec, axis=0, n=d_pfb.shape[0])
+        d_out = d_out[3:]
+        assert np.isclose((d_out-d_in)[32:-32].std(), 0.125, atol=0.01)
+        # Still get noisier data near middle, of course, but recover
+        # to within 1 sigma of input noise signal.
+        assert_allclose(d_in[32:-32], d_out[32:-32], atol=1)
 
     def test_inversion_chime_pfb(self):
         # Now test the same, but with the actual inversion class.
@@ -121,12 +173,29 @@ class TestBasics:
         self.nh.seek(3 * 2048)
         d_in = self.nh.read(n_sample * 2048).reshape(-1, 2048)
         pfb = PolyphaseFilterBank(self.nh, self.chime_pfb)
-        ipfb = InversePolyphaseFilterBank(pfb, self.chime_pfb, sn=1e9, n=2048,
-                                          samples_per_frame=n_sample*2048,
-                                          dtype=self.nh.dtype)
+        ipfb = InversePolyphaseFilterBank(
+            pfb, self.chime_pfb, sn=100, n=2048,
+            samples_per_frame=n_sample*2048, dtype=self.nh.dtype)
         d_out = ipfb.read(n_sample * 2048).reshape(-1, 2048)
         assert_allclose(d_in[32:-32, :950], d_out[32:-32, :950], atol=0.01)
         assert_allclose(d_in[32:-32, 1100:], d_out[32:-32, 1100:], atol=0.01)
+
+    def test_inversion_chime_pfb_digitized(self):
+        # Now test the same, but with the actual inversion class.
+        # Here, we do not give samples_per_frame for the PFB, since we do
+        # not need its FT (and it is exact for any value).
+        n_sample = 128
+        self.nh.seek(3 * 2048)
+        d_in = self.nh.read(n_sample * 2048).reshape(-1, 2048)
+        pfb = PolyphaseFilterBank(self.nh, self.chime_pfb)
+        dig_level = pfb.read(n_sample).real.std() / 3.
+        pfb_dig = Task(pfb, task=lambda ft: digitize(ft, dig_level),
+                       samples_per_frame=n_sample)
+        ipfb = InversePolyphaseFilterBank(
+            pfb_dig, self.chime_pfb, sn=10, n=2048,
+            samples_per_frame=n_sample*2048, dtype=self.nh.dtype)
+        d_out = ipfb.read(n_sample * 2048).reshape(-1, 2048)
+        assert_allclose(d_in[32:-32], d_out[32:-32], atol=1)
 
     def test_inversion_guppi_pfb(self):
         # Now test the same, but with the actual inversion class.

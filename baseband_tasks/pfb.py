@@ -174,7 +174,7 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
         ft_response = fft(long_response).conj()
         inverse = (ft_response.conj()
                    / (ft_response.real ** 2 + ft_response.imag ** 2
-                      + self._inv_sn2))
+                      + self._inv_sn2)) * (1 + self._inv_sn2)
         return inverse
 
     def task(self, data):
