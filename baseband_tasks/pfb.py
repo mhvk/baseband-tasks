@@ -7,7 +7,8 @@ from .base import PaddedTaskBase
 from .channelize import Channelize, Dechannelize
 
 
-__all__ = ['PolyphaseFilterBankSamples', 'PolyphaseFilterBank']
+__all__ = ['sinc_hamming', 'PolyphaseFilterBankSamples',
+           'PolyphaseFilterBank', 'InversePolyphaseFilterBank']
 
 
 def sinc_hamming(n_tap, n_sample, sinc_scale=1.):
@@ -15,16 +16,18 @@ def sinc_hamming(n_tap, n_sample, sinc_scale=1.):
 
     The sinc-hamming filter is defined by
 
-    .. math::  \frac{\sin(\pi x)}{\pi x}
-               \left[0.54 - 0.46\cos\left(\frac{2\pi k}{N-1}\right)\right]
-               \qquad x = n_{\rm tap} scale \left(\frac{n}{N} - 0.5\right),
-               \qquad N=n_{\rm tap} n_{\rm sample}, \quad 0 \leq k \leq N-1
+    .. math::  F(n_{\rm tap}, n_{\rm samle}, s) &=
+               \left(\frac{\sin(\pi x)}{\pi x}\right)
+               \left(0.54 - 0.46\cos\left(\frac{2\pi k}{N-1}\right)\right),\\
+               {\rm with~~}
+               x &= n_{\rm tap} s \left(\frac{k}{N} - 0.5\right),\\
+               N &= n_{\rm tap} n_{\rm sample}, \quad 0 \leq k \leq N-1.
 
     Parameters
     ----------
     n_tap : int
         Number of taps of the polyphase filter.
-    n_samples : int
+    n_sample : int
         Number of samples to pass on to the FFT stage.
     sinc_scale : float
         Possible scaling for the sinc factor, to widen or narrow the channels.
@@ -43,9 +46,7 @@ def sinc_hamming(n_tap, n_sample, sinc_scale=1.):
 
 
 class PolyphaseFilterBankSamples(Channelize):
-    """Channelize a time stream using a polyphase filter bank.
-
-    This version applies the polyphase filter in the time domain.
+    """Channelize using a polyphase filter bank, in the time domain.
 
     Parameters
     ----------
@@ -55,13 +56,18 @@ class PolyphaseFilterBankSamples(Channelize):
         Polyphase filter.  The first dimension is taken to be the
         number of taps, and the second the number of channels.
     samples_per_frame : int, optional
-        Number of complete output samples per frame (see Notes).  Default: 1.
+        Number of complete output samples per frame.  Default: inferred from
+        padding, ensuring an efficiency of at least 75%.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih`` (channelized frequencies will
         be calculated).  Default: taken from ``ih`` (if available).
     sideband : array, optional
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
+
+    See Also
+    --------
+    PolyphaseFilterBank : apply filter in the Fourier domain (usually faster)
     """
     def __init__(self, ih, response, samples_per_frame=None,
                  frequency=None, sideband=None):
@@ -83,6 +89,7 @@ class PolyphaseFilterBankSamples(Channelize):
                          + self.ih.sample_shape)
 
     def ppf(self, data):
+        """Apply the PolyPhase Filter, in the time domain."""
         data = data.reshape(self._reshape)
         result = np.empty((self.samples_per_frame,) + data.shape[1:],
                           data.dtype)
@@ -94,9 +101,7 @@ class PolyphaseFilterBankSamples(Channelize):
 
 
 class PolyphaseFilterBank(PolyphaseFilterBankSamples):
-    """Channelize a time stream using a polyphase filter bank.
-
-    This version applies the polyphase filter in the frequency domain.
+    """Channelize using a polyphase filter bank, in the frequency domain.
 
     Parameters
     ----------
@@ -113,6 +118,12 @@ class PolyphaseFilterBank(PolyphaseFilterBankSamples):
     sideband : array, optional
         Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
+
+    See Also
+    --------
+    PolyphaseFilterBankSamples : filter in the time domain (usually slower).
+    InversePolyphaseFilterBank : undo the effect of a polyphase filter.
+    baseband_tasks.fourier.fft_maker : to select the FFT package used.
     """
     def __init__(self, ih, response, samples_per_frame=None,
                  frequency=None, sideband=None):
@@ -132,6 +143,7 @@ class PolyphaseFilterBank(PolyphaseFilterBankSamples):
         return fft(long_response).conj()
 
     def ppf(self, data):
+        """Apply the PolyPhase Filter, in the frequency domain."""
         data = data.reshape(self._reshape)
         ft = self._ppf_fft(data)
         ft *= self._ft_response_conj
@@ -150,36 +162,37 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
     Fourier transform. This class attempts to deconvolve the signal, given the
     polyphase filter response. Like in most convolutions, a polyphase filter
     generally destroys some information, especially for frequencies near the
-    edges of the channels. Hence, the deconvolution is not exact, but is
-    optimized using Wiener deconvoluion.
+    edges of the channels. To optimize the process, Wiener deconvolution is
+    used.
 
-    The signal-to-noise ratio required for this is a combination of the
-    response-dependent quality with which any signal can be recovered and the
-    quality with which the signal was sampled. For CHIME, where channels are
-    digitized with 4 bits, simulations show that if 3 levels were covering the
-    standard deviation of the input signal, ``sn=10`` works fairly well. For
-    GUPPI, which has 8 bit digitization but a response that strongly
-    suppresses band edges, ``sn=30`` seems a good number.
+    The signal-to-noise ratio required for Wiener deconvolution is a
+    combination of the response-dependent quality with which any signal can be
+    recovered and the quality with which the signal was sampled. For CHIME,
+    where channels are digitized with 4 bits, simulations show that if 3
+    levels were covering the standard deviation of the input signal, ``sn=10``
+    works fairly well. For GUPPI, which has 8 bit digitization but a response
+    that strongly suppresses band edges, ``sn=30`` seems a good number.
 
     The deconvolution necessarily works poorly near edges in time, so should
     be done in overlapping blocks. Required padding is set with ``pad_start``
     and ``pad_end`` (which are in addition to the minimum padding required by
-    the response). Numbers depend on response; from simulations, for CHIME a
-    padding of 32 on both sides seems to suffice, while for GUPPI 128 is
-    needed.
+    the response). Adequate padding depend on response; from simulations, for
+    CHIME a padding of 32 on both sides seems to suffice, while for GUPPI 128
+    is needed.
 
     Parameters
     ----------
     ih : task or `baseband` stream reader
-        Input data stream, with time as the first axis.
+        Input data stream, with time as the first axis, and Fourier channel
+        as the second.
     response : `~numpy.ndarray`
         Polyphase filter.  The first dimension is taken to be the
         number of taps, and the second the number of channels.
     sn : float
-        Effective signal-to-noise ratio, see note above.
+        Effective signal-to-noise ratio; see note above.
     pad_start, pad_end : int, optional
-        Extra samples to pad the frame being deconvolved, see note above.
-        Default: 128.
+        Extra samples at the start and end to pad the frame being deconvolved;
+        see note above. Default: 128.
     samples_per_frame : int, optional
         Number of complete output samples per frame.  Default: inferred from
         padding such that a minimum efficiency of 75% is reached.
@@ -189,6 +202,11 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
     sideband : array, optional
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Default: taken from ``ih`` (if available).
+
+    See Also
+    --------
+    PolyphaseFilterBank : apply polyphase filter.
+    baseband_tasks.fourier.fft_maker : to select the FFT package used.
 
     """
     def __init__(self, ih, response, sn, pad_start=128, pad_end=128,
@@ -216,6 +234,7 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
 
     @lazyproperty
     def _ft_inverse_response(self):
+        """Wiener deconvolution filter based on the PFB response."""
         long_response = np.zeros(self._reshape[:2], self.dtype)
         long_response[:self._response.shape[0]] = self._response
         long_response.shape = (long_response.shape
@@ -228,6 +247,10 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
         return inverse
 
     def task(self, data):
+        """Apply the inverse polyphase filter to a frame.
+
+        Padding is removed from the result.
+        """
         data = data.reshape(self._reshape)
         ft = self._ppf_fft(data)
         ft *= self._ft_inverse_response
