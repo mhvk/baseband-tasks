@@ -75,21 +75,19 @@ class TestFloatOffset:
 class TestResampleReal:
 
     dtype = np.dtype('f4')
-    # Note: the tolerance is reasonable only for signals that fit exactly
-    # in input samples.
-    atol = 1e-4
+    atol = 1e-2
     sample_rate = 1 * u.kHz
     samples_per_frame = 4096
     start_time = Time('2010-11-12T13:14:15')
     frequency = 400. * u.kHz
     sideband = np.array([-1, 1])
     n_frames = 3
-    pad = 64
+    pad = 128
     shape = (n_frames*samples_per_frame,) + sideband.shape
 
     def setup(self):
         f_signal = self.sample_rate / 2048 * np.array([31, 65])
-        cosine = PureTone(f_signal, self.start_time)
+        cosine = PureTone(f_signal, self.start_time, np.pi*u.deg)
 
         self.full_fh = StreamGenerator(
             cosine, shape=self.shape,
@@ -155,8 +153,6 @@ class TestResampleReal:
     @pytest.mark.parametrize('offset', (None, 0, 0.25))
     def test_shift_and_resample(self, shift, offset):
         # Offsets equal to quarter samples to allow check with full_fh.
-        # Idiotic calculation to ensure I get 512 input samples;
-        # seems fish that this would be needed at all.
         ih = ShiftAndResample(self.part_fh, shift, offset=offset,
                               pad=self.pad)
         # start_time should be at expected offset from old grid.
@@ -192,7 +188,6 @@ class TestResampleReal:
 class TestResampleComplex(TestResampleReal):
 
     dtype = np.dtype('c16')
-    atol = 1e-8
 
 
 class StreamArray(StreamGenerator):
@@ -259,13 +254,13 @@ class BaseDelayAndResampleTestsReal:
     it, and then detect.  The mixing can be with real or complex (quadrature).
     """
     dtype = np.dtype('f4')  # type of mixing and output data.
-    atol = atol_channelized = 1.e-4  # tolerance per sample
+    atol = atol_channelized = 1.e-2  # tolerance per sample
     full_sample_rate = 204.8 * u.kHz  # For the real-valued input signal
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
     sideband = np.array([-1, 1])    # IF sideband
     lo = full_sample_rate * 7 / 16  # IF frequency.
-    n_frames = 16
+    n_frames = 32
     phi0_mixer = -12.3456789 * u.degree
 
     def setup(self):
