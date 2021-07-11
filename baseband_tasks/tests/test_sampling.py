@@ -75,14 +75,14 @@ class TestFloatOffset:
 class TestResampleReal:
 
     dtype = np.dtype('f4')
-    atol = 1e-2
+    atol = 1e-3
     sample_rate = 1 * u.kHz
     samples_per_frame = 4096
     start_time = Time('2010-11-12T13:14:15')
     frequency = 400. * u.kHz
     sideband = np.array([-1, 1])
     n_frames = 3
-    pad = 128
+    pad = 32
     shape = (n_frames*samples_per_frame,) + sideband.shape
 
     def setup(self):
@@ -114,8 +114,8 @@ class TestResampleReal:
                               Time('2010-11-12T13:14:15.073')))
     def test_resample(self, offset):
         ih = Resample(self.part_fh, offset, pad=self.pad)
-        # Always lose 1 sample + 2 * pad per frame.
-        assert ih.shape[0] == self.part_fh.shape[0] - (1+self.pad*2)
+        # Always lose 2 * pad per frame.
+        assert ih.shape[0] == self.part_fh.shape[0] - 2 * self.pad
         assert ih.sample_shape == self.part_fh.sample_shape
         # Check we are at the given offset.
         if isinstance(offset, Time):
@@ -127,7 +127,9 @@ class TestResampleReal:
                              + offset / self.part_fh.sample_rate)
         assert abs(ih.time - expected_time) < 1. * u.ns
 
-        ioffset, fraction = divmod(seek_float(self.part_fh, offset), 1)
+        part_fh_offset = seek_float(self.part_fh, offset)
+        ioffset = round(part_fh_offset)
+        fraction = part_fh_offset - ioffset
         assert ih.offset + self.pad == ioffset
         expected_start_time = (self.part_fh.start_time
                                + ((self.pad + fraction)
@@ -204,6 +206,7 @@ class TestResampleNoise(TestResampleComplex):
 
     dtype = np.dtype('c8')
     atol = 0.04
+    pad = 128
 
     def setup(self):
         # Make noise with only frequencies covered by part.

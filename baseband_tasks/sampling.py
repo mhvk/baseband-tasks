@@ -6,8 +6,9 @@ from astropy import units as u
 from astropy.utils import lazyproperty
 from astropy.time import Time
 
-from .base import PaddedTaskBase, TaskBase, check_broadcast_to
-from .fourier import fft_maker
+from baseband_tasks.base import PaddedTaskBase, TaskBase, check_broadcast_to
+from baseband_tasks.convolution import Convolve
+from baseband_tasks.fourier import fft_maker
 
 __all__ = ['float_offset', 'seek_float',
            'ShiftAndResample', 'Resample', 'TimeDelay', 'DelayAndResample']
@@ -63,7 +64,7 @@ def seek_float(ih, offset, whence=0):
                          "'current', or 2 or 'end'.")
 
 
-class ShiftAndResample(PaddedTaskBase):
+class ShiftAndResample(Convolve):
     """Shift and optionally resample a stream in time.
 
     The shift is added to the sample times, and the stream is optionally
@@ -141,58 +142,39 @@ class ShiftAndResample(PaddedTaskBase):
             d_time = ih_offset + np.around(ih_shift_mean - ih_offset)
 
         # The remainder we actually need to shift.
-        sample_shift = ih_shift - d_time
-        # Special case where no work is to be done: no shifts left
-        # and no offset given (so no regridding requested).
-        do_shift = offset is not None or np.any(sample_shift != 0)
-        if do_shift:
-            pad_start = pad + int(np.ceil(np.max(sample_shift)))
-            pad_end = pad + int(np.floor(-np.min(sample_shift))) + 1
-            if samples_per_frame is None:
-                samples_per_frame = max(ih.samples_per_frame, pad * 14)
-        else:
-            pad_start = pad_end = 0
+        sample_shift = np.array(ih_shift - d_time, ndmin=ih.ndim-1,
+                                copy=False, subok=True)
+        response = self.sinc_hanning(pad, sample_shift)
 
-        super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
+        if samples_per_frame is None:
+            samples_per_frame = max(ih.samples_per_frame, pad * 14)
+
+        super().__init__(ih, response, offset=pad - round(sample_shift.min()),
                          samples_per_frame=samples_per_frame, **kwargs)
 
+        # TODO: Special case where no work is to be done: no shifts left
+        # and no offset given (so no regridding requested).
+        self._do_shift = offset is not None or np.any(sample_shift != 0)
         self._start_time += d_time / ih.sample_rate
-        if do_shift:
-            self._fft = fft_maker(
-                shape=(self._ih_samples_per_frame,) + ih.sample_shape,
-                sample_rate=ih.sample_rate, dtype=ih.dtype)
-            self._ifft = self._fft.inverse()
-            self._pad_slice = slice(pad_start,
-                                    pad_start + self.samples_per_frame)
-            self._sample_shift = sample_shift
-        else:
-            self._sample_shift = None
 
-    @lazyproperty
-    def phase_factor(self):
+    @staticmethod
+    def sinc_hanning(pad, sample_shift):
         """Phase offsets of the Fourier-transformed frame."""
-        phase_delay = (self._sample_shift / self.sample_rate * u.cycle
-                       * self._fft.frequency)
-        phase_factor = np.exp(-1j * phase_delay.to_value(u.rad))
-        phase_factor = phase_factor.astype(self._fft.frequency_dtype,
-                                           copy=False)
-        return phase_factor
+        # TODO: multi-D sample shift!
+        ishift_max = round(sample_shift.max())
+        ishift_min = round(sample_shift.min())
+        n_result = 2*pad + 1 + ishift_max - ishift_min
+        result = np.zeros((n_result,) + sample_shift.shape)
+        for shift, res in zip(sample_shift.ravel(),
+                              result.reshape(n_result, -1).T):
+            ishift = round(shift.item())
+            res[ishift-ishift_min:ishift - ishift_max + n_result] = (
+                np.sinc(np.arange(-pad, pad+1) - (shift - ishift))
+                * np.hanning(2*pad+1))
+        return result
 
-    def task(self, data):
-        if self._sample_shift is None:
-            return data
-
-        ft = self._fft(data)
-        ft *= self.phase_factor
-        result = self._ifft(ft)
-        return result[self._pad_slice]
-
-    def close(self):
-        super().close()
-        # Clear the caches of the lazyproperties to release memory.
-        del self.phase_factor
-        del self._fft
-        del self._ifft
+    # def task(self, data):
+    #     return super().task(data) if self._do_shift else data
 
     def _repr_item(self, key, default, value=None):
         if key == 'offset':
@@ -410,15 +392,14 @@ class DelayAndResample(ShiftAndResample):
 
     """
     def __init__(self, ih, delay, offset=0, whence='start', *, lo, pad=32,
-                 samples_per_frame=None, frequency=None, sideband=None):
+                 samples_per_frame=None, **kwargs):
         ih_delay = float_offset(ih, delay)
         ih_offset = seek_float(ih, offset, whence)
         ih_offset -= ih_delay
         fraction = ih_offset - np.around(ih_offset)
 
         super().__init__(ih, 0., fraction, pad=pad,
-                         samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband)
+                         samples_per_frame=samples_per_frame, **kwargs)
         delay = float_offset(ih, delay) / ih.sample_rate
         self._start_time += delay
         if lo is None:
@@ -427,11 +408,7 @@ class DelayAndResample(ShiftAndResample):
             self._lo_phase_delay = delay * lo * self.sideband * u.cycle
 
     @lazyproperty
-    def phase_factor(self):
+    def _ft_response(self):
         """Phase offsets of the Fourier-transformed frame."""
-        phase_delay = (self._sample_shift / self.sample_rate * u.cycle
-                       * self._fft.frequency) + self._lo_phase_delay
-        phase_factor = np.exp(-1j * phase_delay.to_value(u.rad))
-        phase_factor = phase_factor.astype(self._fft.frequency_dtype,
-                                           copy=False)
-        return phase_factor
+        return (super()._ft_response
+                * np.exp(-1j * self._lo_phase_delay.to_value(u.rad)))
