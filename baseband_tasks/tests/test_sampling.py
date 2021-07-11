@@ -12,7 +12,7 @@ from baseband_tasks.base import Task, SetAttribute
 from baseband_tasks.channelize import Channelize
 from baseband_tasks.combining import Stack
 from baseband_tasks.sampling import (
-    seek_float, ShiftAndResample, Resample, TimeDelay, DelayAndResample)
+    seek_float, ShiftAndResample, Resample, TimeDelay)
 from baseband_tasks.generators import (
     EmptyStreamGenerator, StreamGenerator, Noise)
 
@@ -246,7 +246,7 @@ class TestResampleNoise(TestResampleComplex):
 
 
 class BaseDelayAndResampleTestsReal:
-    """Base class for DelayAndResample tests.
+    """Base class for ShiftAndResample tests with time delay phase shifts.
 
     Sub-classes need to have a ``setup()`` that defines ``self.raw``,
     which is a simulated voltage baseband stream that can will mixed,
@@ -353,13 +353,13 @@ class BaseDelayAndResampleTestsReal:
         # Undo the delay and ensure we resample such that we're on the same
         # time grid as the undelayed telescope.
         if n is None:
-            tel2_rs = DelayAndResample(tel2, delay / self.full_sample_rate,
+            tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
                                        tel1.start_time, lo=self.lo)
             self.assert_tel_same(tel1, tel2_rs)
         else:
             # For channelized data, we have to ensure we pass in an explicit
             # local oscillator frequency.
-            tel2_rs = DelayAndResample(tel2, delay / self.full_sample_rate,
+            tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
                                        tel1.start_time, lo=self.lo,
                                        samples_per_frame=32, pad=6)
             self.assert_tel_same(tel1, tel2_rs, atol=self.atol_channelized)

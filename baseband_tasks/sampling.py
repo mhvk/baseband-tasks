@@ -10,7 +10,7 @@ from baseband_tasks.base import TaskBase, check_broadcast_to
 from baseband_tasks.convolution import Convolve
 
 __all__ = ['float_offset', 'seek_float',
-           'ShiftAndResample', 'Resample', 'TimeDelay', 'DelayAndResample']
+           'ShiftAndResample', 'Resample', 'TimeDelay']
 
 # The tests do not strictly require pyfftw to run, but they do require it
 # to give numbers that are equal to within +FLOAT_CMP precision.
@@ -79,17 +79,20 @@ def seek_float(ih, offset, whence=0):
 
 
 class ShiftAndResample(Convolve):
-    """Shift and optionally resample a stream in time.
+    r"""Shift and optionally resample a stream in time.
 
     The shift is added to the sample times, and the stream is optionally
     resampled to ensure a sample falls on the given offset.  The precision
     with which the shifting and resampling is done depends on ``pad``.
 
-    Note that no account is taken of possible phase rotations, which are
-    important if the time shift represents a physical delay of the original
-    radio signal.  For that, see `~scintillometry.sampling.DelayAndResample`.
-    This task is meant to be used for clock corrections, post-mixing
-    cable delays, etc.
+    If the shift corresponds to a time delay, and the signal was recorded
+    after mixing, the phases should be adjusted, which can be done by
+    passing in the local oscillator frequency is given. For an upper
+    sideband, the phase correction is,
+
+    .. math:: \phi = - \tau f_{lo}.
+
+    For the lower sideband, the rotation is in the opposite direction.
 
     Parameters
     ----------
@@ -110,9 +113,17 @@ class ShiftAndResample(Convolve):
         ``whence=0`` (default), from the current position if 1, and from the
         end if 2.  One can alternativey use 'start', 'current', or 'end' for
         0, 1, or 2, respectively.  Ignored if ``offset`` is a time.
+    lo : `~astropy.units.Quantity`, or `None`, optional
+        Local oscillator frequency.  Should be passed in when the signal was
+        mixed down before sampling and the shift should be interpreted as a
+        time delay (rather than a clock correction). For raw data, this can
+        usually just be ``if.frequency``.  But for channelized data, the
+        actual frequency needs to be passed in.  If data were recorded
+        without mixing (like for CHIME), no phase correction is necessary
+        and one should pass in `None`.  Default: `None`.
     pad : int, optional
         Padding to apply on each side when shifting data. This sets the size
-        of the sinc function which which the data is convolved (see above).
+        of the sinc function which which the data is convolved (see below).
         The default of 32 ensures an accuracy of about 1/32π ~ 0.01.
     samples_per_frame : int, optional
         Number of resampled samples which should be produced in one go.
@@ -123,7 +134,7 @@ class ShiftAndResample(Convolve):
 
     """
     def __init__(self, ih, shift, offset=None, whence='start', *,
-                 pad=32, samples_per_frame=None):
+                 lo=None, pad=32, samples_per_frame=None):
         self._shift = float_offset(ih, shift)
         shift_mean = np.mean(self._shift)
 
@@ -149,7 +160,7 @@ class ShiftAndResample(Convolve):
 
         super().__init__(ih, response, offset=pad - round(sample_shift.min()),
                          samples_per_frame=samples_per_frame)
-
+        self._lo = lo
         self._start_time += d_time / ih.sample_rate
 
     @staticmethod
@@ -170,6 +181,17 @@ class ShiftAndResample(Convolve):
                 np.sinc(np.arange(-pad, pad+1) - (shift - ishift))
                 * np.hanning(2*pad+1))
         return result
+
+    @lazyproperty
+    def _ft_response(self):
+        """Phase offsets of the Fourier-transformed frame."""
+        if self._lo is None:
+            return super()._ft_response
+        else:
+            lo_phase_delay = (self._shift / self.sample_rate * u.cycle
+                              * self._lo * self.sideband)
+            return (super()._ft_response
+                    * np.exp(-1j * lo_phase_delay.to_value(u.rad)))
 
     def _repr_item(self, key, default, value=None):
         if key == 'offset':
@@ -271,7 +293,7 @@ class TimeDelay(TaskBase):
     For the lower sideband, the rotation is in the opposite direction.
 
     Note that the input data stream must be complex.  For real-valued
-    streams, use `~scintillometry.sampling.DelayAndResample` without
+    streams, use `~scintillometry.sampling.ShiftAndResample` without
     ``offset``.
 
     Parameters
@@ -315,70 +337,3 @@ class TimeDelay(TaskBase):
         if self._phase_factor is not None:
             data *= self._phase_factor
         return data
-
-
-class DelayAndResample(ShiftAndResample):
-    r"""Delay and optionally resample a stream, taking care of phase rotations.
-
-    The delay is added to the sample times, and the stream is optionally
-    resampled to ensure a sample falls on the given offset. Furthermore,
-    the sample phases are corrected for rotations needed if the signal was
-    recorded after mixing with a local oscillator. For an upper sideband,
-    their phases are rotated by
-
-    .. math:: \phi = - \tau f_{lo}.
-
-    For the lower sideband, the rotation is in the opposite direction.
-
-    Parameters
-    ----------
-    ih : task or `baseband` stream reader
-        Input data stream, with time as the first axis.
-    delay : float, `~astropy.units.Quantity`
-        Delay to apply to all times.  Can be (float) samples or a quantity
-        with units of time.
-    offset : float, `~astropy.units.Quantity`, or `~astropy.time.Time`
-        Offset to ensure the output stream includes.  Can an absolute time,
-        or a (float) number of samples or time offset relative to the start
-        of the underlying stream.  The default of `None` implies that
-        the output stream is free to adjust.  Hence, if a single delay is
-        given, all that will happen is a change in ``start_time`` plus a
-        phase rotation. To ensure the grid stays fixed, pass in ``0``.
-    whence : {0, 1, 2, 'start', 'current', or 'end'}, optional
-        Like regular seek, the offset is taken to be from the start if
-        ``whence=0`` (default), from the current position if 1,
-        and from the end if 2.  One can alternativey use 'start',
-        'current', or 'end' for 0, 1, or 2, respectively.  Ignored if
-        ``offset`` is a time.
-    lo : `~astropy.units.Quantity`, or `None`
-        Local oscillator frequency.  For raw data, this can just be
-        ``if.frequency``.  But for channelized data, the actual
-        frequency needs to be passed in.  If data were recorded without
-        mixing (like for CHIME), pass in `None`.
-    pad : int, optional
-        Padding to apply on each side when shifting data. This sets the size
-        of the sinc function which which the data is convolved (see above).
-        The default of 32 ensures an accuracy of about 1/32π ~ 0.01.
-    samples_per_frame : int, optional
-        Number of resampled samples which should be produced in one go.
-        The number of input samples used will be larger by ``2*pad+1``.
-        If not given, works on the larger of the samples per frame from
-        If not given, the larger of the sampler per frame in the underlying
-        stream or 14 times the padding (to ensure ~87.5% efficiency).
-
-    """
-    def __init__(self, ih, delay, offset=None, whence='start', *,
-                 lo, pad=32, samples_per_frame=None):
-        super().__init__(ih, shift=delay, offset=offset, pad=pad,
-                         samples_per_frame=samples_per_frame)
-        self._delay = self._shift / ih.sample_rate
-        if lo is None:
-            self._lo_phase_delay = 0. * u.cycle
-        else:
-            self._lo_phase_delay = self._delay * lo * self.sideband * u.cycle
-
-    @lazyproperty
-    def _ft_response(self):
-        """Phase offsets of the Fourier-transformed frame."""
-        return (super()._ft_response
-                * np.exp(-1j * self._lo_phase_delay.to_value(u.rad)))
