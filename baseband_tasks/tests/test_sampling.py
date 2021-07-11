@@ -40,7 +40,8 @@ class PureTone:
 
 
 class TestFloatOffset:
-    def setup(self):
+    def setup_class(self):
+        # Only needed for the shape, sample_rate and start_time attributes.
         self.ih = EmptyStreamGenerator(shape=(2048, 3, 2),
                                        sample_rate=1.*u.kHz,
                                        start_time=Time('2010-11-12T13:14:15'))

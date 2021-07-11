@@ -9,32 +9,16 @@ from astropy.time import Time
 from baseband_tasks.base import TaskBase, check_broadcast_to
 from baseband_tasks.convolution import Convolve
 
-__all__ = ['float_offset', 'seek_float',
-           'ShiftAndResample', 'Resample', 'TimeDelay']
+__all__ = ['seek_float', 'ShiftAndResample', 'Resample', 'TimeDelay']
 
 # The tests do not strictly require pyfftw to run, but they do require it
 # to give numbers that are equal to within +FLOAT_CMP precision.
 __doctest_requires__ = {'Resample*': ['pyfftw']}
 
 
-def float_offset(ih, offset):
-    """The offset in possible fractional samples.
-
-    Parameters
-    ----------
-    ih : stream handle
-        Handle of a stream reader or task.
-    offset : float or `~astropy.units.Quantity`
-        Requested offset.  Can be an (float) number of samples or
-        an offset in time units.
-
-    Returns
-    -------
-    offset : float
-        Offset in units samples.
-    """
-    offset = u.Quantity(offset, copy=False)
-    return offset.to_value(u.one, equivalencies=[
+def to_sample(ih, offset):
+    """The offset in units of samples."""
+    return u.Quantity(offset, copy=False).to_value(u.one, equivalencies=[
         (u.one, u.Unit(1/ih.sample_rate))])
 
 
@@ -63,7 +47,7 @@ def seek_float(ih, offset, whence=0):
         offset = (offset - ih.start_time).to(1./ih.sample_rate)
         whence = 0
 
-    offset = float_offset(ih, offset)
+    offset = to_sample(ih, offset)
 
     check_broadcast_to(offset, ih.sample_shape)
 
@@ -135,7 +119,7 @@ class ShiftAndResample(Convolve):
     """
     def __init__(self, ih, shift, offset=None, whence='start', *,
                  lo=None, pad=32, samples_per_frame=None):
-        self._shift = float_offset(ih, shift)
+        self._shift = to_sample(ih, shift)
         shift_mean = np.mean(self._shift)
 
         if offset is None:
@@ -320,7 +304,7 @@ class TimeDelay(TaskBase):
     """
     def __init__(self, ih, delay, *, lo, frequency=None, sideband=None):
         assert ih.complex_data, "Time delay only works on complex data."
-        self._delay = float_offset(ih, delay)
+        self._delay = to_sample(ih, delay)
         self._lo = lo
         delay = self._delay / ih.sample_rate
         super().__init__(ih, frequency=frequency, sideband=sideband)
