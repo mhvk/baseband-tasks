@@ -40,6 +40,7 @@ class PureTone:
 
 
 class TestFloatOffset:
+    @classmethod
     def setup_class(self):
         # Only needed for the shape, sample_rate and start_time attributes.
         self.ih = EmptyStreamGenerator(shape=(2048, 3, 2),
@@ -86,7 +87,8 @@ class TestResampleReal:
     pad = 32
     shape = (n_frames*samples_per_frame,) + sideband.shape
 
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         f_signal = self.sample_rate / 2048 * np.array([31, 65])
         cosine = PureTone(f_signal, self.start_time, np.pi*u.deg)
 
@@ -209,7 +211,8 @@ class TestResampleNoise(TestResampleComplex):
     atol = 0.04
     pad = 128
 
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         # Make noise with only frequencies covered by part.
         n = self.samples_per_frame // 4 * self.n_frames
         self.part_data = (np.random.normal(size=n*2*2).view('c16')
@@ -249,7 +252,7 @@ class TestResampleNoise(TestResampleComplex):
 class BaseDelayAndResampleTestsReal:
     """Base class for ShiftAndResample tests with time delay phase shifts.
 
-    Sub-classes need to have a ``setup()`` that defines ``self.raw``,
+    Sub-classes need to have a ``setup_class()`` that defines ``self.raw``,
     which is a simulated voltage baseband stream that can will mixed,
     low-pass filtered and downsampled
 
@@ -263,11 +266,13 @@ class BaseDelayAndResampleTestsReal:
     samples_per_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
     sideband = np.array([-1, 1])    # IF sideband
-    lo = full_sample_rate * 7 / 16  # IF frequency.
+    # Place lo on right side of signal
+    lo = full_sample_rate * (7 / 16 - sideband / 128)  # IF frequency.
     n_frames = 32
     phi0_mixer = -12.3456789 * u.degree
 
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.full_shape = ((self.samples_per_frame * self.n_frames,)
                            + self.sideband.shape)
         self.downsample = (16 if self.dtype.kind == 'c' else 8)
@@ -413,15 +418,13 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
     atol_channelized = 4e-4  # Channelization makes tone Resampling worse.
     signal_offset = 7 / 16   # Signal frequency in units of full_sample_rate.
 
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.f_signal = self.signal_offset * self.full_sample_rate
-        # Place lo on right side of signal
-        if self.lo != 0:
-            self.lo = self.lo - self.sideband / 128 * self.full_sample_rate
         self.phi0_signal = 98.7654321 * u.degree
         self.signal = PureTone(self.f_signal, self.start_time,
                                self.phi0_signal)
-        super().setup()
+        super().setup_class()
 
     @pytest.mark.parametrize('n', (None, 32))
     def test_setup_no_delay(self, n):
@@ -443,7 +446,7 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
         if n is None:
             assert_allclose(data, expected, atol=self.atol, rtol=0)
         else:
-            data_ok = data[:, tel.frequency == np.abs(self.f_signal)]
+            data_ok = data[:, np.isclose(tel.frequency, np.abs(self.f_signal))]
             if tel.ih.complex_data:
                 factor = n
             else:
@@ -474,7 +477,7 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
         if n is None:
             assert_allclose(data, expected, atol=self.atol, rtol=0)
         else:
-            data_ok = data[:, tel.frequency == np.abs(self.f_signal)]
+            data_ok = data[:, np.isclose(tel.frequency, np.abs(self.f_signal))]
             if tel.ih.complex_data:
                 factor = n
             else:
@@ -492,10 +495,12 @@ class TestDelayAndResampleToneComplex(TestDelayAndResampleToneReal,
 class TestDelayAndResampleNoiseReal(BaseDelayAndResampleTestsReal):
     atol_channelized = 1e-4
 
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.noise = Noise(seed=12345)
-        super().setup()
+        super().setup_class()
 
+    @classmethod
     def signal(self, ih):
         # For real data, we should make sure that our noise stream
         # does not have signal above the Nyquist frequency given our
@@ -574,10 +579,12 @@ class TestDelayAndResampleToneCHIMELike(CHIMELike,
 
 class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
                                          TestDelayAndResampleNoiseComplex):
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.noise = Noise(seed=12345)
-        super().setup()
+        super().setup_class()
 
+    @classmethod
     def signal(self, ih):
         # For CHIME data, lower part is filtered out.
         data = self.noise(ih)
