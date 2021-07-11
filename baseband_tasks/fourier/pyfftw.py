@@ -158,3 +158,5 @@ class PyfftwFFTMaker(FFTMakerBase):
         self._repr_kwargs = dict(n_simd=self._n_simd)
         self._repr_kwargs.update(self._fftw_kwargs)
         return super().__repr__()
+
+    next_fast_len = staticmethod(pyfftw.next_fast_len)
