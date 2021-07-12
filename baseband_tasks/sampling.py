@@ -66,13 +66,12 @@ class ShiftAndResample(Convolve):
     r"""Shift and optionally resample a stream in time.
 
     The shift is added to the sample times, and the stream is optionally
-    resampled to ensure a sample falls on the given offset.  The precision
-    with which the shifting and resampling is done depends on ``pad``.
+    resampled to ensure a sample falls on the given offset.
 
     If the shift corresponds to a time delay, and the signal was recorded
     after mixing, the phases should be adjusted, which can be done by
-    passing in the local oscillator frequency is given. For an upper
-    sideband, the phase correction is,
+    passing in the local oscillator frequency. For an upper sideband, the
+    phase correction is,
 
     .. math:: \phi = - \tau f_{lo}.
 
@@ -108,7 +107,8 @@ class ShiftAndResample(Convolve):
     pad : int, optional
         Padding to apply on each side when shifting data. This sets the size
         of the sinc function which which the data is convolved (see below).
-        The default of 32 ensures an accuracy of about 1/32π ~ 0.01.
+        Numerical tests suggest that with the default of 64, the accuracy
+        is better than 0.1%.
     samples_per_frame : int, optional
         Number of resampled samples which should be produced in one go.
         The number of input samples used will be larger by ``2*pad+1``.
@@ -116,9 +116,36 @@ class ShiftAndResample(Convolve):
         If not given, the larger of the sampler per frame in the underlying
         stream or 14 times the padding (to ensure ~87.5% efficiency).
 
+    Notes
+    -----
+    The precision of the shifting and resampling is controlled by ``pad``,
+    as it sets the length of the response, which consists of a sinc function
+    combined with a Hann window,
+
+    .. math:: R(x) &= {\rm sinc}(x-s) \cos^2(\pi(x-s)/L),\\
+                 -{\rm pad} &\le x \le {\rm pad},\quad L = 2{\rm pad} + 2
+
+    Here, :math:`s` is the fractional pixel offset.  Note that :math:`L`
+    is chosen such that :math:`R(\pm{\rm pad})` is still non-zero.
+
+    The convolution is done in the Fourier domain, and the Hann window,
+    combined with with the padding done when reading, ensures there is no
+    aliasing between the front and the back of each frame.  There is,
+    however, aliasing near the Nyquist frequency. For most recorded signals,
+    this will not be important, as the band-pass filter will likely have
+    ensured there is very little signal near the band edges.  For
+    channelized data, however, it may be more problematic and some
+    pre-filtering stage may be necessary.
+
+    See Also
+    --------
+    Resample : resample a stream to a new grid, without time shifts
+    TimeDelay : delay a complex stream, changing phases but no resampling
+    baseband_tasks.base.SetAttribute : change start time without resampling
+
     """
     def __init__(self, ih, shift, offset=None, whence='start', *,
-                 lo=None, pad=32, samples_per_frame=None):
+                 lo=None, pad=64, samples_per_frame=None):
         self._shift = to_sample(ih, shift)
         shift_mean = np.mean(self._shift)
 
@@ -137,7 +164,7 @@ class ShiftAndResample(Convolve):
         # The remainder we actually need to shift.
         sample_shift = np.array(self._shift - d_time, ndmin=ih.ndim-1,
                                 copy=False, subok=True)
-        response = self.sinc_hanning(pad, sample_shift)
+        response = self._windowed_sinc(pad, sample_shift)
 
         if samples_per_frame is None:
             samples_per_frame = max(ih.samples_per_frame, pad * 14)
@@ -147,8 +174,7 @@ class ShiftAndResample(Convolve):
         self._lo = lo
         self._start_time += d_time / ih.sample_rate
 
-    @staticmethod
-    def sinc_hanning(pad, sample_shift):
+    def _windowed_sinc(self, pad, sample_shift):
         """Response for shifting samples.
 
         A combination of a sinc function, and a Hanning filter that ensures
@@ -161,10 +187,26 @@ class ShiftAndResample(Convolve):
         for shift, res in zip(sample_shift.ravel(),
                               result.reshape(n_result, -1).T):
             ishift = round(shift.item())
+            x = np.arange(-pad, pad+1) - (shift - ishift)
             res[ishift - ishift_min:ishift - ishift_max + n_result] = (
-                np.sinc(np.arange(-pad, pad+1) - (shift - ishift))
-                * np.hanning(2*pad+1))
+                np.sinc(x) * np.cos(np.pi*x/(2*pad+2))**2)
         return result
+
+    # def _window(self, pad):
+    #     # Note: tried various window functions (ignoring the shift in them),
+    #     # but Hann was clearly superior for the test_sampling test cases.
+    #     # return np.hanning(2*pad+3)[1:-1]  # Remove final zeros.
+    #     # lanczos
+    #     # return np.sinc(np.arange(-pad, pad+1)/pad)
+    #     # blackman
+    #     # a0, a1, a2, a3 = 0.42, 0.5, 0.08, 0.
+    #     # nuttall
+    #     a0, a1, a2, a3 = 0.355768, 0.487396, 0.144232, 0.012604
+    #     nbyN = np.arange(2*pad+1)/(2*pad)
+    #     return (a0
+    #             - a1*np.cos(2*np.pi*nbyN)
+    #             + a2*np.cos(4*np.pi*nbyN)
+    #             - a3*np.cos(6*np.pi*nbyN))
 
     @lazyproperty
     def _ft_response(self):
@@ -178,6 +220,8 @@ class ShiftAndResample(Convolve):
                     * np.exp(-1j * lo_phase_delay.to_value(u.rad)))
 
     def _repr_item(self, key, default, value=None):
+        # Our 'offset' input argument should not be looked up as 'offset',
+        # since that can vary.
         if key == 'offset':
             value = self._offset
         return super()._repr_item(key, default=default, value=value)
@@ -210,13 +254,17 @@ class Resample(ShiftAndResample):
     pad : int, optional
         Padding to apply on each side when shifting data. This sets the size
         of the sinc function which which the data is convolved (see above).
-        The default of 32 ensures an accuracy of about 1/32π ~ 0.01.
+        The default of 64 ensures an accuracy of better than 0.1%.
     samples_per_frame : int, optional
         Number of resampled samples which should be produced in one go.
         The number of input samples used will be larger by ``2*pad+1``.
         If not given, works on the larger of the samples per frame from
         If not given, the larger of the sampler per frame in the underlying
         stream or 14 times the padding (to ensure ~87.5% efficiency).
+
+    See Also
+    --------
+    ShiftAndResample : also shift a stream, possibly including phase delay
 
     Examples
     --------
@@ -234,11 +282,11 @@ class Resample(ShiftAndResample):
       >>> rh.time.isot
       '2014-06-16T05:56:07.000123456'
       >>> rh.seek(-4, 1)
-      3914
+      3915
       >>> data = rh.read(8)
-      >>> data[4]  # doctest: +SKIP
-      array([-1.6905369 ,  0.52486056, -2.00316   ,  0.9242443 , -0.0470082 ,
-              1.6006405 , -1.8970288 ,  1.1860422 ], dtype=float32)
+      >>> data[:, 4]  # doctest: +FLOAT_CMP
+      array([ 3.8333552 ,  2.0212145 , -0.37008375, -1.2507261 , -0.04465994,
+              2.610159  ,  3.485063  ,  3.2345843 ], dtype=float32)
 
     For comparison, if one uses the underlying filehandle directly, one gets
     the data only at the approximate time::
@@ -250,15 +298,15 @@ class Resample(ShiftAndResample):
       >>> fh.seek(-4, 1)
       3947
       >>> data = fh.read(8)
-      >>> data[4]  # doctest: +FLOAT_CMP
-      array([-3.316505,  3.316505, -3.316505, -1.      ,  1.      ,  1.      ,
-             -3.316505,  1.      ], dtype=float32)
+      >>> data[:, 4]  # doctest: +FLOAT_CMP
+      array([ 3.316505,  1.      , -1.      , -1.      ,  1.      ,  3.316505,
+              3.316505,  3.316505], dtype=float32)
       >>> fh.close()
 
     """
 
     def __init__(self, ih, offset, whence='start', *,
-                 pad=32, samples_per_frame=None):
+                 pad=64, samples_per_frame=None):
         super().__init__(ih, shift=0., offset=offset,
                          pad=pad, samples_per_frame=samples_per_frame)
         self.seek(ih.start_time + self._offset / ih.sample_rate)
@@ -277,8 +325,9 @@ class TimeDelay(TaskBase):
     For the lower sideband, the rotation is in the opposite direction.
 
     Note that the input data stream must be complex.  For real-valued
-    streams, use `~scintillometry.sampling.ShiftAndResample` without
-    ``offset``.
+    streams, use `~baseband_tasks.sampling.ShiftAndResample` without
+    ``shift`` as the delay, no ``offset``, and ``pad=0`` (this works for
+    complex data as well, but is slower as it involves fourier transforms).
 
     Parameters
     ----------
@@ -300,6 +349,11 @@ class TimeDelay(TaskBase):
         Whether frequencies are upper (+1) or lower (-1) sideband.
         Should be broadcastable to the sample shape.  By default, taken
         from the underlying stream.  Assumed to be correct for the lo.
+
+    See Also
+    --------
+    ShiftAndResample : also resample a stream, or delay a real-valued stream
+    baseband_tasks.base.SetAttribute : change start time without phase delay
 
     """
     def __init__(self, ih, delay, *, lo, frequency=None, sideband=None):

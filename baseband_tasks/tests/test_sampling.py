@@ -75,47 +75,61 @@ class TestFloatOffset:
 
 
 class TestResampleReal:
+    """Tests for resampling a signal.
+
+    Here used for a real signal, but subclassed below for complex.
+    """
 
     dtype = np.dtype('f4')
-    atol = 1e-3
-    sample_rate = 1 * u.kHz
-    samples_per_frame = 4096
+    full_sample_rate = 1 * u.kHz
+    samples_per_full_frame = 4096  # Per full frame.
     start_time = Time('2010-11-12T13:14:15')
     frequency = 400. * u.kHz
     sideband = np.array([-1, 1])
     n_frames = 3
-    pad = 32
-    shape = (n_frames*samples_per_frame,) + sideband.shape
+
+    pad = 32  # Size of response = 2*pad + 1.
+    atol = 7e-4  # Tolerance within which we expect to reproduce signal.
 
     @classmethod
     def setup_class(self):
-        f_signal = self.sample_rate / 2048 * np.array([31, 65])
+        # Chose signals that are not commensurate with quarter-sample offsets,
+        # or with the frames.
+        f_signal = (self.full_sample_rate * 2 / self.samples_per_full_frame
+                    * np.array([31.092, 65.1234]))
         cosine = PureTone(f_signal, self.start_time, np.pi*u.deg)
-
+        # Create a stream that just contains the two tones, and one sampled
+        # at 4 times lower rate.
         self.full_fh = StreamGenerator(
-            cosine, shape=self.shape,
-            sample_rate=self.sample_rate,
-            samples_per_frame=self.samples_per_frame,
+            cosine,
+            shape=((self.samples_per_full_frame * self.n_frames,)
+                   + self.sideband.shape),
+            sample_rate=self.full_sample_rate,
+            samples_per_frame=self.samples_per_full_frame,
             frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
-
         self.part_fh = StreamGenerator(
-            cosine, shape=(self.shape[0] // 4,) + self.shape[1:],
-            sample_rate=self.sample_rate / 4,
-            samples_per_frame=self.samples_per_frame // 4,
+            cosine,
+            shape=((self.samples_per_full_frame // 4 * self.n_frames,)
+                   + self.sideband.shape),
+            sample_rate=self.full_sample_rate / 4,
+            samples_per_frame=self.samples_per_full_frame // 4,
             frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
 
     def test_setup(self):
+        self.full_fh.seek(0)
+        self.part_fh.seek(0)
         full = self.full_fh.read()
         part = self.part_fh.read()
-        assert np.all(part == full[::4])
+        assert_allclose(part, full[::4], atol=1e-8, rtol=0)
 
     @pytest.mark.parametrize('offset',
                              (34, 34.5, 35.75,
                               50.*u.ms, 0.065*u.s,
                               Time('2010-11-12T13:14:15.073')))
     def test_resample(self, offset):
+        # Offsets equal to quarter samples to allow check with full_fh.
         ih = Resample(self.part_fh, offset, pad=self.pad)
         # Always lose 2 * pad per frame.
         assert ih.shape[0] == self.part_fh.shape[0] - 2 * self.pad
@@ -138,10 +152,12 @@ class TestResampleReal:
                                + ((self.pad + fraction)
                                   / self.part_fh.sample_rate))
         assert abs(ih.start_time - expected_start_time) < 1. * u.ns
+        # Check that data is correctly resampled.
         ih.seek(0)
         data = ih.read()
+        # Find corresponding fully sampled data.
         self.full_fh.seek(ih.start_time)
-        # Should be exact.
+        # Check time: should be exact, since our offsets are quarter samples.
         assert np.abs(self.full_fh.time - ih.start_time) < 1. * u.ns
         expected = self.full_fh.read(data.shape[0]*4)[::4]
         assert_allclose(data, expected, atol=self.atol, rtol=0)
@@ -157,36 +173,32 @@ class TestResampleReal:
                               [-1., 13]*u.ms))
     @pytest.mark.parametrize('offset', (None, 0, 0.25))
     def test_shift_and_resample(self, shift, offset):
-        # Offsets equal to quarter samples to allow check with full_fh.
-        ih = ShiftAndResample(self.part_fh, shift, offset=offset,
-                              pad=self.pad)
+        # Shifts and offsets at quarter samples to allow check with full_fh.
+        ih = ShiftAndResample(self.part_fh, shift, offset=offset, pad=self.pad)
         # start_time should be at expected offset from old grid.
-        expected_offset = seek_float(self.part_fh,
-                                     offset if offset is not None else
-                                     np.mean(shift))
+        expected_offset = seek_float(
+            self.part_fh, offset if offset is not None else np.mean(shift))
         d_off = ((ih.start_time - self.start_time) * ih.sample_rate
                  - expected_offset).to_value(u.one)
         assert abs(d_off - np.around(d_off)) < u.ns * ih.sample_rate
+        expected_length = (self.part_fh.shape[0]
+                           - 2 * self.pad
+                           - seek_float(self.part_fh, np.ptp(shift)))
+        assert abs(ih.shape[0] - expected_length) <= 0.5
 
         # Data should be shifted by the expected amounts.
         shift = np.atleast_1d(shift)
         for i, s in enumerate(shift):
-            time_shift = seek_float(self.part_fh, s) / ih.sample_rate
             ih.seek(0)
+            time_shift = seek_float(self.part_fh, s) / ih.sample_rate
             fh_pos = self.full_fh.seek(ih.time - time_shift)
-            if fh_pos < 0:
-                extra = -(fh_pos // 4)
-                self.full_fh.seek(extra * 4, 1)
-                ih.seek(extra)
-
+            assert fh_pos >= 0
             assert abs(ih.time - time_shift - self.full_fh.time) < 1.*u.ns
+
             data = ih.read()
-            expected = self.full_fh.read()[::4]
-            min_len = min(len(data), len(expected))
-            assert min_len >= ((self.n_frames - 0.5)
-                               * self.part_fh.samples_per_frame)
-            sel = i if shift.size > 1 else slice(None)
-            assert_allclose(data[:min_len, sel], expected[:min_len, sel],
+            expected = self.full_fh.read(len(data)*4)[::4]
+            sel = i if shift.size > 1 else Ellipsis
+            assert_allclose(data[:, sel], expected[:, sel],
                             atol=self.atol, rtol=0)
 
 
@@ -196,32 +208,32 @@ class TestResampleComplex(TestResampleReal):
 
 
 class StreamArray(StreamGenerator):
-    def __init__(self, data, *args, **kwargs):
+    def __init__(self, data, **kwargs):
         def from_data(handle):
             result = data[handle.offset:
                           handle.offset+handle.samples_per_frame]
             assert result.shape[0] == handle.samples_per_frame
             return result
-        super().__init__(from_data, *args, **kwargs)
+        super().__init__(from_data, shape=data.shape, **kwargs)
 
 
 class TestResampleNoise(TestResampleComplex):
 
     dtype = np.dtype('c8')
-    atol = 0.04
-    pad = 128
+    pad = 64  # need more padding for noise
+    high_ft_cut = 2*pad  # and removal of high frequencies.
 
     @classmethod
     def setup_class(self):
-        # Make noise with only frequencies covered by part.
-        n = self.samples_per_frame // 4 * self.n_frames
-        self.part_data = (np.random.normal(size=n*2*2).view('c16')
-                          .reshape(-1, 2))
-        part_ft = np.fft.fft(self.part_data, axis=0)
+        # Make noise with only frequencies covered by part_fh.
+        n = self.samples_per_full_frame // 4 * self.n_frames
+        np.random.seed(123456)
+        part_data = np.random.normal(size=(n, 2*2)).view('c16')
+        part_ft = np.fft.fft(part_data, axis=0)
         # Set high frequencies to zero; resampling doesn't work well with
         # noise there, as the FT mixes it from positive to negative and
         # vice versa, thus messing up the phases.
-        part_ft[n//2-self.pad:n//2+self.pad] = 0
+        part_ft[n//2-self.high_ft_cut:n//2+self.high_ft_cut] = 0
         # Make corresponding FT for full frame.
         full_ft = np.concatenate((part_ft[:n//2],
                                   np.zeros((n*3, 2), 'c16'),
@@ -230,61 +242,56 @@ class TestResampleNoise(TestResampleComplex):
         self.full_data = np.fft.ifft(full_ft * 4, axis=0)
         self.part_data = np.fft.ifft(part_ft, axis=0)
         self.full_fh = StreamArray(
-            self.full_data, shape=self.full_data.shape,
-            sample_rate=self.sample_rate,
-            samples_per_frame=self.samples_per_frame,
+            self.full_data,
+            sample_rate=self.full_sample_rate,
+            samples_per_frame=self.samples_per_full_frame,
             frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
 
         self.part_fh = StreamArray(
-            self.part_data, shape=self.part_data.shape,
-            sample_rate=self.sample_rate / 4,
-            samples_per_frame=self.samples_per_frame // 4,
+            self.part_data,
+            sample_rate=self.full_sample_rate / 4,
+            samples_per_frame=self.samples_per_full_frame // 4,
             frequency=self.frequency, sideband=self.sideband,
             start_time=self.start_time, dtype=self.dtype)
-
-    def test_setup(self):
-        full = self.full_fh.read()
-        part = self.part_fh.read()
-        assert_allclose(part, full[::4], atol=1e-8, rtol=0)
 
 
 class BaseDelayAndResampleTestsReal:
     """Base class for ShiftAndResample tests with time delay phase shifts.
 
-    Sub-classes need to have a ``setup_class()`` that defines ``self.raw``,
-    which is a simulated voltage baseband stream that can will mixed,
-    low-pass filtered and downsampled
+    Sub-classes need to define ``self.signal``, which is used for the
+    simulated voltage baseband stream that will be mixed, low-pass filtered
+    and downsampled.
 
     The idea behind all tests is to similate a voltage stream and
     the whole receiver chain, i.e., mix it with an IF, low-pass filter
     it, and then detect.  The mixing can be with real or complex (quadrature).
+
     """
     dtype = np.dtype('f4')  # type of mixing and output data.
     atol = atol_channelized = 1.e-2  # tolerance per sample
     full_sample_rate = 204.8 * u.kHz  # For the real-valued input signal
-    samples_per_frame = 1024
+    samples_per_full_frame = 1024
     start_time = Time('2010-11-12T13:14:15')
     sideband = np.array([-1, 1])    # IF sideband
     # Place lo on right side of signal
     lo = full_sample_rate * (7 / 16 - sideband / 128)  # IF frequency.
     n_frames = 32
-    phi0_mixer = -12.3456789 * u.degree
+    phi0_mixer = -12.3456789 * u.degree  # "random" angle.
 
     @classmethod
     def setup_class(self):
-        self.full_shape = ((self.samples_per_frame * self.n_frames,)
+        self.full_shape = ((self.samples_per_full_frame * self.n_frames,)
                            + self.sideband.shape)
         self.downsample = (16 if self.dtype.kind == 'c' else 8)
         self.sample_rate = self.full_sample_rate / self.downsample
         # Create the IF (which can produce a complex tone for quadrature).
-        self.mixer = PureTone(self.lo, self.start_time,
-                              self.phi0_mixer)
+        self.mixer = PureTone(self.lo, self.start_time, self.phi0_mixer)
         # Create a real-valued stream with a test-specific signal.
         self.raw = StreamGenerator(
             self.signal, shape=self.full_shape, start_time=self.start_time,
             sample_rate=self.full_sample_rate, dtype=np.dtype('f4'),
-            samples_per_frame=self.samples_per_frame)
+            samples_per_frame=self.samples_per_full_frame)
 
     def mix_downsample(self, ih, data):
         """Mix, low-pass filter, and downsample."""
@@ -323,7 +330,8 @@ class BaseDelayAndResampleTestsReal:
             return filtered
 
     def get_tel(self, delay=None, n=None):
-        """Get signal as observed at a telescope with the given delay."""
+        """Get signal as observed at a telescope with the given delay
+        and number of channels."""
         if delay is None:
             fh = self.raw
         else:
@@ -359,12 +367,15 @@ class BaseDelayAndResampleTestsReal:
         # Undo the delay and ensure we resample such that we're on the same
         # time grid as the undelayed telescope.
         if n is None:
+            # For unchannelized data, the frequency should equal the lo.
+            assert np.all(tel1.frequency == self.lo)
             tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
                                        tel1.start_time, lo=self.lo)
             self.assert_tel_same(tel1, tel2_rs)
         else:
             # For channelized data, we have to ensure we pass in an explicit
-            # local oscillator frequency.
+            # local oscillator frequency.  We reduce padding and
+            # samples_per_frame since we have rather little data.
             tel2_rs = ShiftAndResample(tel2, delay / self.full_sample_rate,
                                        tel1.start_time, lo=self.lo,
                                        samples_per_frame=32, pad=6)
@@ -394,6 +405,8 @@ class BaseDelayAndResampleTestsComplex(BaseDelayAndResampleTestsReal):
     @pytest.mark.parametrize('delay', (-1, 15.4321))
     @pytest.mark.parametrize('n', (None, 32))
     def test_time_delay_align(self, delay, n):
+        # For more random time delays, we need to Resample.  Of course, in
+        # this case we might just as well have used ShiftAndResample.
         tel1 = self.get_tel(delay=None, n=n)
         tel2 = self.get_tel(delay=delay, n=n)
         time_delay = TimeDelay(tel2, delay / self.full_sample_rate,
@@ -446,6 +459,7 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
         if n is None:
             assert_allclose(data, expected, atol=self.atol, rtol=0)
         else:
+            # Pick out relevant channel.
             data_ok = data[:, np.isclose(tel.frequency, np.abs(self.f_signal))]
             if tel.ih.complex_data:
                 factor = n
@@ -489,7 +503,17 @@ class TestDelayAndResampleToneReal(BaseDelayAndResampleTestsReal):
 
 class TestDelayAndResampleToneComplex(TestDelayAndResampleToneReal,
                                       BaseDelayAndResampleTestsComplex):
-    pass
+    # Base tests plus one that checks our understanding of TimeDelay.
+
+    @pytest.mark.parametrize('delay', (-8., 12.3456789))
+    def test_time_delay_understanding(self, delay):
+        tel = self.get_tel(delay=delay)
+        time_delay1 = TimeDelay(tel, delay / self.full_sample_rate, lo=self.lo)
+        time_delay2 = ShiftAndResample(tel, delay / self.full_sample_rate,
+                                       offset=None, lo=self.lo, pad=0)
+        assert time_delay1.shape == time_delay2.shape
+        assert time_delay1.start_time == time_delay2.start_time
+        self.assert_tel_same(time_delay1, time_delay2)
 
 
 class TestDelayAndResampleNoiseReal(BaseDelayAndResampleTestsReal):
@@ -519,9 +543,10 @@ class TestDelayAndResampleNoiseReal(BaseDelayAndResampleTestsReal):
 
 class TestDelayAndResampleNoiseComplex(TestDelayAndResampleNoiseReal,
                                        BaseDelayAndResampleTestsComplex):
-    # In principle, a full band of noise is fine with complex sampling,
-    # but easier to just keep it the same.
-    pass
+    @classmethod
+    def signal(self, ih):
+        # For complex data, a full band of noise is fine.
+        return self.noise(ih)
 
 
 class CHIMELike:
@@ -579,11 +604,6 @@ class TestDelayAndResampleToneCHIMELike(CHIMELike,
 
 class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
                                          TestDelayAndResampleNoiseComplex):
-    @classmethod
-    def setup_class(self):
-        self.noise = Noise(seed=12345)
-        super().setup_class()
-
     @classmethod
     def signal(self, ih):
         # For CHIME data, lower part is filtered out.
