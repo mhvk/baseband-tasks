@@ -6,6 +6,9 @@ New Features
 
 - Added support for applying and inverting polyphase filter banks. [#86]
 
+- Improve resampling and add a new ``ShiftAndResample`` task that can also
+  apply time shifts, including possible time delay phase rotations. [#225]
+
 API Changes
 -----------
 
