@@ -372,3 +372,42 @@ class TimeDelay(TaskBase):
         if self._phase_factor is not None:
             data *= self._phase_factor
         return data
+
+
+class SampleShift(PaddedTaskBase):
+    r"""Shift the time samples from a stream channel by channel base.
+
+    The time samples get shifted in the frame. This does not take the
+    phase rotation into account. (TODO add more description)
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    shift : Integer `numpy.ndarray`
+        Shift sample amount by each channel
+    """
+    def __init__(self, ih, shift):
+        # Make sure the shift amount match the number of channels.
+        assert len(shift) == ih.shape[1] # Should here be ih.frequency?
+        pad =
+        super().__init__(ih)
+        self.shift = shift
+        self._pad_slice = slice(self._pad_start,
+                                self._pad_start + self.samples_per_frame)
+    @property
+    def start_time(self):
+        """Start time defined as the time minimum absolute shift happens.
+        """
+        min_shift = self.shift[np.argmin(np.abs(self.shift))]
+        return ih.start_time + min_shift / ih.sample_rate
+
+    @property
+    def original_time(self):
+        """The original start time of the samples before shifting
+        """
+        return ih.start_time + self.shift / ih.sample_rate
+
+    def task(self, data):
+        # Handle the negtive shift in the beginning
+        pass
