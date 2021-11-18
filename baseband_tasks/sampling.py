@@ -403,6 +403,7 @@ class SampleShift(PaddedTaskBase):
             if sp != 1:
                 # compare the data shape.
                 assert ih.shape[ii] == sp
+                n_shift = sp
 
         pad_start = np.min(shift) if np.min(shift) < 0 else 0
         pad_end = np.max(shift) if np.max(shift) > 0 else 0
@@ -410,7 +411,9 @@ class SampleShift(PaddedTaskBase):
             samples_per_frame=samples_per_frame)
         self.shift = shift
         # Form the slice
-        self._slice = [slice(sft, sft + self.samples_per_frame) for sft in shift]
+        self._slice = np.boradcast_to(np.arange(self.samples_per_frame),
+            (n_shift, self.samples_per_frame)) + self.shift.
+        self._slice += self.shift
 
     @property
     def start_time(self):
