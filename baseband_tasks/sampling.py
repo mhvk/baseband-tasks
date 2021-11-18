@@ -384,8 +384,11 @@ class SampleShift(PaddedTaskBase):
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
-    shift : Integer `numpy.ndarray`
-        Shift sample amount by each channel
+    shift : Integer `~numpy.ndarray`
+        Sample time shift along one of the non-time axises. It must has the same
+        dimension with the up stream data and the given shift element has to be
+        same lenght as the axis shape. For example, to shift samples along the
+        second axis of three axises, the shift shape is (1, N, 1).
     samples_per_frame : int, optional
         Number of dispersed samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
@@ -393,13 +396,20 @@ class SampleShift(PaddedTaskBase):
         samples that yields at least 75% efficiency.
     """
     def __init__(self, ih, shift, samples_per_frame=None):
-        # Make sure the shift amount match the number of channels.
-        assert len(shift) == ih.shape[1] # Should here be ih.frequency?
+        # Make sure the shift dimension matches the upper stream dimension.
+        assert shift.ndim == ih.ndim
+        # Make sure the shift gives the same elements of the shifted axis.
+        for ii, sp in enumerate(shift.shape):
+            if sp != 1:
+                # compare the data shape.
+                assert ih.shape[ii] == sp
+
         pad_start = np.min(shift) if np.min(shift) < 0 else 0
         pad_end = np.max(shift) if np.max(shift) > 0 else 0
         super().__init__(ih,pad_start=pad_start, pad_end=pad_end,
             samples_per_frame=samples_per_frame)
         self.shift = shift
+        # Form the slice
         self._slice = [slice(sft, sft + self.samples_per_frame) for sft in shift]
 
     @property
@@ -419,5 +429,5 @@ class SampleShift(PaddedTaskBase):
         #TODO Needs a better way to do this
         result = np.zeros((self.sample_per_frame, self.shape[1], self.shape[2]))
         for ii in range(len(self.shift)):
-            result[:, ii, :] = date[self._slice[ii], ii, :] 
+            result[:, ii, :] = date[self._slice[ii], ii, :]
         return result
