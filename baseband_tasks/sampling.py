@@ -6,7 +6,7 @@ from astropy import units as u
 from astropy.utils import lazyproperty
 from astropy.time import Time
 
-from baseband_tasks.base import TaskBase, check_broadcast_to
+from baseband_tasks.base import TaskBase, check_broadcast_to, PaddedTaskBase
 from baseband_tasks.convolution import Convolve
 
 __all__ = ['seek_float', 'ShiftAndResample', 'Resample', 'TimeDelay']
@@ -389,30 +389,32 @@ class SampleShift(PaddedTaskBase):
         dimension with the up stream data and the given shift element has to be
         same lenght as the axis shape. For example, to shift samples along the
         second axis of three axises, the shift shape is (1, N, 1).
-    samples_per_frame : int, optional
-        Number of dispersed samples which should be produced in one go.
+    samples_per_frame : int
+        Number of shifted samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
         If not given, as produced by the minimum power of 2 of input
         samples that yields at least 75% efficiency.
     """
-    def __init__(self, ih, shift, samples_per_frame=None):
-        # Make sure the shift dimension matches the upper stream dimension.
-        assert shift.ndim == ih.ndim
-        # Make sure the shift gives the same elements of the shifted axis.
-        for ii, sp in enumerate(shift.shape):
-            if sp != 1:
-                # compare the data shape.
-                assert ih.shape[ii] == sp
-                n_shift = sp
-
+    def __init__(self, ih, shift, axis, samples_per_frame):
+        assert axis != 0 # can not give shift on the time axis
+        assert len(shift) == ih.shape[axis] # Needs to give the exact shift lenght
+        ndim = len(ih.shape)
         pad_start = np.min(shift) if np.min(shift) < 0 else 0
         pad_end = np.max(shift) if np.max(shift) > 0 else 0
         super().__init__(ih,pad_start=pad_start, pad_end=pad_end,
             samples_per_frame=samples_per_frame)
         self.shift = shift
         # Form the slice
-        self._slice = np.boradcast_to(np.arange(self.samples_per_frame),
-            (n_shift, self.samples_per_frame)) + self.shift.flatten()
+        shift_ids = np.arange(self.samples_per_frame)
+        dim0 = np.broadcast_to(shift_ids.reshape(self.samples_per_frame, 1),
+            (self.samples_per_frame, len(shift))) + shift
+        other_index = tuple()
+        for ii in range(1, ndim):
+            if ii != axis:
+                other_index += (slice(None),)
+            else:
+                other_index += (np.arange(ii),)
+        self._slice = (dim0, ) + other_index
 
     @property
     def start_time(self):
@@ -428,4 +430,5 @@ class SampleShift(PaddedTaskBase):
         return ih.start_time + self.shift / ih.sample_rate
 
     def task(self, data):
-        return data(self._slice)
+
+        return data[self._slice]

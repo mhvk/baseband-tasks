@@ -12,7 +12,7 @@ from baseband_tasks.base import Task, SetAttribute
 from baseband_tasks.channelize import Channelize
 from baseband_tasks.combining import Stack
 from baseband_tasks.sampling import (
-    seek_float, ShiftAndResample, Resample, TimeDelay)
+    seek_float, ShiftAndResample, Resample, TimeDelay, SampleShift)
 from baseband_tasks.generators import (
     EmptyStreamGenerator, StreamGenerator, Noise)
 
@@ -615,19 +615,24 @@ class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
 
 class TestSampleShift:
     @classmethod
-    def make_arange_data(ih):
+    def make_arange_data(self, ih):
         test_data = (np.arange(ih.offset,
-            ih.samples_per_frame)).reshape((ih.samples_per_frame,) +
+            ih.offset + ih.samples_per_frame)).reshape((ih.samples_per_frame,) +
             (1,) * len(ih.shape[1:]))
-        return np.broadcast_to(test_data, ih.shape)
+        new_shape = (ih.samples_per_frame,) + ih.shape[1:]
+        return np.broadcast_to(test_data, new_shape)
 
 
     @classmethod
     def setup_class(self):
-        self.ih = StreamGenerator(self.make_arange_data, (100, 20, 3),
-                                  Time('2010-11-12'), 1.*u.Hz,
-                                  samples_per_frame=100, dtype=int)
+        self.shape = (1000, 20, 3)
+        self.ih = StreamGenerator(self.make_arange_data, self.shape,
+                                        Time('2010-11-12'), 1.*u.Hz,
+                                        samples_per_frame=100, dtype=int)
 
-    def test_data_gen(self):
-        data = self.ih.read(5)
+    def test_data_shift(self):
+        shift_axis = 1
+        shift = np.arange(0, self.shape[shift_axis])
+        shifter = SampleShift(self.ih, shift, shift_axis, 100)
+        shifter.read(5)
         assert False
