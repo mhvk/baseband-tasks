@@ -412,8 +412,7 @@ class SampleShift(PaddedTaskBase):
         self.shift = shift
         # Form the slice
         self._slice = np.boradcast_to(np.arange(self.samples_per_frame),
-            (n_shift, self.samples_per_frame)) + self.shift.
-        self._slice += self.shift
+            (n_shift, self.samples_per_frame)) + self.shift.flatten()
 
     @property
     def start_time(self):
@@ -429,8 +428,4 @@ class SampleShift(PaddedTaskBase):
         return ih.start_time + self.shift / ih.sample_rate
 
     def task(self, data):
-        #TODO Needs a better way to do this
-        result = np.zeros((self.sample_per_frame, self.shape[1], self.shape[2]))
-        for ii in range(len(self.shift)):
-            result[:, ii, :] = date[self._slice[ii], ii, :]
-        return result
+        return data(self._slice)

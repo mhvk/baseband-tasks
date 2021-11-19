@@ -611,3 +611,23 @@ class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
         ft = np.fft.rfft(data, axis=0)
         ft[:ft.shape[0]//2] = 0
         return np.fft.irfft(ft, axis=0).astype(data.dtype)
+
+
+class TestSampleShift:
+    @classmethod
+    def make_arange_data(ih):
+        test_data = (np.arange(ih.offset,
+            ih.samples_per_frame)).reshape((ih.samples_per_frame,) +
+            (1,) * len(ih.shape[1:]))
+        return np.broadcast_to(test_data, ih.shape)
+
+
+    @classmethod
+    def setup_class(self):
+        self.ih = StreamGenerator(self.make_arange_data, (100, 20, 3),
+                                  Time('2010-11-12'), 1.*u.Hz,
+                                  samples_per_frame=100, dtype=int)
+
+    def test_data_gen(self):
+        data = self.ih.read(5)
+        assert False
