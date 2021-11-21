@@ -644,18 +644,55 @@ class TestSampleShift:
         shift_axis = 1
         shift = np.arange(0, self.shape[shift_axis])
         shifter = SampleShift(self.ih, shift, shift_axis, 100)
-        shifted = shifter.read(5)
-        self.ih.seek(0)
+        read_start = 0
+        read_num = 5
+        shifted = shifter.read(read_num)
+        self.ih.seek(read_start)
         raw_data = self.ih.read(100)
         for ii, sf in enumerate(shift):
-            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + 5,ii,0])
-            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + 5,ii,1])
+            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
+            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
+        # Test cross frame
+        read_start = 90
+        read_num = 20
+        shifter.seek(read_start)
+        shifted = shifter.read(read_num)
+        self.ih.seek(read_start - np.abs(np.min(shift)))
+        raw_data = self.ih.read(100)
+        for ii, sf in enumerate(shift):
+            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
+            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
+
 
     def test_negive_shift(self):
         shift_axis = 1
         shift = np.arange(-3, self.shape[shift_axis] - 3)
         shifter = SampleShift(self.ih, shift, shift_axis, 100)
-        shifted = shifter.read(5)
-        self.ih.seek(0)
+        # Since the paddedTask assumes there are real data for padding.
+        # we will not exam the beginning and ending of the shift
+        read_start = 20
+        read_num = 5
+        shifter.seek(read_start)
+        shifted = shifter.read(read_num)
+        # Shifted should have 3 time samples of upstream data before the read
+        # points.
+        self.ih.seek(read_start - np.abs(np.min(shift)))
         raw_data = self.ih.read(100)
-        assert False
+        for ii, sf in enumerate(shift - np.min(shift)): # normalize shift
+            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
+            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
+        # Test cross frame
+        read_start = 100
+        read_num = 20
+        shifter.seek(read_start)
+        shifted = shifter.read(read_num)
+        # Shifted should have 3 time samples of upstream data before the read
+        # points.
+        self.ih.seek(read_start - np.abs(np.min(shift)))
+        raw_data = self.ih.read(100)
+        for ii, sf in enumerate(shift - np.min(shift)): # normalize shift
+            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
+            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
+
+    def test_non_uniform_shift(self):
+        pass
