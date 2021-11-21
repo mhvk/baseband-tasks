@@ -622,17 +622,40 @@ class TestSampleShift:
         new_shape = (ih.samples_per_frame,) + ih.shape[1:]
         return np.broadcast_to(test_data, new_shape)
 
+    @classmethod
+    def make_non_uniform_arange_data(self, ih):
+        data = self.make_arange_data(ih)
+        new_shape = [1,] * len(data.shape)
+        new_shape[ih.non_uniform_axis] = data.shape[ih.non_uniform_axis]
+        I = np.arange(1, new_shape[ih.non_uniform_axis] + 1) * ih.intensity
+        #assert False
+        return data * I.reshape(new_shape)
 
     @classmethod
     def setup_class(self):
         self.shape = (1000, 20, 3)
-        self.ih = StreamGenerator(self.make_arange_data, self.shape,
+        self.ih = StreamGenerator(self.make_non_uniform_arange_data, self.shape,
                                         Time('2010-11-12'), 1.*u.Hz,
                                         samples_per_frame=100, dtype=int)
+        self.ih.intensity = 2
+        self.ih.non_uniform_axis = 1
 
     def test_data_shift(self):
         shift_axis = 1
         shift = np.arange(0, self.shape[shift_axis])
         shifter = SampleShift(self.ih, shift, shift_axis, 100)
-        shifter.read(5)
+        shifted = shifter.read(5)
+        self.ih.seek(0)
+        raw_data = self.ih.read(100)
+        for ii, sf in enumerate(shift):
+            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + 5,ii,0])
+            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + 5,ii,1])
+
+    def test_negive_shift(self):
+        shift_axis = 1
+        shift = np.arange(-3, self.shape[shift_axis] - 3)
+        shifter = SampleShift(self.ih, shift, shift_axis, 100)
+        shifted = shifter.read(5)
+        self.ih.seek(0)
+        raw_data = self.ih.read(100)
         assert False

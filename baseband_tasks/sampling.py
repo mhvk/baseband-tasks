@@ -399,7 +399,7 @@ class SampleShift(PaddedTaskBase):
         assert axis != 0 # can not give shift on the time axis
         assert len(shift) == ih.shape[axis] # Needs to give the exact shift lenght
         ndim = len(ih.shape)
-        pad_start = np.min(shift) if np.min(shift) < 0 else 0
+        pad_start = np.abs(np.min(shift)) if np.min(shift) < 0 else 0
         pad_end = np.max(shift) if np.max(shift) > 0 else 0
         super().__init__(ih,pad_start=pad_start, pad_end=pad_end,
             samples_per_frame=samples_per_frame)
@@ -409,11 +409,11 @@ class SampleShift(PaddedTaskBase):
         dim0 = np.broadcast_to(shift_ids.reshape(self.samples_per_frame, 1),
             (self.samples_per_frame, len(shift))) + shift
         other_index = tuple()
-        for ii in range(1, ndim):
-            if ii != axis:
+        for ii, sp in enumerate(ih.shape[1:]):
+            if ii + 1 != axis:
                 other_index += (slice(None),)
             else:
-                other_index += (np.arange(ii),)
+                other_index += (np.arange(sp),)
         self._slice = (dim0, ) + other_index
 
     @property
@@ -430,5 +430,4 @@ class SampleShift(PaddedTaskBase):
         return ih.start_time + self.shift / ih.sample_rate
 
     def task(self, data):
-
         return data[self._slice]
