@@ -385,49 +385,28 @@ class SampleShift(PaddedTaskBase):
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
     shift : Integer `~numpy.ndarray`
-        Sample time shift along one of the non-time axises. It must has the same
-        dimension with the up stream data and the given shift element has to be
-        same lenght as the axis shape. For example, to shift samples along the
-        second axis of three axises, the shift shape is (1, N, 1).
+        Sample time shifts.  Should broadcast with the sample shape.
+        For example, to shift samples along the one-but-last axis with length
+        ``N``, the shift shape should be ``(N, 1)``.
     samples_per_frame : int
         Number of shifted samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
         If not given, as produced by the minimum power of 2 of input
         samples that yields at least 75% efficiency.
     """
-    def __init__(self, ih, shift, axis, samples_per_frame):
-        assert axis != 0 # can not give shift on the time axis
-        assert len(shift) == ih.shape[axis] # Needs to give the exact shift lenght
-        ndim = len(ih.shape)
-        pad_start = np.abs(np.min(shift)) if np.min(shift) < 0 else 0
-        pad_end = np.max(shift) if np.max(shift) > 0 else 0
-        super().__init__(ih,pad_start=pad_start, pad_end=pad_end,
-            samples_per_frame=samples_per_frame)
+    def __init__(self, ih, shift, samples_per_frame=None):
+        check_broadcast_to(shift, ih.sample_shape)
         self.shift = shift
-        # Form the slice
-        shift_ids = np.arange(self.samples_per_frame)
-        dim0 = np.broadcast_to(shift_ids.reshape(self.samples_per_frame, 1),
-            (self.samples_per_frame, len(shift))) + shift
-        other_index = tuple()
-        for ii, sp in enumerate(ih.shape[1:]):
-            if ii + 1 != axis:
-                other_index += (slice(None),)
-            else:
-                other_index += (np.arange(sp),)
-        self._slice = (dim0, ) + other_index
-
-    @property
-    def start_time(self):
-        """Start time defined as the time minimum absolute shift happens.
-        """
-        min_shift = self.shift[np.argmin(np.abs(self.shift))]
-        return ih.start_time + min_shift / ih.sample_rate
-
-    @property
-    def original_time(self):
-        """The original start time of the samples before shifting
-        """
-        return ih.start_time + self.shift / ih.sample_rate
+        min_shift = np.min(shift)
+        super().__init__(ih, pad_start=0, pad_end=np.max(shift)-min_shift,
+                         samples_per_frame=samples_per_frame)
+        self._start_time += min_shift / ih.sample_rate
+        # Form the advanced index used to select the shifted samples.
+        # Start with one that just takes unshifted output elements for a
+        # single frame, then add shifts for the first (sample) dimension.
+        indices = np.ix_(np.arange(self.samples_per_frame),
+                         *[np.arange(sh) for sh in self.sample_shape])
+        self._indices = (indices[0] + (shift-min_shift),) + indices[1:]
 
     def task(self, data):
-        return data[self._slice]
+        return data[self._indices]

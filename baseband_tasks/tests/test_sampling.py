@@ -616,83 +616,55 @@ class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
 class TestSampleShift:
     @classmethod
     def make_arange_data(self, ih):
-        test_data = (np.arange(ih.offset,
-            ih.offset + ih.samples_per_frame)).reshape((ih.samples_per_frame,) +
-            (1,) * len(ih.shape[1:]))
+        test_data = (np.arange(ih.offset, ih.offset + ih.samples_per_frame)
+                     .reshape((ih.samples_per_frame,)
+                              + (1,) * len(ih.shape[1:])))
         new_shape = (ih.samples_per_frame,) + ih.shape[1:]
         return np.broadcast_to(test_data, new_shape)
 
     @classmethod
     def make_non_uniform_arange_data(self, ih):
+        axis = ih.non_uniform_axis
         data = self.make_arange_data(ih)
-        new_shape = [1,] * len(data.shape)
-        new_shape[ih.non_uniform_axis] = data.shape[ih.non_uniform_axis]
-        I = np.arange(1, new_shape[ih.non_uniform_axis] + 1) * ih.intensity
-        #assert False
-        return data * I.reshape(new_shape)
+        multiplier = np.arange(1, data.shape[axis] + 1) * ih.intensity
+        return data * multiplier.reshape((data.shape[axis],)
+                                         + (1,) * (data.ndim-1-axis))
 
     @classmethod
     def setup_class(self):
-        self.shape = (1000, 20, 3)
-        self.ih = StreamGenerator(self.make_non_uniform_arange_data, self.shape,
-                                        Time('2010-11-12'), 1.*u.Hz,
-                                        samples_per_frame=100, dtype=int)
+        self.shape = (1000, 5, 3)
+        self.ih = StreamGenerator(self.make_non_uniform_arange_data,
+                                  self.shape, Time('2010-11-12'), 1.*u.Hz,
+                                  samples_per_frame=100, dtype=int)
         self.ih.intensity = 2
         self.ih.non_uniform_axis = 1
 
-    def test_data_shift(self):
+    @pytest.mark.parametrize('start, n', [(0, 5), (90, 20)])
+    def test_data_shift_simple(self, start, n):
         shift_axis = 1
         shift = np.arange(0, self.shape[shift_axis])
-        shifter = SampleShift(self.ih, shift, shift_axis, 100)
-        read_start = 0
-        read_num = 5
-        shifted = shifter.read(read_num)
-        self.ih.seek(read_start)
+        shifter = SampleShift(self.ih, shift.reshape(-1, 1), 100)
+        assert shifter.start_time == self.ih.start_time
+        shifter.seek(start)
+        shifted = shifter.read(n)
+        self.ih.seek(start)
         raw_data = self.ih.read(100)
-        for ii, sf in enumerate(shift):
-            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
-            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
-        # Test cross frame
-        read_start = 90
-        read_num = 20
-        shifter.seek(read_start)
-        shifted = shifter.read(read_num)
-        self.ih.seek(read_start - np.abs(np.min(shift)))
-        raw_data = self.ih.read(100)
-        for ii, sf in enumerate(shift):
-            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
-            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
+        for i, sf in enumerate(shift):
+            assert np.all(shifted[:, i] == raw_data[sf:sf + n, i])
 
-
-    def test_negive_shift(self):
-        shift_axis = 1
+    @pytest.mark.parametrize('start, n', [(0, 5), (100, 20)])
+    def test_negative_shift(self, start, n):
+        shift_axis = 2
         shift = np.arange(-3, self.shape[shift_axis] - 3)
-        shifter = SampleShift(self.ih, shift, shift_axis, 100)
-        # Since the paddedTask assumes there are real data for padding.
-        # we will not exam the beginning and ending of the shift
-        read_start = 20
-        read_num = 5
-        shifter.seek(read_start)
-        shifted = shifter.read(read_num)
-        # Shifted should have 3 time samples of upstream data before the read
-        # points.
-        self.ih.seek(read_start - np.abs(np.min(shift)))
+        shifter = SampleShift(self.ih, shift, 100)
+        assert abs(shifter.start_time + 3 / self.ih.sample_rate
+                   - self.ih.start_time) < 1.*u.ns
+        shifter.seek(start)
+        shifted = shifter.read(n)
+        self.ih.seek(start)
         raw_data = self.ih.read(100)
-        for ii, sf in enumerate(shift - np.min(shift)): # normalize shift
-            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
-            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
-        # Test cross frame
-        read_start = 100
-        read_num = 20
-        shifter.seek(read_start)
-        shifted = shifter.read(read_num)
-        # Shifted should have 3 time samples of upstream data before the read
-        # points.
-        self.ih.seek(read_start - np.abs(np.min(shift)))
-        raw_data = self.ih.read(100)
-        for ii, sf in enumerate(shift - np.min(shift)): # normalize shift
-            assert np.all(shifted[:,ii,0] == raw_data[sf:sf + read_num,ii,0])
-            assert np.all(shifted[:,ii,1] == raw_data[sf:sf + read_num,ii,1])
+        for i, sf in enumerate(shift - np.min(shift)):
+            assert np.all(shifted[:, :, i] == raw_data[sf:sf + n, :, i])
 
     def test_non_uniform_shift(self):
         pass
