@@ -666,5 +666,16 @@ class TestSampleShift:
         for i, sf in enumerate(shift - np.min(shift)):
             assert np.all(shifted[:, :, i] == raw_data[sf:sf + n, :, i])
 
-    def test_non_uniform_shift(self):
-        pass
+    @pytest.mark.parametrize('start, n', [(0, 5), (100, 20)])
+    def test_non_uniform_shift(self, start, n):
+        shift_axis = 1
+        shift = np.random.randint(-10, 10, self.shape[shift_axis])
+        shifter = SampleShift(self.ih, shift.reshape(-1, 1), 100)
+        assert abs(shifter.start_time - np.min(shift) / self.ih.sample_rate
+                   - self.ih.start_time) < 1.*u.ns
+        shifter.seek(start)
+        shifted = shifter.read(n)
+        self.ih.seek(start)
+        raw_data = self.ih.read(100)
+        for i, sf in enumerate(shift - np.min(shift)):
+            assert np.all(shifted[:, i] == raw_data[sf:sf + n, i])
