@@ -9,7 +9,8 @@ from astropy.time import Time
 from baseband_tasks.base import TaskBase, check_broadcast_to, PaddedTaskBase
 from baseband_tasks.convolution import Convolve
 
-__all__ = ['seek_float', 'ShiftAndResample', 'Resample', 'TimeDelay']
+__all__ = ['seek_float', 'ShiftAndResample', 'Resample', 'TimeDelay',
+           'SampleShift']
 
 
 def to_sample(ih, offset):
@@ -136,7 +137,7 @@ class ShiftAndResample(Convolve):
     See Also
     --------
     Resample : resample a stream to a new grid, without time shifts
-    ShiftSamples : shift channels by integer number of samples
+    SampleShift : shift channels by integer number of samples
     TimeDelay : delay a complex stream, changing phases but no resampling
     baseband_tasks.base.SetAttribute : change start time without resampling
 
