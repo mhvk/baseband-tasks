@@ -12,7 +12,7 @@ from baseband_tasks.base import Task, SetAttribute
 from baseband_tasks.channelize import Channelize
 from baseband_tasks.combining import Stack
 from baseband_tasks.sampling import (
-    seek_float, ShiftAndResample, Resample, TimeDelay)
+    seek_float, ShiftAndResample, Resample, TimeDelay, SampleShift)
 from baseband_tasks.generators import (
     EmptyStreamGenerator, StreamGenerator, Noise)
 
@@ -611,3 +611,76 @@ class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
         ft = np.fft.rfft(data, axis=0)
         ft[:ft.shape[0]//2] = 0
         return np.fft.irfft(ft, axis=0).astype(data.dtype)
+
+
+class TestSampleShift:
+    @classmethod
+    def make_arange_data(self, ih):
+        test_data = (np.arange(ih.offset, ih.offset + ih.samples_per_frame)
+                     .reshape((ih.samples_per_frame,)
+                              + (1,) * len(ih.shape[1:])))
+        new_shape = (ih.samples_per_frame,) + ih.shape[1:]
+        return np.broadcast_to(test_data, new_shape)
+
+    @classmethod
+    def make_non_uniform_arange_data(self, ih):
+        axis = ih.non_uniform_axis
+        data = self.make_arange_data(ih)
+        multiplier = np.arange(1, data.shape[axis] + 1) * ih.intensity
+        return data * multiplier.reshape((data.shape[axis],)
+                                         + (1,) * (data.ndim-1-axis))
+
+    @classmethod
+    def setup_class(self):
+        self.shape = (1000, 5, 3)
+        self.ih = StreamGenerator(self.make_arange_data,
+                                  self.shape, Time('2010-11-12'), 1.*u.Hz,
+                                  samples_per_frame=100, dtype=float)
+        self.ih.intensity = 2
+        self.ih.non_uniform_axis = 1
+
+    @pytest.mark.parametrize('start, n', [(0, 5), (90, 20)])
+    def test_shift_back(self, start, n):
+        shift_axis = 1
+        shift = np.arange(-self.shape[shift_axis] + 1, 1)
+        assert shift.max() == 0
+        shifter = SampleShift(self.ih, shift.reshape(-1, 1),
+                              samples_per_frame=100)
+        assert shifter.start_time == self.ih.start_time
+        shifter.seek(start)
+        shifted = shifter.read(n)
+        self.ih.seek(start)
+        raw_data = self.ih.read(100)
+        for i, sf in enumerate(-shift):
+            assert np.all(shifted[:, i] == raw_data[sf:sf + n, i])
+
+    @pytest.mark.parametrize('start, n', [(0, 5), (100, 20)])
+    def test_shift_both(self, start, n):
+        shift = np.array([-2, 0, 3])
+        shifter = SampleShift(self.ih, shift, samples_per_frame=100)
+        assert abs(shifter.start_time - 3 / self.ih.sample_rate
+                   - self.ih.start_time) < 1.*u.ns
+        shifter.seek(start)
+        shifted = shifter.read(n)
+        self.ih.seek(start)
+        raw_data = self.ih.read(100)
+        for i, sf in enumerate(3-shift):
+            assert np.all(shifted[:, :, i] == raw_data[sf:sf + n, :, i])
+
+    def test_compare_with_shift_and_resample(self):
+        shift = np.array([-2, 1, 4])
+        shifter = SampleShift(self.ih, shift, samples_per_frame=100)
+        resampler = ShiftAndResample(self.ih, shift, offset=0,
+                                     pad=32, samples_per_frame=200)
+        # Note: resampler has larger padding, so start time is later.
+        shifter.seek(90)
+        resampler.seek(shifter.time)
+        # integer shifts, so time should be same.
+        assert abs(resampler.time - shifter.time) < 1. * u.ns
+        shifted = shifter.read(20)
+        resampled = resampler.read(20)
+        assert_allclose(shifted, resampled)
+
+    def test_error_on_non_integer_shift(self):
+        with pytest.raises(TypeError, match='cast'):
+            SampleShift(self.ih, np.array([1., 2., 3.5]))

@@ -9,6 +9,9 @@ New Features
 - Improve resampling and add a new ``ShiftAndResample`` task that can also
   apply time shifts, including possible time delay phase rotations. [#225]
 
+- Add a simpler ``SampleShift`` task that just shifts channels by integer
+  number of samples. [#226]
+
 API Changes
 -----------
 
