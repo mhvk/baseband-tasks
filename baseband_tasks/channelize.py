@@ -47,7 +47,7 @@ class Channelize(TaskBase):
     using `numpy.fft` the performance improvement seems to be negligible.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1,
+    def __init__(self, ih, n, samples_per_frame=1, *,
                  frequency=None, sideband=None):
 
         self._n = n = operator.index(n)
@@ -105,6 +105,8 @@ class Dechannelize(TaskBase):
         Number of output samples to produce in one go.  Rounded to the
         nearest multiple of ``n``. Default: inferred from underlying stream,
         i.e., ``ih.samples_per_frame * n``.
+    dtype : `~numpy.dtype`, optional
+        Dtype of the output samples.  Default: complex (like ``ih``).
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each output channel.  Default: inferred from ``ih``
         (if available).
@@ -123,8 +125,8 @@ class Dechannelize(TaskBase):
 
     """
 
-    def __init__(self, ih, n=None, samples_per_frame=None,
-                 frequency=None, sideband=None, dtype=None):
+    def __init__(self, ih, n=None, samples_per_frame=None, *,
+                 dtype=None, frequency=None, sideband=None):
 
         assert ih.complex_data, "Dechannelization needs complex spectra."
 

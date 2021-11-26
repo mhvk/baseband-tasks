@@ -104,18 +104,21 @@ class Base:
     samples_per_frame : int, optional
         Number of samples dealt with in one go.  The number of complete
         samples (``shape[0]``) should be an integer multiple of this.
+    dtype : `~numpy.dtype`, optional
+        Dtype of the samples.
+
+    --- **kwargs : meta data for the stream, which usually include
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
-        sample shape.  Default: unknown.
+        sample shape.
     sideband : array, optional
         Whether frequencies are upper (+1) or lower (-1) sideband.
-        Should be broadcastable to the sample shape.  Default: unknown.
+        Should be broadcastable to the sample shape.
     polarization : array or (nested) list of char, optional
         Polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
-        ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
-    dtype : `~numpy.dtype`, optional
-        Dtype of the samples.
+        ``['X', 'Y']``, or ``[['L'], ['R']]``.
     """
 
     # Initial values for sample and frame pointers, etc.
@@ -209,11 +212,15 @@ class Base:
         for cls in self.__class__.__mro__:
             for key, par in inspect.signature(cls).parameters.items():
                 pars.setdefault(key, par)
-            if 'kwargs' not in pars:
+            if 'kwargs' not in pars or cls is Base:
                 break
 
         overrides = [self._repr_item(key, par.default)
                      for key, par in pars.items()]
+        if cls is Base and '__attributes__' in self.meta:
+            overrides.extend([self._repr_item(key, None)
+                              for key in self.meta['__attributes__'].keys()
+                              if key not in pars])
 
         overrides = (',\n '+' '*len(name)).join(
             [override for override in overrides if override])
@@ -517,6 +524,11 @@ class BaseTaskBase(Base):
     samples_per_frame : int, optional
         Number of output samples produced per frame.  By default, equal
         to the number of input samples.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.
+
+    --- **kwargs : meta data for the stream, which usually include
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.
@@ -527,15 +539,12 @@ class BaseTaskBase(Base):
         Polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
         ``['X', 'Y']``, or ``[['L'], ['R']]``.
-    dtype : `~numpy.dtype`, optional
-        Output dtype.
 
     """
 
     def __init__(self, ih, *, ih_samples_per_frame=None,
                  start_time=None, shape=None, sample_rate=None,
-                 samples_per_frame=None, frequency=None, sideband=None,
-                 polarization=None, dtype=None):
+                 samples_per_frame=None, dtype=None, **kwargs):
         self.ih = ih
         if ih_samples_per_frame is None:
             ih_samples_per_frame = ih.samples_per_frame
@@ -547,16 +556,19 @@ class BaseTaskBase(Base):
         dtype = getattr_if_none(ih, 'dtype', dtype)
         if samples_per_frame is None:
             samples_per_frame = ih_samples_per_frame
-        frequency = getattr_if_none(ih, 'frequency', frequency, required=False)
-        sideband = getattr_if_none(ih, 'sideband', sideband, required=False)
-        polarization = getattr_if_none(ih, 'polarization', polarization,
-                                       required=False)
+        # Pass on attributes defined on the stream unless overriddden.
+        attributes = (set(ih.meta.get('__attributes__', {}))
+                      if isinstance(ih, Base)
+                      else META_ATTRIBUTES)
+        for attr in attributes:
+            value = getattr_if_none(ih, attr, **kwargs, required=False)
+            if value is not None:
+                kwargs[attr] = value
 
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization, dtype=dtype)
+                         dtype=dtype, **kwargs)
 
     def _repr_item(self, key, default, value=None):
         if key == 'ih':
@@ -632,7 +644,8 @@ class TaskBase(BaseTaskBase):
         inferred from the input number of samples using the ratio of
         the ``sample_rate`` passed in and that of the underlying stream.
     **kwargs
-        Possible further arguments; see `~baseband_tasks.base.BaseTaskBase`.
+        Possible further arguments and metadata;
+        see `~baseband_tasks.base.BaseTaskBase`.
     """
 
     def __init__(self, ih, *, ih_samples_per_frame=None,
@@ -790,7 +803,7 @@ class Task(TaskBase):
         Whether ``task`` is a method (two arguments) or a function
         (one argument).  Default: inferred by inspection.
     **kwargs
-        Additional arguments to be passed on to the base class
+        Additional arguments and metadata to be passed on to the base class.
 
     --- Possible arguments : (see `~baseband_tasks.base.TaskBase`)
 
@@ -807,6 +820,11 @@ class Task(TaskBase):
         Number of samples which should be fed to the function in one go.
         If not given, by default the number from the underlying file,
         possibly adjusted for a difference in sample rate.
+    dtype : `~numpy.dtype`, optional
+        Output dtype.  If not given, the dtype of the underlying file.
+
+    --- Possible metadata : (see `~baseband_tasks.base.BaseTaskBase`)
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: taken from the underlying stream, if available.
@@ -819,8 +837,6 @@ class Task(TaskBase):
         i.e., the labels are in the correct axis.  For instance,
         ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: taken from the
         underlying stream, if available.
-    dtype : `~numpy.dtype`, optional
-        Output dtype.  If not given, the dtype of the underlying file.
 
     Raises
     ------
@@ -885,6 +901,11 @@ class SetAttribute(TaskBase):
         Start time of the stream.
     sample_rate : `~astropy.units.Quantity`, optional
         With units of a rate.
+    **kwargs
+        Other parameters and metadata.  See `~baseband_tasks.base.TaskBase`.
+
+    --- Possible metadata : (see `~baseband_tasks.base.BaseTaskBase`)
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.
@@ -895,16 +916,12 @@ class SetAttribute(TaskBase):
         Polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
         ``['X', 'Y']``, or ``[['L'], ['R']]``.
-    **kwargs
-        Any other parameters.  See `~baseband_tasks.base.TaskBase`.
     """
 
     def __init__(self, ih, *, start_time=None, sample_rate=None,
-                 frequency=None, sideband=None, polarization=None,
                  **kwargs):
         super().__init__(ih, start_time=start_time, sample_rate=sample_rate,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization, **kwargs)
+                         **kwargs)
         if not kwargs:
             # No overrides of anything related to data, so can use read of
             # underlying file directly.
