@@ -136,6 +136,7 @@ class ShiftAndResample(Convolve):
     See Also
     --------
     Resample : resample a stream to a new grid, without time shifts
+    ShiftSamples : shift channels by integer number of samples
     TimeDelay : delay a complex stream, changing phases but no resampling
     baseband_tasks.base.SetAttribute : change start time without resampling
 
@@ -322,7 +323,7 @@ class TimeDelay(TaskBase):
     For the lower sideband, the rotation is in the opposite direction.
 
     Note that the input data stream must be complex.  For real-valued
-    streams, use `~baseband_tasks.sampling.ShiftAndResample` without
+    streams, use `~baseband_tasks.sampling.ShiftAndResample` with
     ``shift`` as the delay, no ``offset``, and ``pad=0`` (this works for
     complex data as well, but is slower as it involves fourier transforms).
 
@@ -375,17 +376,17 @@ class TimeDelay(TaskBase):
 
 
 class SampleShift(PaddedTaskBase):
-    r"""Shift the time samples from a stream channel by channel base.
+    """Shift channels in a stream by integer numbers of samples.
 
-    The time samples get shifted in the frame. This does not take the
-    phase rotation into account. (TODO add more description)
+    The shifts are interpreted as additive to the sample times, i.e.,
+    positive shifts imply that a stream will appear delayed in time.
 
     Parameters
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
     shift : Integer `~numpy.ndarray`
-        Sample time shifts.  Should broadcast with the sample shape.
+        Sample shifts.  Should broadcast with the sample shape.
         For example, to shift samples along the one-but-last axis with length
         ``N``, the shift shape should be ``(N, 1)``.
     samples_per_frame : int
@@ -393,20 +394,24 @@ class SampleShift(PaddedTaskBase):
         The number of input samples used will be larger to avoid wrapping.
         If not given, as produced by the minimum power of 2 of input
         samples that yields at least 75% efficiency.
+
+    See Also
+    --------
+    ShiftAndResample : shift channels by fractional samples and resample
+    Resample : resample a stream to a new grid, without time shifts
     """
     def __init__(self, ih, shift, *, samples_per_frame=None):
+        shift = self.shift = np.array(shift).astype(int, casting='safe')
         check_broadcast_to(shift, ih.sample_shape)
-        self.shift = shift
-        min_shift = np.min(shift)
-        super().__init__(ih, pad_start=0, pad_end=np.max(shift)-min_shift,
+        super().__init__(ih, pad_start=0, pad_end=shift.ptp(),
                          samples_per_frame=samples_per_frame)
-        self._start_time += min_shift / ih.sample_rate
+        self._start_time += shift.max() / ih.sample_rate
         # Form the advanced index used to select the shifted samples.
         # Start with one that just takes unshifted output elements for a
         # single frame, then add shifts for the first (sample) dimension.
         indices = np.ix_(np.arange(self.samples_per_frame),
                          *[np.arange(sh) for sh in self.sample_shape])
-        self._indices = (indices[0] + (shift-min_shift),) + indices[1:]
+        self._indices = (shift.max() - shift + indices[0],) + indices[1:]
 
     def task(self, data):
         return data[self._indices]

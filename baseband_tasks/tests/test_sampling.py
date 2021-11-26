@@ -640,9 +640,10 @@ class TestSampleShift:
         self.ih.non_uniform_axis = 1
 
     @pytest.mark.parametrize('start, n', [(0, 5), (90, 20)])
-    def test_data_shift_simple(self, start, n):
+    def test_shift_back(self, start, n):
         shift_axis = 1
-        shift = np.arange(0, self.shape[shift_axis])
+        shift = np.arange(-self.shape[shift_axis] + 1, 1)
+        assert shift.max() == 0
         shifter = SampleShift(self.ih, shift.reshape(-1, 1),
                               samples_per_frame=100)
         assert shifter.start_time == self.ih.start_time
@@ -650,34 +651,36 @@ class TestSampleShift:
         shifted = shifter.read(n)
         self.ih.seek(start)
         raw_data = self.ih.read(100)
-        for i, sf in enumerate(shift):
+        for i, sf in enumerate(-shift):
             assert np.all(shifted[:, i] == raw_data[sf:sf + n, i])
 
     @pytest.mark.parametrize('start, n', [(0, 5), (100, 20)])
-    def test_negative_shift(self, start, n):
-        shift_axis = 2
-        shift = np.arange(-3, self.shape[shift_axis] - 3)
+    def test_shift_both(self, start, n):
+        shift = np.array([-2, 0, 3])
         shifter = SampleShift(self.ih, shift, samples_per_frame=100)
-        assert abs(shifter.start_time + 3 / self.ih.sample_rate
+        assert abs(shifter.start_time - 3 / self.ih.sample_rate
                    - self.ih.start_time) < 1.*u.ns
         shifter.seek(start)
         shifted = shifter.read(n)
         self.ih.seek(start)
         raw_data = self.ih.read(100)
-        for i, sf in enumerate(shift - np.min(shift)):
+        for i, sf in enumerate(3-shift):
             assert np.all(shifted[:, :, i] == raw_data[sf:sf + n, :, i])
 
-    @pytest.mark.parametrize('start, n', [(0, 5), (100, 20)])
-    def test_non_uniform_shift(self, start, n):
-        shift_axis = 1
-        shift = np.random.randint(-10, 10, self.shape[shift_axis])
-        shifter = SampleShift(self.ih, shift.reshape(-1, 1),
-                              samples_per_frame=100)
-        assert abs(shifter.start_time - np.min(shift) / self.ih.sample_rate
-                   - self.ih.start_time) < 1.*u.ns
-        shifter.seek(start)
-        shifted = shifter.read(n)
-        self.ih.seek(start)
-        raw_data = self.ih.read(100)
-        for i, sf in enumerate(shift - np.min(shift)):
-            assert np.all(shifted[:, i] == raw_data[sf:sf + n, i])
+    def test_compare_with_shift_and_resample(self):
+        shift = np.array([-2, 1, 4])
+        shifter = SampleShift(self.ih, shift, samples_per_frame=100)
+        resampler = ShiftAndResample(self.ih, shift, offset=0,
+                                     pad=32, samples_per_frame=200)
+        # Note: resampler has larger padding, so start time is later.
+        shifter.seek(90)
+        resampler.seek(shifter.time)
+        # integer shifts, so time should be same.
+        assert abs(resampler.time - shifter.time) < 1. * u.ns
+        shifted = shifter.read(20)
+        resampled = resampler.read(20)
+        assert_allclose(shifted, resampled)
+
+    def test_error_on_non_integer_shift(self):
+        with pytest.raises(TypeError, match='cast'):
+            SampleShift(self.ih, np.array([1., 2., 3.5]))
