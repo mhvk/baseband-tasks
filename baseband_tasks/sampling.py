@@ -394,7 +394,7 @@ class SampleShift(PaddedTaskBase):
         If not given, as produced by the minimum power of 2 of input
         samples that yields at least 75% efficiency.
     """
-    def __init__(self, ih, shift, samples_per_frame=None):
+    def __init__(self, ih, shift, *, samples_per_frame=None):
         check_broadcast_to(shift, ih.sample_shape)
         self.shift = shift
         min_shift = np.min(shift)

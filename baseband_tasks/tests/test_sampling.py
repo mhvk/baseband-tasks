@@ -633,9 +633,9 @@ class TestSampleShift:
     @classmethod
     def setup_class(self):
         self.shape = (1000, 5, 3)
-        self.ih = StreamGenerator(self.make_non_uniform_arange_data,
+        self.ih = StreamGenerator(self.make_arange_data,
                                   self.shape, Time('2010-11-12'), 1.*u.Hz,
-                                  samples_per_frame=100, dtype=int)
+                                  samples_per_frame=100, dtype=float)
         self.ih.intensity = 2
         self.ih.non_uniform_axis = 1
 
@@ -643,7 +643,8 @@ class TestSampleShift:
     def test_data_shift_simple(self, start, n):
         shift_axis = 1
         shift = np.arange(0, self.shape[shift_axis])
-        shifter = SampleShift(self.ih, shift.reshape(-1, 1), 100)
+        shifter = SampleShift(self.ih, shift.reshape(-1, 1),
+                              samples_per_frame=100)
         assert shifter.start_time == self.ih.start_time
         shifter.seek(start)
         shifted = shifter.read(n)
@@ -656,7 +657,7 @@ class TestSampleShift:
     def test_negative_shift(self, start, n):
         shift_axis = 2
         shift = np.arange(-3, self.shape[shift_axis] - 3)
-        shifter = SampleShift(self.ih, shift, 100)
+        shifter = SampleShift(self.ih, shift, samples_per_frame=100)
         assert abs(shifter.start_time + 3 / self.ih.sample_rate
                    - self.ih.start_time) < 1.*u.ns
         shifter.seek(start)
@@ -670,7 +671,8 @@ class TestSampleShift:
     def test_non_uniform_shift(self, start, n):
         shift_axis = 1
         shift = np.random.randint(-10, 10, self.shape[shift_axis])
-        shifter = SampleShift(self.ih, shift.reshape(-1, 1), 100)
+        shifter = SampleShift(self.ih, shift.reshape(-1, 1),
+                              samples_per_frame=100)
         assert abs(shifter.start_time - np.min(shift) / self.ih.sample_rate
                    - self.ih.start_time) < 1.*u.ns
         shifter.seek(start)
