@@ -136,19 +136,21 @@ class Base:
         self._samples_per_frame = operator.index(samples_per_frame)
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
-        frequency = kwargs.get('frequency', None)
-        sideband = kwargs.get('sideband', None)
 
-        if frequency is not None or sideband is not None:
-            if frequency is None or sideband is None:
-                raise ValueError('frequency and sideband should both '
-                                 'be passed in.')
-            kwargs['sideband'] = np.where(sideband > 0,
-                                          np.int8(1), np.int8(-1))
+        if len({'frequency', 'sideband'}.difference(kwargs)) == 1:
+            raise ValueError('frequency and sideband should both '
+                             'be passed in.')
 
-        attributes = {attr: self._check_shape(value)
-                      for attr, value in kwargs.items()
-                      if attr in META_ATTRIBUTES and value is not None}
+        attributes = {}
+        for attr, value in kwargs.items():
+            if attr in META_ATTRIBUTES:
+                if value is not None:
+                    if attr == 'sideband':
+                        value = np.where(value > 0, np.int8(1), np.int8(-1))
+                    attributes[attr] = self._check_shape(value)
+            else:
+                raise TypeError('__init__() got unexpected keyword argument '
+                                f'{attr!r}')
         if attributes:
             self.meta.setdefault('__attributes__', {}).update(attributes)
 
@@ -556,12 +558,13 @@ class BaseTaskBase(Base):
         dtype = getattr_if_none(ih, 'dtype', dtype)
         if samples_per_frame is None:
             samples_per_frame = ih_samples_per_frame
-        # Pass on attributes defined on the stream unless overriddden.
-        attributes = (set(ih.meta.get('__attributes__', {}))
-                      if isinstance(ih, Base)
-                      else META_ATTRIBUTES)
-        for attr in attributes:
-            value = getattr_if_none(ih, attr, **kwargs, required=False)
+
+        self.meta = getattr(ih, 'meta', {})
+        # Get possible metadata, but giving preference to what is passed in,
+        # except that any None are removed.
+        for attr in META_ATTRIBUTES:
+            value = getattr_if_none(ih, attr, kwargs.pop(attr, None),
+                                    required=False)
             if value is not None:
                 kwargs[attr] = value
 
@@ -922,7 +925,7 @@ class SetAttribute(TaskBase):
                  **kwargs):
         super().__init__(ih, start_time=start_time, sample_rate=sample_rate,
                          **kwargs)
-        if not kwargs:
+        if not set(kwargs).difference(META_ATTRIBUTES):
             # No overrides of anything related to data, so can use read of
             # underlying file directly.
             self.read = self.simple_read

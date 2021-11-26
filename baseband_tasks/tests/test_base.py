@@ -146,6 +146,23 @@ class TestSetAttribute(UseVDIFSample):
         assert data.dtype == 'f2'
         assert np.all(data == expected.astype('f2'))
 
+    def test_metadata_propagation(self):
+        sa = SetAttribute(self.fh)
+        sa.meta['parrot'] = 'dead'
+        assert not hasattr(sa, 'frequency')
+        sa2 = SetAttribute(sa, frequency=300*u.MHz, sideband=1)
+        assert sa2.frequency is not None
+        assert sa2.sideband is not None
+        assert set(sa2.meta) == {'parrot', '__attributes__'}
+        assert sa2.meta['parrot'] == 'dead'
+        sa2.meta['parrot'] = 'goner'
+        assert sa2.meta['parrot'] == 'goner'
+        assert sa.meta['parrot'] == 'dead'
+
+    def test_fail_on_unknown_attribute(self):
+        with pytest.raises(TypeError):
+            SetAttribute(self.fh, freq=1.*u.MHz)
+
 
 class TestTaskBase(UseVDIFSample):
     def test_basetaskbase(self):
