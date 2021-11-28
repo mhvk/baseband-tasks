@@ -60,14 +60,17 @@ class Real2Complex(TaskBase):
                               axis=0)
 
         self._ifft = self._fft.inverse()
+
+        frequency = getattr(ih, 'frequency', None)
+        sideband = getattr(ih, 'sideband', None)
+        if frequency is not None:
+            frequency = frequency + ih.sample_rate / 2 * sideband
+
         super().__init__(ih,
                          samples_per_frame=samples_per_frame,
                          sample_rate=ih.sample_rate / 2,
+                         frequency=frequency, sideband=sideband,
                          dtype=dtype)
-
-        if self._frequency is not None:
-            self._frequency = (self._frequency
-                               + ih.sample_rate / 2 * self.sideband)
 
     def task(self, data):
         z = data.astype(self.dtype)

@@ -2,7 +2,7 @@
 
 import operator
 
-from .base import TaskBase
+from .base import TaskBase, getattr_if_none
 from .fourier import fft_maker
 
 
@@ -57,17 +57,18 @@ class Channelize(TaskBase):
         self._fft = self._FFT((samples_per_frame, n) + ih.sample_shape,
                               ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
+        frequency = getattr_if_none(ih, 'frequency', frequency, required=False)
+        sideband = getattr_if_none(ih, 'sideband', sideband, required=False)
+        if frequency is not None:
+            # Do not use in-place, since frequency may have simplified shape.
+            frequency = frequency + self._fft.frequency * sideband
+
         sample_rate = ih.sample_rate / n
         shape = (-1,) + self._fft.frequency_shape[1:]
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          dtype=self._fft.frequency_dtype)
-
-        if self._frequency is not None:
-            # Do not use in-place, since _frequency is likely broadcast.
-            self._frequency = (self._frequency
-                               + self._fft.frequency * self.sideband)
 
     def task(self, data):
         return self._fft(data.reshape(self._fft.time_shape))
@@ -149,7 +150,7 @@ class Dechannelize(TaskBase):
                                dtype=dtype, axis=1, direction='backward')
 
         sample_rate = ih.sample_rate * n
-        if frequency is None and hasattr(ih, 'frequency'):
+        if frequency is None and getattr(ih, 'frequency', None) is not None:
             frequency = ih.frequency[0]
 
         super().__init__(ih, shape=(-1,) + ih.shape[2:],

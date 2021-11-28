@@ -45,6 +45,37 @@ def simplify_shape(value):
     return value.reshape(value.shape[first_not_unity:]).copy()
 
 
+def getattr_if_none(ih, attr, value=None, *, required=True, **kwargs):
+    """Get an attribute if no default is provided.
+
+    Like `getattr`, but look-up will only happen if the default is `None`
+    and ``attr`` is not provided as a keyword argument either.
+
+    Parameters
+    ----------
+    ih : stream
+        Object to get the attribute from.
+    attr : str
+        Attribute to get if default is None.
+    value : object
+        Default value.  If not None, directly returned.
+    required : bool
+        Whether the attribute should exist the value passed in is `None`.
+        Default `True`.
+    **kwargs
+        Keyword arguments.  If attr is among them, will be returned.
+    """
+    if value is None:
+        value = kwargs.get(attr, None)
+        if value is None:
+            value = getattr(ih, attr, None)
+
+    if required and value is None:
+        raise TypeError(f"{attr!r} should either be defined by the "
+                        "underlying stream or passed in.")
+    return value
+
+
 class Base:
     """Base class of all tasks and generators.
 
@@ -510,22 +541,16 @@ class BaseTaskBase(Base):
             ih_samples_per_frame = ih.samples_per_frame
         self._ih_samples_per_frame = ih_samples_per_frame
 
-        if shape is None:
-            shape = ih.shape
-        if start_time is None:
-            start_time = ih.start_time
-        if sample_rate is None:
-            sample_rate = ih.sample_rate
+        shape = getattr_if_none(ih, 'shape', shape)
+        start_time = getattr_if_none(ih, 'start_time', start_time)
+        sample_rate = getattr_if_none(ih, 'sample_rate', sample_rate)
+        dtype = getattr_if_none(ih, 'dtype', dtype)
         if samples_per_frame is None:
-            samples_per_frame = self._ih_samples_per_frame
-        if dtype is None:
-            dtype = ih.dtype
-        if frequency is None:
-            frequency = getattr(ih, 'frequency', None)
-        if sideband is None:
-            sideband = getattr(ih, 'sideband', None)
-        if polarization is None:
-            polarization = getattr(ih, 'polarization', None)
+            samples_per_frame = ih_samples_per_frame
+        frequency = getattr_if_none(ih, 'frequency', frequency, required=False)
+        sideband = getattr_if_none(ih, 'sideband', sideband, required=False)
+        polarization = getattr_if_none(ih, 'polarization', polarization,
+                                       required=False)
 
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
@@ -714,10 +739,11 @@ class PaddedTaskBase(TaskBase):
 
         n_sample = ih.shape[0] - pad
         shape = (n_sample,) + ih.sample_shape
-        start_time = ih.start_time + self._pad_start / ih.sample_rate
+        kwargs['start_time'] = (getattr_if_none(ih, 'start_time', **kwargs)
+                                + self._pad_start / ih.sample_rate)
         super().__init__(ih, ih_samples_per_frame=ih_samples_per_frame,
                          shape=shape, samples_per_frame=samples_per_frame,
-                         start_time=start_time, **kwargs)
+                         **kwargs)
 
     def _seek_frame(self, frame_index):
         """Seek to the start of the given frame in the underlying file.
