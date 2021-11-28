@@ -7,10 +7,14 @@ import warnings
 
 import numpy as np
 from astropy import units as u
+from astropy.utils.metadata import MetaData
 
 
 __all__ = ['Base', 'BaseTaskBase', 'TaskBase', 'PaddedTaskBase',
            'SetAttribute', 'Task']
+
+
+META_ATTRIBUTES = {'frequency', 'sideband', 'polarization'}
 
 
 def check_broadcast_to(value, sample_shape):
@@ -120,29 +124,43 @@ class Base:
     _frame = None
     closed = False
 
+    meta = MetaData()
+
     def __init__(self, shape, start_time, sample_rate, *,
-                 samples_per_frame=1,
-                 frequency=None, sideband=None, polarization=None,
-                 dtype=np.complex64):
+                 samples_per_frame=1, dtype=np.complex64, **kwargs):
         self._shape = shape
         self._start_time = start_time
         self._samples_per_frame = operator.index(samples_per_frame)
         self._sample_rate = sample_rate
         self._dtype = np.dtype(dtype, copy=False)
+        frequency = kwargs.get('frequency', None)
+        sideband = kwargs.get('sideband', None)
+
         if frequency is not None or sideband is not None:
             if frequency is None or sideband is None:
                 raise ValueError('frequency and sideband should both '
                                  'be passed in.')
-            frequency = self._check_shape(frequency)
-            sideband = self._check_shape(np.where(sideband > 0,
-                                                  np.int8(1), np.int8(-1)))
+            kwargs['sideband'] = np.where(sideband > 0,
+                                          np.int8(1), np.int8(-1))
 
-        if polarization is not None:
-            polarization = self._check_shape(polarization)
+        attributes = {attr: self._check_shape(value)
+                      for attr, value in kwargs.items()
+                      if attr in META_ATTRIBUTES and value is not None}
+        if attributes:
+            self.meta.setdefault('__attributes__', {}).update(attributes)
 
-        self._frequency = frequency
-        self._sideband = sideband
-        self._polarization = polarization
+    def __getattr__(self, attr):
+        if attr in META_ATTRIBUTES:
+            value = self.meta.get('__attributes__', {}).get(attr, None)
+            if value is None:
+                raise AttributeError(f"{attr} not set.")
+            else:
+                return value
+        else:
+            return super().__getattr__(attr)
+
+    def __dir__(self):
+        return sorted(META_ATTRIBUTES.union(super().__dir__()))
 
     def _repr_item(self, key, default, value=None):
         """Representation of one argument.
@@ -277,24 +295,6 @@ class Base:
         See also `start_time` and `time`.
         """
         return self._tell_time(self.shape[0])
-
-    @property
-    def frequency(self):
-        if self._frequency is None:
-            raise AttributeError("frequencies not set.")
-        return self._frequency
-
-    @property
-    def sideband(self):
-        if self._sideband is None:
-            raise AttributeError("sidebands not set.")
-        return self._sideband
-
-    @property
-    def polarization(self):
-        if self._polarization is None:
-            raise AttributeError("polarizations not set.")
-        return self._polarization
 
     def seek(self, offset, whence=0):
         """Change the sample pointer position.
