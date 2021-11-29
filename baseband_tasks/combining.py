@@ -2,7 +2,7 @@
 import numpy as np
 from astropy import units as u
 
-from .base import TaskBase, Task
+from .base import TaskBase, Task, META_ATTRIBUTES
 
 
 __all__ = ['CombineStreamsBase', 'CombineStreams', 'Concatenate', 'Stack']
@@ -73,7 +73,7 @@ class CombineStreamsBase(TaskBase):
 
         self.ihs = ihs
         shape = ihs[0].shape[:1] + a.shape[1:]
-        for attr in ('frequency', 'sideband', 'polarization'):
+        for attr in META_ATTRIBUTES:
             if attr not in kwargs:
                 kwargs[attr] = self._combine_attr(attr)
 

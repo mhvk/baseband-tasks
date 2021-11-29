@@ -12,7 +12,8 @@ import numpy as np
 from astropy.units import Quantity
 from astropy.time import Time
 
-from baseband_tasks.base import check_broadcast_to, simplify_shape
+from baseband_tasks.base import (check_broadcast_to, simplify_shape,
+                                 META_ATTRIBUTES)
 
 from .payload import DTYPE_C4, HDF5CodedPayload
 
@@ -41,8 +42,7 @@ class HDF5Header(dict):
         be taken to be a header for encoded data.
     """
     _properties = ('sample_shape', 'samples_per_frame', 'shape',
-                   'sample_rate', 'time',
-                   'frequency', 'sideband', 'polarization')
+                   'sample_rate', 'time') + tuple(META_ATTRIBUTES)
 
     def __new__(cls, *, verify=True, mutable=True, **kwargs):
         if 'bps' in kwargs:
@@ -219,7 +219,7 @@ def optional_setter(attr):
     return fset
 
 
-for attr in 'frequency', 'sideband', 'polarization':
+for attr in META_ATTRIBUTES:
     setattr(HDF5Header, attr,
             property(optional_getter(attr), optional_setter(attr)))
 

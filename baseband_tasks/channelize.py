@@ -2,7 +2,7 @@
 
 import operator
 
-from .base import TaskBase
+from .base import TaskBase, getattr_if_none
 from .fourier import fft_maker
 
 
@@ -47,7 +47,7 @@ class Channelize(TaskBase):
     using `numpy.fft` the performance improvement seems to be negligible.
     """
 
-    def __init__(self, ih, n, samples_per_frame=1,
+    def __init__(self, ih, n, samples_per_frame=1, *,
                  frequency=None, sideband=None):
 
         self._n = n = operator.index(n)
@@ -57,17 +57,18 @@ class Channelize(TaskBase):
         self._fft = self._FFT((samples_per_frame, n) + ih.sample_shape,
                               ih.dtype, axis=1, sample_rate=ih.sample_rate)
 
+        frequency = getattr_if_none(ih, 'frequency', frequency, required=False)
+        sideband = getattr_if_none(ih, 'sideband', sideband, required=False)
+        if frequency is not None:
+            # Do not use in-place, since frequency may have simplified shape.
+            frequency = frequency + self._fft.frequency * sideband
+
         sample_rate = ih.sample_rate / n
         shape = (-1,) + self._fft.frequency_shape[1:]
         super().__init__(ih, shape=shape, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
                          frequency=frequency, sideband=sideband,
                          dtype=self._fft.frequency_dtype)
-
-        if self._frequency is not None:
-            # Do not use in-place, since _frequency is likely broadcast.
-            self._frequency = (self._frequency
-                               + self._fft.frequency * self.sideband)
 
     def task(self, data):
         return self._fft(data.reshape(self._fft.time_shape))
@@ -104,6 +105,8 @@ class Dechannelize(TaskBase):
         Number of output samples to produce in one go.  Rounded to the
         nearest multiple of ``n``. Default: inferred from underlying stream,
         i.e., ``ih.samples_per_frame * n``.
+    dtype : `~numpy.dtype`, optional
+        Dtype of the output samples.  Default: complex (like ``ih``).
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each output channel.  Default: inferred from ``ih``
         (if available).
@@ -122,8 +125,8 @@ class Dechannelize(TaskBase):
 
     """
 
-    def __init__(self, ih, n=None, samples_per_frame=None,
-                 frequency=None, sideband=None, dtype=None):
+    def __init__(self, ih, n=None, samples_per_frame=None, *,
+                 dtype=None, frequency=None, sideband=None):
 
         assert ih.complex_data, "Dechannelization needs complex spectra."
 
@@ -149,7 +152,7 @@ class Dechannelize(TaskBase):
                                dtype=dtype, axis=1, direction='backward')
 
         sample_rate = ih.sample_rate * n
-        if frequency is None and hasattr(ih, 'frequency'):
+        if frequency is None and getattr(ih, 'frequency', None) is not None:
             frequency = ih.frequency[0]
 
         super().__init__(ih, shape=(-1,) + ih.shape[2:],

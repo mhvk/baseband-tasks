@@ -37,6 +37,11 @@ class StreamGenerator(Base):
     samples_per_frame : int
         Blocking factor.  This can be used for efficiency to reduce the
         overhead of calling the source function.
+    dtype : `~numpy.dtype` or anything that initializes one, optional
+        Type of data produced.  Default: ``complex64``.
+
+    --- **kwargs : meta data for the stream, which usually include
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
@@ -47,8 +52,6 @@ class StreamGenerator(Base):
         Polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
         ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
-    dtype : `~numpy.dtype` or anything that initializes one, optional
-        Type of data produced.  Default: ``complex64``.
 
     Examples
     --------
@@ -74,13 +77,11 @@ class StreamGenerator(Base):
     """
 
     def __init__(self, function, shape, start_time, sample_rate,
-                 samples_per_frame=1, frequency=None, sideband=None,
-                 polarization=None, dtype=np.complex64):
+                 samples_per_frame=1, dtype=np.complex64, **kwargs):
         super().__init__(shape=shape, start_time=start_time,
                          sample_rate=sample_rate,
-                         samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization, dtype=dtype)
+                         samples_per_frame=samples_per_frame, dtype=dtype,
+                         **kwargs)
         self._function = function
 
     def _read_frame(self, frame_index):
@@ -106,6 +107,11 @@ class EmptyStreamGenerator(Base):
     samples_per_frame : int
         Blocking factor.  This is mostly useful to make the function task
         that uses the stream more efficient.
+    dtype : `~numpy.dtype` or anything that initializes one, optional
+        Type of data produced.  Default: ``complex64``.
+
+    --- **kwargs : meta data for the stream, which usually include
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
@@ -116,8 +122,6 @@ class EmptyStreamGenerator(Base):
         Polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
         ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
-    dtype : `~numpy.dtype` or anything that initializes one, optional
-        Type of data produced.  Default: ``complex64``.
 
     Examples
     --------
@@ -207,6 +211,13 @@ class NoiseGenerator(StreamGenerator):
     samples_per_frame : int, optional
         Blocking factor, setting the size of the fake data frames.
         No default, since should typically be large (see above).
+    dtype : `~numpy.dtype` or anything that initializes one, optional
+        Type of data produced.  Default: ``complex64``
+    seed : int, optional
+        Possible seed to initialize the random number generator.
+
+    --- **kwargs : meta data for the stream, which usually include
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: unknown.
@@ -217,10 +228,6 @@ class NoiseGenerator(StreamGenerator):
         Polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
         ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: unknown.
-    dtype : `~numpy.dtype` or anything that initializes one, optional
-        Type of data produced.  Default: ``complex64``
-    seed : int, optional
-        Possible seed to initialize the random number generator.
 
     Notes
     -----
@@ -230,11 +237,9 @@ class NoiseGenerator(StreamGenerator):
     """
 
     def __init__(self, shape, start_time, sample_rate, samples_per_frame,
-                 frequency=None, sideband=None, polarization=None,
-                 dtype=np.complex64, seed=None):
+                 dtype=np.complex64, seed=None, **kwargs):
         generator = Noise(seed)
         super().__init__(function=generator, shape=shape,
                          start_time=start_time, sample_rate=sample_rate,
                          samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband,
-                         polarization=polarization, dtype=dtype)
+                         dtype=dtype, **kwargs)

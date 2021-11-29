@@ -185,6 +185,15 @@ class PSRFITSReader(BaseTaskBase):
     ih : wrapped PSRFITS HDU
         The input fits table HDU, wrapped in an interface from
         `~baseband_tasks.io.psrfits`.
+    dtype : `~numpy.dtype`, optional
+        Dtype of the samples.  Default: inferred from ``hdu``.
+    weighted : bool, optional
+        Whether to weight the data along the frequency axis using the
+        'DAT_WTS' column.  Default of `True` should suffice for most purposes,
+        but sometimes the weights are incorrect.
+
+    --- **kwargs : meta data for the stream, which usually include
+
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel.  Should be broadcastable to the
         sample shape.  Default: inferred from ``hdu``.
@@ -195,21 +204,13 @@ class PSRFITSReader(BaseTaskBase):
         Polarization labels.  Should broadcast to the sample shape,
         i.e., the labels are in the correct axis.  For instance,
         ``['X', 'Y']``, or ``[['L'], ['R']]``.  Default: inferred from ``hdu``.
-    dtype : `~numpy.dtype`, optional
-        Dtype of the samples.  Default: inferred from ``hdu``.
-    weighted : bool, optional
-        Whether to weight the data along the frequency axis using the
-        'DAT_WTS' column.  Default of `True` should suffice for most purposes,
-        but sometimes the weights are incorrect.
     """
     # Note: this very light-weight wrapper around SubintHDU is mostly here
     # because eventually it might unify different/multiple HDUs.
 
-    def __init__(self, ih, frequency=None, sideband=None, polarization=None,
-                 dtype=None, weighted=True):
+    def __init__(self, ih, *, dtype=None, weighted=True, **kwargs):
         self.weighted = weighted
-        super().__init__(ih, frequency=frequency, sideband=sideband,
-                         polarization=polarization, dtype=dtype)
+        super().__init__(ih, dtype=dtype, **kwargs)
 
     def _read_frame(self, frame_index):
         res = self.ih.read_data_row(frame_index, weighted=self.weighted).T

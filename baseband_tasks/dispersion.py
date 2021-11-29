@@ -4,7 +4,7 @@ import numpy as np
 from astropy import units as u
 from astropy.utils import lazyproperty
 
-from .base import PaddedTaskBase
+from .base import PaddedTaskBase, getattr_if_none
 from .fourier import fft_maker
 from .dm import DispersionMeasure
 
@@ -45,10 +45,8 @@ class Disperse(PaddedTaskBase):
     def __init__(self, ih, dm, *, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None):
         dm = DispersionMeasure(dm)
-        if frequency is None:
-            frequency = ih.frequency
-        if sideband is None:
-            sideband = ih.sideband
+        frequency = getattr_if_none(ih, 'frequency', frequency)
+        sideband = getattr_if_none(ih, 'sideband', sideband)
 
         # Calculate frequencies at the top and bottom of each band.
         half_rate = ih.sample_rate / 2.
@@ -91,9 +89,11 @@ class Disperse(PaddedTaskBase):
             # Default case: passing on both sides; not useful to offset.
             sample_offset = 0
 
+        start_time = ih.start_time + sample_offset / ih.sample_rate
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame,
-                         frequency=frequency, sideband=sideband)
+                         frequency=frequency, sideband=sideband,
+                         start_time=start_time)
 
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
@@ -104,7 +104,6 @@ class Disperse(PaddedTaskBase):
         self._dm = dm
         self.reference_frequency = reference_frequency
         self._sample_offset = sample_offset
-        self._start_time += sample_offset / ih.sample_rate
         self._pad_slice = slice(self._pad_start,
                                 self._pad_start + self.samples_per_frame)
 
