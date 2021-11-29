@@ -416,3 +416,30 @@ class SampleShift(PaddedTaskBase):
 
     def task(self, data):
         return data[self._indices]
+
+
+class TimeShift(SampleShift):
+    """Shift channels in a stream by given shift time.
+
+    If the shift time does not map to a integer of sample, it will take ceil of
+    the fractional sample.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    shift_time : `astropy.units.Unit` object
+        Time shifts.  Should broadcast with the sample shape.
+        For example, to time shift along the one-but-last axis with length
+        ``N``, the shift shape should be ``(N, 1)``.
+    samples_per_frame : int
+        Number of shifted samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
+    """
+    def __init__(self, ih, shfit_time, *, samples_per_frame=None):
+        # Compute the shift sample numbers.
+        self.shift_time = shift_time
+        shift = np.ceil((shift_time * ih.sample_rate).to_value(u.one))
+        super().__init__(ih, shift, *, samples_per_frame=samples_per_frame)
