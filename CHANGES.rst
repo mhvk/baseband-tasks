@@ -12,6 +12,11 @@ New Features
 - Add a simpler ``SampleShift`` task that just shifts channels by integer
   number of samples. [#226]
 
+- Streams can now carry meta-data in a ``meta`` attribute.  This includes
+  information on ``frequency``, ``sideband``, and ``polarization``, all
+  of which are stored in ``meta['__attributes__']`` entry (like astropy's
+  ``Table`` class). [#233]
+
 API Changes
 -----------
 
