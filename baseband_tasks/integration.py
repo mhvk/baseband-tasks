@@ -468,6 +468,9 @@ class Stack(BaseTaskBase):
     def _read_frame(self, frame_index):
         # Read frame in phased directly, bypassing its ``read`` method.
         out = self.ih._read_frame(frame_index)
+        # Remove a possible incomplete cycle for the last frame.
+        if len(out) != self.ih.samples_per_frame:
+            out = out[:(len(out) // self.n_phase) * self.n_phase]
         return out.reshape((-1,) + self.sample_shape)
 
     def _tell_time(self, offset):
