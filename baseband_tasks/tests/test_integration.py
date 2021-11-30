@@ -452,6 +452,16 @@ class TestStack(TestFakePulsarBase):
         data = fh.read()
         assert np.all(data == ref_data[13:])
 
+    @pytest.mark.parametrize('samples_per_frame', (1, 16))
+    def test_sliced_input(self, samples_per_frame):
+        ref_data = self.raw_data[-360:-110].reshape(-1, 25, 5, 2).mean(2)
+
+        fh = Stack(self.sh[-360:-10], 25, self.phase,
+                   samples_per_frame=samples_per_frame)
+        assert fh.shape == ref_data.shape
+        data = fh.read()
+        assert np.all(data == ref_data)
+
     def test_offset(self):
         ref_data = self.raw_data[124:-1].reshape(-1, 25, 5, 2).mean(2)
 
