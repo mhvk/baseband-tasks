@@ -14,8 +14,8 @@ from baseband_tasks.functions import Square
 from baseband_tasks.phases import Phase
 
 
-class TestFakePulsarBase:
-    def setup(self):
+class FakePulsarBase:
+    def setup_class(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 10. * u.kHz
         self.shape = (16000, 2)
@@ -29,11 +29,8 @@ class TestFakePulsarBase:
         self.n_phase = 50
         self.raw_data = self.sh.read()
         self.raw_power = self.raw_data ** 2
-        self.sh.seek(0)
 
-    def phase(self, t):
-        return u.cycle * self.F0 * (t - self.start_time)
-
+    @classmethod
     def pulse_simulate(self, fh, data):
         idx = fh.tell() + np.arange(data.shape[0])
         result = np.where(idx % self.period_bin == 0, 10., 0.125)
@@ -41,13 +38,16 @@ class TestFakePulsarBase:
         data[:] = result
         return data
 
+    def phase(self, t):
+        return u.cycle * self.F0 * (t - self.start_time)
 
-class UsePhaseClass(TestFakePulsarBase):
+
+class UsePhaseClass(FakePulsarBase):
     def phase(self, t):
         return Phase(super().phase(t))
 
 
-class TestIntegrate(TestFakePulsarBase):
+class TestIntegrate(FakePulsarBase):
     """Test integrating intensities using Baseband's sample DADA file."""
 
     def test_integrate_all(self):
@@ -261,7 +261,7 @@ class TestIntegrate(TestFakePulsarBase):
             Integrate(self.sh, step=1.*u.hr)
 
 
-class TestFold(TestFakePulsarBase):
+class TestFold(FakePulsarBase):
     def test_input_data(self):
         # Spot check on pulsar simulation.
         assert np.all(self.raw_data[::125] == 10.)
@@ -403,7 +403,7 @@ class TestFoldwithPhase(TestFold, UsePhaseClass):
     pass
 
 
-class TestIntegratePhase(TestFakePulsarBase):
+class TestIntegratePhase(FakePulsarBase):
     # More detailed tests done in TestStack.
     @pytest.mark.parametrize('samples_per_frame', (1, 160))
     def test_basics(self, samples_per_frame):
@@ -430,7 +430,7 @@ class TestIntegratePhasewithPhase(TestIntegratePhase, UsePhaseClass):
     pass
 
 
-class TestStack(TestFakePulsarBase):
+class TestStack(FakePulsarBase):
     @pytest.mark.parametrize('samples_per_frame', (1, 16))
     def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 25, 5, 2).mean(2)
