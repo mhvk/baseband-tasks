@@ -23,6 +23,10 @@ API Changes
 Bug Fixes
 ---------
 
+- For ``PintToas``, parameters other than ``observatory`` and ``frequency``
+  are no longer passed on to PINT's ``toa.TOA`` class (but still
+  properly used in ``toa.get_TOAs_list``). [#235]
+
 Other Changes and Additions
 ---------------------------
 
