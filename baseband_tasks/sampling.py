@@ -382,14 +382,19 @@ class SampleShift(PaddedTaskBase):
     The shifts are interpreted as additive to the sample times, i.e.,
     positive shifts imply that a stream will appear delayed in time.
 
+    Note that no resampling is done; for shifting by non-integer numbers of
+    samples, use `~baseband_tasks.sampling.ShiftAndResample`.
+
     Parameters
     ----------
     ih : task or `baseband` stream reader
         Input data stream, with time as the first axis.
-    shift : Integer `~numpy.ndarray`
-        Sample shifts.  Should broadcast with the sample shape.
-        For example, to shift samples along the one-but-last axis with length
-        ``N``, the shift shape should be ``(N, 1)``.
+    shift : int or float array-like, or `~astropy.units.Quantity`
+        Amount by which to shift samples along the stream.  Normally integer,
+        but can also be float or quantity with units of time, in which case
+        the shifts will be rounded to the nearest integer.  Should broadcast
+        to the sample shape.  For instance, to shift along the one-but-last
+        axis with length ``N``, the shape of shift should be ``(N, 1)``.
     samples_per_frame : int
         Number of shifted samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
@@ -402,11 +407,12 @@ class SampleShift(PaddedTaskBase):
     Resample : resample a stream to a new grid, without time shifts
     """
     def __init__(self, ih, shift, *, samples_per_frame=None):
-        shift = self.shift = np.array(shift).astype(int, casting='safe')
+        shift = self._shift = np.round(to_sample(ih, shift)).astype(int)
         check_broadcast_to(shift, ih.sample_shape)
+        start_time = ih.start_time + shift.max() / ih.sample_rate
         super().__init__(ih, pad_start=0, pad_end=shift.ptp(),
-                         samples_per_frame=samples_per_frame)
-        self._start_time += shift.max() / ih.sample_rate
+                         samples_per_frame=samples_per_frame,
+                         start_time=start_time)
         # Form the advanced index used to select the shifted samples.
         # Start with one that just takes unshifted output elements for a
         # single frame, then add shifts for the first (sample) dimension.
