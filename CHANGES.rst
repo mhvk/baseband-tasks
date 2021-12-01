@@ -10,7 +10,7 @@ New Features
   apply time shifts, including possible time delay phase rotations. [#225]
 
 - Add a simpler ``SampleShift`` task that just shifts channels by integer
-  number of samples. [#226]
+  number of samples. [#226, #235]
 
 - Streams can now carry meta-data in a ``meta`` attribute.  This includes
   information on ``frequency``, ``sideband``, and ``polarization``, all

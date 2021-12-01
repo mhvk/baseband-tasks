@@ -206,6 +206,11 @@ class TestResampleComplex(TestResampleReal):
 
     dtype = np.dtype('c16')
 
+    def test_wrong_shape(self):
+        # Test on this class just because it only needs to be done once.
+        with pytest.raises(ValueError, match='broadcast to sample shape'):
+            ShiftAndResample(self.part_fh, np.array([[1], [2]]))
+
 
 class StreamArray(StreamGenerator):
     def __init__(self, data, **kwargs):
@@ -681,6 +686,22 @@ class TestSampleShift:
         resampled = resampler.read(20)
         assert_allclose(shifted, resampled)
 
-    def test_error_on_non_integer_shift(self):
-        with pytest.raises(TypeError, match='cast'):
-            SampleShift(self.ih, np.array([1., 2., 3.5]))
+    @pytest.mark.parametrize('fshift, ishift', [
+        (np.array([1., 2., 3.25]), [1, 2, 3]),
+        (np.array([[-1.9], [-5.], [5.25], [3.49], [-1.2]]),
+         np.reshape([-2, -5, 5, 3, -1], (-1, 1)))])
+    def test_non_integer_shift(self, fshift, ishift):
+        shifter1 = SampleShift(self.ih, fshift)
+        comparison = SampleShift(self.ih, ishift)
+        assert np.all(shifter1._shift == comparison._shift)
+        data1 = shifter1.read()
+        expected = comparison.read()
+        assert np.all(data1 == expected)
+        shifter2 = SampleShift(self.ih, fshift / self.ih.sample_rate)
+        assert np.all(shifter2._shift == comparison._shift)
+        data2 = shifter2.read()
+        assert np.all(data2 == expected)
+
+    def test_wrong_shape(self):
+        with pytest.raises(ValueError, match='broadcast to sample shape'):
+            SampleShift(self.ih, np.array([[1], [2]]))
