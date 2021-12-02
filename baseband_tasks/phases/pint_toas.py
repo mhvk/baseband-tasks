@@ -92,8 +92,7 @@ class PintToas:
         toa_list = []
         for t, f in zip(time.ravel(), freq.ravel()):
             # This format converting should be done by PINT in the future.
-            toa_entry = toa.TOA(t, obs=self.observatory, freq=f,
-                                **self.control_params)
+            toa_entry = toa.TOA(t, obs=self.observatory, freq=f)
             toa_list.append(toa_entry)
 
         toas = toa.get_TOAs_list(toa_list, **self.control_params)

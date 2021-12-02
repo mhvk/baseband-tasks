@@ -6,6 +6,7 @@ import numpy as np
 import os
 import astropy.units as u
 from astropy.time import Time
+from astropy.tests.helper import assert_quantity_allclose
 
 from baseband_tasks.phases import PolycoPhase, PintPhase, Phase
 from .test_pint_toas import needs_pint
@@ -76,14 +77,11 @@ class TestPhaseComparison(PintBase, PolycoBase):
         # compare phases
         diff_phase = pint_phase - polyco_phase
         # The test polyco file is made by tempo2 which has a constant phase
-        # offset vs PINT
+        # offset vs PINT.
         diff_phase -= diff_phase[0]
-        assert np.all(diff_phase < 1e-4 * u.cy), \
-            "The phase difference between PINT and polyco is too big."
-
-        diff_f0 = pint_f0 - polyco_f0
-        assert np.all(diff_f0 < 2e-7 * u.Hz),  \
-            "The apparent spin frequencyies do now match."
+        assert_quantity_allclose(diff_phase, 0*u.cy, atol=1e-4*u.cy, rtol=0)
+        # Frequency is for B1937+21, so this atol corresponds to rtol~5e-8.
+        assert_quantity_allclose(pint_f0, polyco_f0, atol=30*u.uHz, rtol=0)
 
 
 @needs_pint
