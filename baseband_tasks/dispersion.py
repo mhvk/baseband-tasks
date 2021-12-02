@@ -182,3 +182,41 @@ class Dedisperse(Disperse):
     @property
     def dm(self):
         return -self._dm
+
+
+class DisperseSamples(SampleShift):
+    """Incoherently shift a time stream based on the disperse time delay.
+
+    This task does not handle the in channel smearing, only shift the samples.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    dm : float or `~baseband_tasks.dm.DispersionMeasure` quantity
+        Dispersion measure.
+    reference_frequency : `~astropy.units.Quantity`
+        Frequency to which the data should be dedispersed.  Can be an array.
+        By default, the mean frequency.  If one doesn't want to change the
+        start time, choose the maximum frequency.
+    samples_per_frame : int, optional
+        Number of dedispersed samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel in ``ih`` (channelized frequencies will
+        be calculated).  Default: taken from ``ih`` (if available).
+    """
+    def __init__(self, ih, dm, reference_frequency=None,
+                 samples_per_frame=None, frequency=None):
+        # Compute the time shift
+        dm = DispersionMeasure(dm)
+        # The sample disperse does not handle the sidebands, since it does not
+        # handle the in channel smearing.
+        frequency = getattr_if_none(ih, 'frequency', frequency)
+        reference_frequency = frequency.mean()
+
+        # Treat the input frequency as the time delay frequency.
+        time_delay = dm.time_delay(freqency, reference_frequency)
+        super().__init__(ih, time_delay, samples_per_frame=samples_per_frame)
