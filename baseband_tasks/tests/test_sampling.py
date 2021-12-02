@@ -12,7 +12,7 @@ from baseband_tasks.base import Task, SetAttribute
 from baseband_tasks.channelize import Channelize
 from baseband_tasks.combining import Stack
 from baseband_tasks.sampling import (
-    seek_float, ShiftAndResample, Resample, TimeDelay, SampleShift)
+    seek_float, ShiftAndResample, Resample, TimeDelay, ShiftSamples)
 from baseband_tasks.generators import (
     EmptyStreamGenerator, StreamGenerator, Noise)
 
@@ -618,7 +618,7 @@ class TestDelayAndResampleNoiseCHIMELike(CHIMELike,
         return np.fft.irfft(ft, axis=0).astype(data.dtype)
 
 
-class TestSampleShift:
+class TestShiftSamples:
     @classmethod
     def make_arange_data(self, ih):
         test_data = (np.arange(ih.offset, ih.offset + ih.samples_per_frame)
@@ -649,8 +649,8 @@ class TestSampleShift:
         shift_axis = 1
         shift = np.arange(-self.shape[shift_axis] + 1, 1)
         assert shift.max() == 0
-        shifter = SampleShift(self.ih, shift.reshape(-1, 1),
-                              samples_per_frame=100)
+        shifter = ShiftSamples(self.ih, shift.reshape(-1, 1),
+                               samples_per_frame=100)
         assert shifter.start_time == self.ih.start_time
         shifter.seek(start)
         shifted = shifter.read(n)
@@ -662,7 +662,7 @@ class TestSampleShift:
     @pytest.mark.parametrize('start, n', [(0, 5), (100, 20)])
     def test_shift_both(self, start, n):
         shift = np.array([-2, 0, 3])
-        shifter = SampleShift(self.ih, shift, samples_per_frame=100)
+        shifter = ShiftSamples(self.ih, shift, samples_per_frame=100)
         assert abs(shifter.start_time - 3 / self.ih.sample_rate
                    - self.ih.start_time) < 1.*u.ns
         shifter.seek(start)
@@ -674,7 +674,7 @@ class TestSampleShift:
 
     def test_compare_with_shift_and_resample(self):
         shift = np.array([-2, 1, 4])
-        shifter = SampleShift(self.ih, shift, samples_per_frame=100)
+        shifter = ShiftSamples(self.ih, shift, samples_per_frame=100)
         resampler = ShiftAndResample(self.ih, shift, offset=0,
                                      pad=32, samples_per_frame=200)
         # Note: resampler has larger padding, so start time is later.
@@ -691,17 +691,17 @@ class TestSampleShift:
         (np.array([[-1.9], [-5.], [5.25], [3.49], [-1.2]]),
          np.reshape([-2, -5, 5, 3, -1], (-1, 1)))])
     def test_non_integer_shift(self, fshift, ishift):
-        shifter1 = SampleShift(self.ih, fshift)
-        comparison = SampleShift(self.ih, ishift)
+        shifter1 = ShiftSamples(self.ih, fshift)
+        comparison = ShiftSamples(self.ih, ishift)
         assert np.all(shifter1._shift == comparison._shift)
         data1 = shifter1.read()
         expected = comparison.read()
         assert np.all(data1 == expected)
-        shifter2 = SampleShift(self.ih, fshift / self.ih.sample_rate)
+        shifter2 = ShiftSamples(self.ih, fshift / self.ih.sample_rate)
         assert np.all(shifter2._shift == comparison._shift)
         data2 = shifter2.read()
         assert np.all(data2 == expected)
 
     def test_wrong_shape(self):
         with pytest.raises(ValueError, match='broadcast to sample shape'):
-            SampleShift(self.ih, np.array([[1], [2]]))
+            ShiftSamples(self.ih, np.array([[1], [2]]))

@@ -10,7 +10,7 @@ from baseband_tasks.base import TaskBase, check_broadcast_to, PaddedTaskBase
 from baseband_tasks.convolution import Convolve
 
 __all__ = ['seek_float', 'ShiftAndResample', 'Resample', 'TimeDelay',
-           'SampleShift']
+           'ShiftSamples']
 
 
 def to_sample(ih, offset):
@@ -137,7 +137,7 @@ class ShiftAndResample(Convolve):
     See Also
     --------
     Resample : resample a stream to a new grid, without time shifts
-    SampleShift : shift channels by integer number of samples
+    ShiftSamples : shift channels by integer number of samples
     TimeDelay : delay a complex stream, changing phases but no resampling
     baseband_tasks.base.SetAttribute : change start time without resampling
 
@@ -376,7 +376,7 @@ class TimeDelay(TaskBase):
         return data
 
 
-class SampleShift(PaddedTaskBase):
+class ShiftSamples(PaddedTaskBase):
     """Shift channels in a stream by integer numbers of samples.
 
     The shifts are interpreted as additive to the sample times, i.e.,
