@@ -7,6 +7,7 @@ from astropy.utils import lazyproperty
 from .base import PaddedTaskBase, getattr_if_none
 from .fourier import fft_maker
 from .dm import DispersionMeasure
+from .sampling import SampleShift
 
 
 __all__ = ['Disperse', 'Dedisperse']
@@ -182,3 +183,59 @@ class Dedisperse(Disperse):
     @property
     def dm(self):
         return -self._dm
+
+
+class DisperseShift(SampleShift):
+    """Incoherently shift a time stream based on the disperse time delay.
+
+    This task does not handle the in channel smearing, only shift the samples.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    dm : float or `~baseband_tasks.dm.DispersionMeasure` quantity
+        Dispersion measure. 
+    reference_frequency : `~astropy.units.Quantity`
+        Frequency to which the data should be dedispersed.  Can be an array.
+        By default, the mean frequency.  If one doesn't want to change the
+        start time, choose the maximum frequency.
+    samples_per_frame : int, optional
+        Number of dedispersed samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel in ``ih`` (channelized frequencies will
+        be calculated).  Default: taken from ``ih`` (if available).
+    sideband : array, optional
+        Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available).
+    """
+    def __init__(self, ih, dm, reference_frequency=None,
+                 samples_per_frame=None, frequency=None, sideband=None):
+        # Compute the time shift
+        # TODO: 1. How to remove the duplicated code
+        # 2. Is calculating delay based on the input frequency the right thing
+        # to do?
+        dm = DispersionMeasure(dm)
+        frequency = getattr_if_none(ih, 'frequency', frequency)
+        sideband = getattr_if_none(ih, 'sideband', sideband)
+
+        # Calculate frequencies at the top and bottom of each band.
+        half_rate = ih.sample_rate / 2.
+        if ih.complex_data:
+            freq_low = frequency - half_rate
+            freq_high = frequency + half_rate
+        else:
+            freq_low = frequency + np.minimum(sideband, 0.) * half_rate
+            freq_high = frequency + np.maximum(sideband, 0.) * half_rate
+
+        if reference_frequency is None:
+            reference_frequency = (freq_low + freq_high).mean() / 2.
+
+        # Treat the input frequency as the time delay frequency.
+        time_delay = dm.time_delay(freqency, reference_frequency)
+        super().__init__(ih, time_delay, samples_per_frame=samples_per_frame,
+                         reference_frequency=reference_frequency,
+                         frequency=frequency, sideband=sideband)
