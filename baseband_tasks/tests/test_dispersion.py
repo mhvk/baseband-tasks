@@ -6,7 +6,8 @@ from astropy.time import Time
 from astropy.tests.helper import assert_quantity_allclose
 
 from baseband_tasks.fourier import fft_maker
-from baseband_tasks.dispersion import Disperse, Dedisperse, DispersionMeasure
+from baseband_tasks.dispersion import (Disperse, Dedisperse, DispersionMeasure,
+                                       DisperseSamples)
 from baseband_tasks.generators import StreamGenerator
 
 
@@ -287,3 +288,46 @@ class TestDispersionRealDisjoint(TestDispersion):
         # Lower sideband [1] is dedispersed to earlier.
         assert p[10, 0] > 0.99 and p[9, 0] < 0.006
         assert p[9, 1] > 0.99 and p[10, 1] < 0.006
+
+
+class TestDispersSample(TestDispersion):
+
+    @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
+    def test_disperse_sample(self, reference_frequency):
+        disperse = DisperseSamples(self.gp, self.dm,
+                                   reference_frequency=reference_frequency)
+
+        # Seek input time of the giant pulse, corrected to the reference
+        # frequency, and read around it.
+        t_gp = (self.start_time + self.gp_sample / self.sample_rate
+                + self.dm.time_delay(300. * u.MHz,
+                                     disperse.reference_frequency))
+        disperse.seek(t_gp)
+        disperse.seek(-self.gp_sample // 2, 1)
+        around_gp = disperse.read(self.gp_sample)
+        # Power in 20 bins of 0.025 s around the giant pulse.
+        p = (np.abs(around_gp) ** 2).reshape(
+            -1, 10, self.gp_sample // 20 // 10, 2).sum(2)
+        # Note: FT leakage means that not everything outside of the dispersed
+        # pulse is zero.  But the total power there is small.
+        assert np.all(p[:9].sum(1) < 0.005)
+        assert np.all(p[11:].sum(1) < 0.005)
+        assert np.all(p[9:11].sum() > 0.99)
+        if disperse.reference_frequency != disperse.frequency:
+            assert not np.all(disperse._shift == 0)
+
+    @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
+    def test_disperse_roundtrip1(self, reference_frequency):
+        self.gp.seek(self.start_time + 0.5 * u.s)
+        self.gp.seek(-1024, 1)
+        gp = self.gp.read(2048)
+        # Set up dispersion as above, and check that one can invert
+        disperse = DisperseSamples(self.gp, self.dm,
+                                   reference_frequency=reference_frequency)
+        dedisperse = DisperseSamples(disperse, -self.dm,
+                                     reference_frequency=reference_frequency)
+        dedisperse.seek(self.start_time + self.gp_sample / self.sample_rate)
+        dedisperse.seek(-1024, 1)
+        gp_dd = dedisperse.read(2048)
+        # Note: rounding errors mean this doesn't work perfectly.
+        assert np.all(np.abs(gp_dd - gp) < 1.e-4)

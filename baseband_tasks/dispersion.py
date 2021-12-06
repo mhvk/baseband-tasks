@@ -4,12 +4,13 @@ import numpy as np
 from astropy import units as u
 from astropy.utils import lazyproperty
 
-from .base import PaddedTaskBase, getattr_if_none
+from .base import PaddedTaskBase, getattr_if_none, SetAttribute
 from .fourier import fft_maker
 from .dm import DispersionMeasure
+from .sampling import ShiftSamples
 
 
-__all__ = ['Disperse', 'Dedisperse']
+__all__ = ['Disperse', 'Dedisperse', 'DisperseSamples']
 
 
 class Disperse(PaddedTaskBase):
@@ -184,7 +185,7 @@ class Dedisperse(Disperse):
         return -self._dm
 
 
-class DisperseSamples(SampleShift):
+class DisperseSamples(ShiftSamples):
     """Incoherently shift a time stream based on the disperse time delay.
 
     This task does not handle the in channel smearing, only shift the samples.
@@ -205,18 +206,29 @@ class DisperseSamples(SampleShift):
         If not given, as produced by the minimum power of 2 of input
         samples that yields at least 75% efficiency.
     frequency : `~astropy.units.Quantity`, optional
-        Frequencies for each channel in ``ih`` (channelized frequencies will
-        be calculated).  Default: taken from ``ih`` (if available).
+        Frequencies for each channel in ``ih``.
+        Default: taken from ``ih`` (if available).
+    sideband : array, optional
+        Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available). This class does not use
+        the ``sideband``, but for pairing with frequency in the metadata for
+        other tasks.
     """
     def __init__(self, ih, dm, reference_frequency=None,
-                 samples_per_frame=None, frequency=None):
+                 samples_per_frame=None, frequency=None, sideband=None):
         # Compute the time shift
         dm = DispersionMeasure(dm)
         # The sample disperse does not handle the sidebands, since it does not
         # handle the in channel smearing.
         frequency = getattr_if_none(ih, 'frequency', frequency)
-        reference_frequency = frequency.mean()
+        if reference_frequency is None:
+            reference_frequency = frequency.mean()
 
         # Treat the input frequency as the time delay frequency.
-        time_delay = dm.time_delay(freqency, reference_frequency)
+        time_delay = dm.time_delay(frequency, reference_frequency)
         super().__init__(ih, time_delay, samples_per_frame=samples_per_frame)
+        self.reference_frequency = reference_frequency
+        self._dm = dm
+        # Put the metadata back if the user inputs the frequency.
+        if frequency is not None or sideband is not None:
+            ih = SetAttribute(ih, frequency=frequency, sideband=sideband)
