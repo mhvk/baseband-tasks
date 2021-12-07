@@ -249,7 +249,7 @@ class DisperseSamples(ShiftSamples):
         self._dm = dm
 
 
-class DedisperseSamples(ShiftSamples):
+class DedisperseSamples(DisperseSamples):
     """Incoherently shift a time stream to correct for a dispersive time delay.
 
     This task does not handle any in-channel dispersive smearing, but only
