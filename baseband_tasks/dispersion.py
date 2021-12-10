@@ -177,7 +177,7 @@ class Dedisperse(Disperse):
     baseband_tasks.dispersion.DedisperseSamples : for incoherent dedispersion
     """
 
-    def __init__(self, ih, dm, reference_frequency=None,
+    def __init__(self, ih, dm, *, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None):
         super().__init__(ih, -dm, reference_frequency=reference_frequency,
                          samples_per_frame=samples_per_frame,
@@ -225,11 +225,8 @@ class DisperseSamples(ShiftSamples):
     baseband_tasks.dispersion.Disperse : for coherent dispersion
     """
 
-    def __init__(self, ih, dm, reference_frequency=None,
+    def __init__(self, ih, dm, *, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None):
-        # Compute the time shift
-        dm = DispersionMeasure(dm)
-
         # Set possible missing frequency/sideband attributes
         if frequency is not None or sideband is not None:
             ih = SetAttribute(ih, frequency=frequency, sideband=sideband)
@@ -242,9 +239,11 @@ class DisperseSamples(ShiftSamples):
         if reference_frequency is None:
             reference_frequency = frequency.mean()
 
-        # Treat the input frequency as the time delay frequency.
+        # Compute the time shift and use it to set up ShiftSamples.
+        dm = DispersionMeasure(dm)
         time_delay = dm.time_delay(frequency, reference_frequency)
         super().__init__(ih, time_delay, samples_per_frame=samples_per_frame)
+
         self.reference_frequency = reference_frequency
         self._dm = dm
 
@@ -266,7 +265,7 @@ class DedisperseSamples(DisperseSamples):
         Frequency to which the data should be dispersed.  Can be an array.
         By default, the mean frequency.
     samples_per_frame : int, optional
-        Number of dispersed samples which should be produced in one go.
+        Number of dedispersed samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
         If not given, as produced by the minimum power of 2 of input
         samples that yields at least 75% efficiency.
@@ -286,7 +285,7 @@ class DedisperseSamples(DisperseSamples):
     baseband_tasks.dispersion.Dedisperse : for coherent dedispersion
     """
 
-    def __init__(self, ih, dm, reference_frequency=None,
+    def __init__(self, ih, dm, *, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None):
         super().__init__(ih, -dm, reference_frequency=reference_frequency,
                          samples_per_frame=samples_per_frame,
