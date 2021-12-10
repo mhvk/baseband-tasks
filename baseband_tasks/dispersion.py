@@ -4,12 +4,13 @@ import numpy as np
 from astropy import units as u
 from astropy.utils import lazyproperty
 
-from .base import PaddedTaskBase, getattr_if_none
+from .base import PaddedTaskBase, getattr_if_none, SetAttribute
 from .fourier import fft_maker
 from .dm import DispersionMeasure
+from .sampling import ShiftSamples
 
 
-__all__ = ['Disperse', 'Dedisperse']
+__all__ = ['Disperse', 'Dedisperse', 'DisperseSamples', 'DedisperseSamples']
 
 
 class Disperse(PaddedTaskBase):
@@ -40,6 +41,8 @@ class Disperse(PaddedTaskBase):
     See Also
     --------
     baseband_tasks.fourier.fft_maker : to select the FFT package used.
+    baseband_tasks.dispersion.Dedisperse : for coherent dedispersion
+    baseband_tasks.dispersion.DisperseSamples : for incoherent dispersion
     """
 
     def __init__(self, ih, dm, *, reference_frequency=None,
@@ -170,10 +173,119 @@ class Dedisperse(Disperse):
     See Also
     --------
     baseband_tasks.fourier.fft_maker : to select the FFT package used.
-
+    baseband_tasks.dispersion.Disperse : for coherent dispersion
+    baseband_tasks.dispersion.DedisperseSamples : for incoherent dedispersion
     """
 
-    def __init__(self, ih, dm, reference_frequency=None,
+    def __init__(self, ih, dm, *, reference_frequency=None,
+                 samples_per_frame=None, frequency=None, sideband=None):
+        super().__init__(ih, -dm, reference_frequency=reference_frequency,
+                         samples_per_frame=samples_per_frame,
+                         frequency=frequency, sideband=sideband)
+
+    @property
+    def dm(self):
+        return -self._dm
+
+
+class DisperseSamples(ShiftSamples):
+    """Incoherently shift a time stream to give it a dispersive time delay.
+
+    This task does not handle any in-channel dispersive smearing, but only
+    shifts the samples according to the mid-channel frequency.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    dm : float or `~baseband_tasks.dm.DispersionMeasure` quantity
+        Dispersion measure to disperse with.  If negative, will dedisperse,
+        but clearer to use `~baseband_tasks.dispersion.DedisperseSamples`.
+    reference_frequency : `~astropy.units.Quantity`
+        Frequency to which the data should be dispersed.  Can be an array.
+        By default, the mean frequency.
+    samples_per_frame : int, optional
+        Number of dispersed samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel in ``ih``.
+        Default: taken from ``ih`` (if available).
+    sideband : array, optional
+        Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available). Note that while this is
+        only used if the data is real (to calculate the mid-channel
+        frequency), it should always be passed in together with ``frequency``,
+        since otherwise other tasks cannot interpret frequency correctly.
+
+    See Also
+    --------
+    baseband_tasks.dispersion.DedisperseSamples : for incoherent dedispersion
+    baseband_tasks.dispersion.Disperse : for coherent dispersion
+    """
+
+    def __init__(self, ih, dm, *, reference_frequency=None,
+                 samples_per_frame=None, frequency=None, sideband=None):
+        # Set possible missing frequency/sideband attributes
+        if frequency is not None or sideband is not None:
+            ih = SetAttribute(ih, frequency=frequency, sideband=sideband)
+        frequency = ih.frequency
+        if not ih.complex_data:
+            # Calculate mid-channel frequency for real data (for complex,
+            # the frequencies are already mid-channel).
+            frequency = frequency + ih.sideband * ih.sample_rate / 2.
+
+        if reference_frequency is None:
+            reference_frequency = frequency.mean()
+
+        # Compute the time shift and use it to set up ShiftSamples.
+        dm = DispersionMeasure(dm)
+        time_delay = dm.time_delay(frequency, reference_frequency)
+        super().__init__(ih, time_delay, samples_per_frame=samples_per_frame)
+
+        self.reference_frequency = reference_frequency
+        self._dm = dm
+
+
+class DedisperseSamples(DisperseSamples):
+    """Incoherently shift a time stream to correct for a dispersive time delay.
+
+    This task does not handle any in-channel dispersive smearing, but only
+    shifts the samples according to the mid-channel frequency.
+
+    Parameters
+    ----------
+    ih : task or `baseband` stream reader
+        Input data stream, with time as the first axis.
+    dm : float or `~baseband_tasks.dm.DispersionMeasure` quantity
+        Dispersion measure to correct for.  If negative, will disperse,
+        but clearer to use `~baseband_tasks.dispersion.DisperseSamples`.
+    reference_frequency : `~astropy.units.Quantity`
+        Frequency to which the data should be dispersed.  Can be an array.
+        By default, the mean frequency.
+    samples_per_frame : int, optional
+        Number of dedispersed samples which should be produced in one go.
+        The number of input samples used will be larger to avoid wrapping.
+        If not given, as produced by the minimum power of 2 of input
+        samples that yields at least 75% efficiency.
+    frequency : `~astropy.units.Quantity`, optional
+        Frequencies for each channel in ``ih``.
+        Default: taken from ``ih`` (if available).
+    sideband : array, optional
+        Whether frequencies in ``ih`` are upper (+1) or lower (-1) sideband.
+        Default: taken from ``ih`` (if available). Note that while this is
+        only used if the data is real (to calculate the mid-channel
+        frequency), it should always be passed in together with ``frequency``,
+        since otherwise other tasks cannot interpret frequency correctly.
+
+    See Also
+    --------
+    baseband_tasks.dispersion.DisperseSamples : for incoherent dispersion
+    baseband_tasks.dispersion.Dedisperse : for coherent dedispersion
+    """
+
+    def __init__(self, ih, dm, *, reference_frequency=None,
                  samples_per_frame=None, frequency=None, sideband=None):
         super().__init__(ih, -dm, reference_frequency=reference_frequency,
                          samples_per_frame=samples_per_frame,

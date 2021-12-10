@@ -6,7 +6,8 @@ from astropy.time import Time
 from astropy.tests.helper import assert_quantity_allclose
 
 from baseband_tasks.fourier import fft_maker
-from baseband_tasks.dispersion import Disperse, Dedisperse, DispersionMeasure
+from baseband_tasks.dispersion import (Disperse, Dedisperse, DispersionMeasure,
+                                       DisperseSamples, DedisperseSamples)
 from baseband_tasks.generators import StreamGenerator
 
 
@@ -21,9 +22,8 @@ REFERENCE_FREQUENCIES = (
     299.872 * u.MHz)  # Below lower edge
 
 
-class TestDispersion:
-
-    def setup(self):
+class GiantPulseSetup:
+    def setup_class(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 128. * u.kHz
         self.shape = (164000, 2)
@@ -38,11 +38,15 @@ class TestDispersion:
         # Time delay of 0.05 s over 128 kHz band.
         self.dm = DispersionMeasure(1000.*0.05/0.039342251)
 
+    @classmethod
     def make_giant_pulse(self, sh):
         data = np.empty((sh.samples_per_frame,) + sh.shape[1:], sh.dtype)
         do_gp = sh.tell() + np.arange(sh.samples_per_frame) == self.gp_sample
         data[...] = do_gp[:, np.newaxis]
         return data
+
+
+class TestDispersion(GiantPulseSetup):
 
     def test_time_delay(self):
         time_delay = self.dm.time_delay(
@@ -189,8 +193,8 @@ class TestDispersion:
         assert 'phase_factor' not in disperse.__dict__
 
 
-class TestDispersionReal(TestDispersion):
-    def setup(self):
+class GiantPulseSetupReal(GiantPulseSetup):
+    def setup_class(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 256. * u.kHz
         self.shape = (328000, 2)
@@ -207,6 +211,8 @@ class TestDispersionReal(TestDispersion):
         # Time delay of 0.05 s over 128 kHz band.
         self.dm = DispersionMeasure(1000.*0.05/0.039342251)
 
+
+class TestDispersionReal(TestDispersion, GiantPulseSetupReal):
     # Override tests that do not simply work for the real data,
     # since the sample rate is twice as high.
     def test_time_delay(self):
@@ -287,3 +293,55 @@ class TestDispersionRealDisjoint(TestDispersion):
         # Lower sideband [1] is dedispersed to earlier.
         assert p[10, 0] > 0.99 and p[9, 0] < 0.006
         assert p[9, 1] > 0.99 and p[10, 1] < 0.006
+
+
+class TestDispersSample(GiantPulseSetupReal):
+
+    @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
+    @pytest.mark.parametrize('frequency, sideband', [
+        (None, None),
+        ([199.936, 200.064]*u.MHz, np.array((1, -1))),  # Far off from normal.
+        ([200.064, 199.936]*u.MHz, np.array((-1, -1)))])
+    def test_disperse_sample(self, reference_frequency, frequency, sideband):
+        disperse = DisperseSamples(self.gp, self.dm, frequency=frequency,
+                                   reference_frequency=reference_frequency,
+                                   sideband=sideband)
+
+        # Seek input time of the giant pulse, corrected to the reference
+        # frequency, and read around it.
+        center_frequency = (disperse.frequency
+                            + disperse.sideband * disperse.sample_rate / 2.)
+        time_delay = self.dm.time_delay(center_frequency,
+                                        disperse.reference_frequency)
+        t_gp = (self.start_time + self.gp_sample / self.sample_rate
+                + time_delay)
+
+        disperse.seek(t_gp.min())
+        around_gp = disperse.read(self.gp_sample)
+
+        sample_shift_diff = ((time_delay.max() - time_delay.min())
+                             * self.sample_rate)
+        sample_shift_diff = np.round(sample_shift_diff.to(u.one)).astype(int)
+        expected = np.zeros_like(around_gp)
+        expected[0, t_gp.argmin()] = 1.0
+        expected[sample_shift_diff, t_gp.argmax()] = 1.0
+        assert np.all(around_gp == expected)
+
+    @pytest.mark.parametrize('reference_frequency', [200 * u.MHz, 300 * u.MHz])
+    def test_disperse_roundtrip1(self, reference_frequency):
+        self.gp.seek(self.start_time + self.gp_sample / self.sample_rate)
+        self.gp.seek(-1024, 1)
+        gp = self.gp.read(2048)
+        # Set up dispersion as above, and check that one can invert
+        disperse = DisperseSamples(self.gp, self.dm,
+                                   reference_frequency=reference_frequency)
+        dedisperse = DedisperseSamples(disperse, self.dm,
+                                       reference_frequency=reference_frequency)
+        assert dedisperse.dm == self.dm
+        assert dedisperse._dm == -self.dm
+        dedisperse.seek(self.start_time + self.gp_sample / self.sample_rate)
+        dedisperse.seek(-1024, 1)
+        gp_dd = dedisperse.read(2048)
+        # Note: rounding errors mean this doesn't work perfectly.
+        assert np.any(gp_dd == 1.0)
+        assert np.all(gp_dd == gp)
