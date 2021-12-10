@@ -12,6 +12,9 @@ New Features
 - Add a simpler ``ShiftSamples`` task that just shifts channels by integer
   number of samples. [#226, #235, #239]
 
+- Add ability for incoherent dedispersion with ``DisperseSamples`` and
+  ``Dedispersamples``. [#238]
+
 - Streams can now carry meta-data in a ``meta`` attribute.  This includes
   information on ``frequency``, ``sideband``, and ``polarization``, all
   of which are stored in ``meta['__attributes__']`` entry (like astropy's
