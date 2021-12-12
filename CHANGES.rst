@@ -1,3 +1,19 @@
+0.4 (unreleased)
+================
+
+New Features
+------------
+
+API Changes
+-----------
+
+Bug Fixes
+---------
+
+Other Changes and Additions
+---------------------------
+
+
 0.3 (2021-12-12)
 ================
 
