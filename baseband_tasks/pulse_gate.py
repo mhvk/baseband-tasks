@@ -5,13 +5,13 @@ from .phases import PolycoPhase, PintPhase
 from .dispersion import DedisperseShift
 
 
-def gate_data(dedisperse_fh, phase, gate, tol=0.01, pulse_period=None):
+class GatePulse:
     """Return the gated pulse data.
 
     Parameters
     ----------
-    dedisperse_fh : `DedisperseShift` task stream reader
-        Input dedisperse shifted data stream
+    fh : `baseband` file handle or task stream reader
+        Input data stream
     phase : callable
         Should return pulse phases (with or without cycle count) for given
         input time(s), passed in as an '~astropy.time.Time' object.  The output
@@ -23,13 +23,30 @@ def gate_data(dedisperse_fh, phase, gate, tol=0.01, pulse_period=None):
     tol : float, optional
         The tolarence of the pulse phaes gating. Default is 0.01
     """
-    # Compute the rough phase resolution
-    phase_per_sample = pulse_period * dedisperse_fh.sample_rate
-    # Compute the tolarence sample numbers
-    tol_sample = tol / phase_per_sample
-    # Compute the data time
-    time_axis = (np.arange(0, dedisperse_fh.shape[0], tol_sample) /
-                 dedisperse_fh.sample_rate)
-    time_axis = dedisperse_fh.start_time + time_axis
-    pulse_phase = phase(time_axis)
-    # Search the gate
+    def __init__(fh, phase, gate, tol=0.01, pulse_period=None):
+        self.ih = fh
+        if not pulse_period: # Get pulse period from phase class
+            try:
+                self.pulse_period = 1.0 / phase.apparent_spin_freq(fh.start_time)
+            except AttributeError:
+                raise ValueError("Can not find pulse period from the `phase` "
+                                 "class. Please provide a valid"
+                                 " `pulse_period`.")
+        else:
+            self.pulse_period = pulse_period
+
+        self.samples_per_period = self.pulse_period * dedisperse_fh.sample_rate
+        self.phase_per_sample = 1.0 / self.samples_per_period
+        # Compute the tolarence sample numbers
+        self.tol_sample = tol / self.phase_per_sample
+        self.gate = gate
+        self.pulse_offset = 0
+
+    def __call__(self, number_of_pulse):
+        # Compute the data time axis
+        time_axis = (np.arange(0, self.samples_per_period * number_of_pulse,
+                               tol_sample) / dedisperse_fh.time)
+        time_axis = self.ih.time + time_axis
+        pulse_phase = phase(time_axis)
+        # Search the gate
+        return pulse_phase
