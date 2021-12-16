@@ -46,3 +46,14 @@ class TestPulseGating:
         assert gate_pulse.gate[0] == gate[0] - np.modf(gate[0])[1]
         if gate[0] > gate[1]:
             assert gate_pulse.gate[1] == gete[1] + 1 - np.modf(gate[0])[1]
+
+    @pytest.mark.parametrize('tol', [None, 0.001])
+    @pytest.mark.parametrize('pulse_period', [None, 1.6 * u.ms])
+    def test_computing_phase(self, tol, pulse_period):
+        gate = [0.34, 0.48]
+        gate_pulse = GatePulse(self.gp, self.polyco, gate, tol, pulse_period)
+        phase = gate_pulse.next_nperiod_phase(2)
+        phase_diff = np.diff(phase.frac)
+        assert np.all(np.isclose(phase_diff[phase_diff  > 0],
+                                 gate_pulse.tol * u.cycle))
+        #assert False

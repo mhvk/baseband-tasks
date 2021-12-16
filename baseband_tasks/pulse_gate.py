@@ -42,6 +42,7 @@ class GatePulse:
                                  " `pulse_period`.")
         else:
             self.pulse_period = pulse_period.to(u.s)
+        self.phase = phase
 
         self.gate = self.verify_gate(gate)
         self.samples_per_period = self.pulse_period * self.ih.sample_rate
@@ -51,6 +52,7 @@ class GatePulse:
             tol =  (self.gate[1] - self.gate[0]) / 20
         assert tol > 0
         assert tol < (self.gate[1] - self.gate[0]) / 10
+        self.tol = tol
         # Compute the tolarence sample numbers
         self.tol_sample = tol / self.phase_per_sample
         self.pulse_offset = 0
@@ -63,9 +65,9 @@ class GatePulse:
         """
         # Compute the data time axis
         time_axis = (np.arange(0, self.samples_per_period * number_of_pulse,
-                               tol_sample) / dedisperse_fh.time)
+                               self.tol_sample) / self.ih.sample_rate)
         time_axis = self.ih.time + time_axis
-        pulse_phase = phase(time_axis)
+        pulse_phase = self.phase(time_axis)
         # Search the gate
         return pulse_phase
 
