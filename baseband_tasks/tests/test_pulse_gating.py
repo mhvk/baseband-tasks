@@ -108,10 +108,11 @@ class TestPulseGating:
                                  gate_pulse.gate[1].value,
                                  atol=tol.value))
 
-    def test_read_gated_pulse(self):
+    @pytest.mark.parametrize('pulse_number', [None, 3, 5, 20, -4, -1])
+    def test_read_gated_pulse(self, pulse_number):
         gate_pulse = GatePulse(self.ps, self.simple_phase, [0.2, 0.25],
                                pulse_period=self.P0)
-        pulse, gsh = gate_pulse.read()
+        pulse, gsh = gate_pulse.read(pulse_number)
         pulse_pos = np.where(pulse == 1.0)
         time_axis = gsh.time - np.arange(pulse.shape[0])[::-1] / gsh.sample_rate
         phase = self.simple_phase(time_axis)

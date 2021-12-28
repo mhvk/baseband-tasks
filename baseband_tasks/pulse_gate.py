@@ -85,7 +85,7 @@ class GatePulse:
         if gate_index is None:
             gate_index = self.pulse_offset
 
-        if gate_index >= len(self.gate_offsets):
+        if gate_index >= len(self.gate_offsets[0]):
             raise ValueError("The requested gate index is beyond the total data"
                              "stream.")
 
