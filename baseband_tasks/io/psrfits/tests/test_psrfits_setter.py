@@ -15,7 +15,7 @@ test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
 class TestPrimaryHDUSetter:
-    def setup(self):
+    def setup_method(self):
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")
         self.reader = psrfits.open(self.fold_data, 'r', weighted=False)
@@ -23,7 +23,7 @@ class TestPrimaryHDUSetter:
         # init Primary
         self.p_hdu = PSRFITSPrimaryHDU()
 
-    def teardown(self):
+    def teardown_method(self):
         self.reader.close()
 
     def test_set_location(self):
@@ -82,8 +82,8 @@ class TestPrimaryHDUSetter:
 
 
 class TestPSRHDUSetter(TestPrimaryHDUSetter):
-    def setup(self):
-        super().setup()
+    def setup_method(self):
+        super().setup_method()
         # Create SUBINT using primary header.
         self.psr_hdu_no_shape = SubintHDU(primary_hdu=self.input_p_hdu)
         self.psr_hdu = SubintHDU(primary_hdu=self.input_p_hdu)

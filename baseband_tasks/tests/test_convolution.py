@@ -42,7 +42,7 @@ class TestConvolveDADA(UseDADASample):
 class TestConvolveNoise:
     """Test convolution with simple smoothing filter."""
 
-    def setup(self):
+    def setup_class(self):
         self.response = np.ones(3)
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 10. * u.kHz

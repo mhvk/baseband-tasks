@@ -13,7 +13,8 @@ test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
 class TestPredictor:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.start_time = Time('2018-05-06T23:00:00', format='isot',
                                scale='utc')
         self.polyco_file = os.path.join(test_data, 'B1937_polyco.dat')

@@ -15,6 +15,7 @@ from baseband_tasks.phases import Phase
 
 
 class FakePulsarBase:
+    @classmethod
     def setup_class(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 10. * u.kHz

@@ -13,10 +13,9 @@ from .common import UseVDIFSample, UseDADASample
 
 class TestChannelizeReal(UseVDIFSample):
     """Test channelization using Baseband's sample VDIF file."""
-
-    def setup(self):
+    def setup_method(self):
         """Pre-calculate channelized data."""
-        super().setup()
+        super().setup_method()
         self.n = 1024
 
         self.ref_start_time = self.fh.start_time
@@ -142,8 +141,8 @@ class TestChannelizeReal(UseVDIFSample):
 
 
 class TestChannelizeComplex(UseDADASample):
-    def setup(self):
-        super().setup()
+    def setup_method(self):
+        super().setup_method()
         self.n = 1024
         # Add frequency information by hand for now.
         self.fh_freq = SetAttribute(

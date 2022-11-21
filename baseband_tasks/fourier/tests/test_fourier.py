@@ -12,7 +12,8 @@ from ... import fourier
 
 
 class TestFFTMaker:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         # Ensure we start with a clean slate
         fft_maker.set(None)
         self.default_maker = fft_maker.get()
@@ -42,8 +43,8 @@ class TestFFTMaker:
 
 class TestFFTClasses:
     """Test FFTs against NumPy's implementation."""
-
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         """Pre-calculate NumPy FFTs."""
         x = np.linspace(0., 10., 7919)    # 7919 is the 1000th prime number!
         self.sample_rate = x.size / (x.max() - x.min()) * u.kHz
@@ -174,7 +175,8 @@ def test_against_duplication():
 @pytest.mark.skipif('pyfftw' not in FFT_MAKER_CLASSES,
                     reason="Test is PyFFTW specific")
 class TestPyfftwFFT:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.maker = FFT_MAKER_CLASSES['pyfftw']
 
     def test_inverse_overrides_input(self):
