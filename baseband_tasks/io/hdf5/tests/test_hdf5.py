@@ -117,6 +117,31 @@ class TestHDF5Basics(BasicSetup):
             assert payload.words.dtype == '<u4'
             assert payload.words.shape == (100 * 16 * 2 // 32,)
 
+    def test_can_create_raw_payload_directly(self):
+        """Even when bps is present, if initialized directly."""
+        words = np.array([1], '<u4')
+
+        # Create a fake header with some required attributes.
+        class Header:
+            bps = 2
+            complex_data = False
+            encoded_dtype = words.dtype
+            dtype = words.dtype
+            sample_shape = words.shape[1:]
+            samples_per_frame = len(words)
+
+        header = Header()
+        pl1 = hdf5.HDF5Payload(words)
+        assert isinstance(pl1, hdf5.payload.HDF5RawPayload)
+        pl2 = hdf5.HDF5Payload(words, header)
+        assert isinstance(pl2, hdf5.payload.HDF5CodedPayload)
+        pl3 = hdf5.payload.HDF5RawPayload(words, header)
+        assert isinstance(pl3, hdf5.payload.HDF5RawPayload)
+        pl4 = hdf5.payload.HDF5CodedPayload(words, header)
+        assert isinstance(pl4, hdf5.payload.HDF5CodedPayload)
+        pl5 = hdf5.payload.HDF5CodedPayload(words, bps=2)
+        assert isinstance(pl5, hdf5.payload.HDF5CodedPayload)
+
 
 class StreamSetup:
     def setup_method(self):

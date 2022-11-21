@@ -10,6 +10,8 @@ API Changes
 Bug Fixes
 ---------
 
+- Ensure subclasses of ``HDFPayload`` can be used directly with arbitrary headers. [#245]
+
 Other Changes and Additions
 ---------------------------
 
