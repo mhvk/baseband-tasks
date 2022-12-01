@@ -48,7 +48,7 @@ jobs:
 
           # pyfftw seems to need python 3.7 [2020-Jan-31]
           - name: Documentation build
-            python: 3.7
+            python: 3.9
             toxenv: build_docs
             apt_packages: graphviz
 
