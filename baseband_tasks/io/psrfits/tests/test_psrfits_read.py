@@ -15,19 +15,19 @@ test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
 class TestRead:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")
         self.psrchive_fold = os.path.join(test_data, "B1855_nano.npz")
 
 
 class TestFoldRead(TestRead):
-    def setup(self):
-        super().setup()
+    def setup_method(self):
         self.reader = psrfits.open(self.fold_data, weighted=False)
         self.psrchive_res = np.load(self.psrchive_fold)
 
-    def teardown(self):
+    def teardown_method(self):
         self.reader.close()
 
     def test_hdu_wrapper_properties(self):

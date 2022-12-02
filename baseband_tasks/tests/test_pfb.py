@@ -24,7 +24,8 @@ def digitize(ft, level):
 
 
 class TestSincHamming:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         a = np.loadtxt(os.path.join(
             test_data, 'bGDSP_U1_0032_T12_W095_get_pfb_coeffs.txt'))
         self.guppi_ppf = a.reshape(8, -1).T.reshape(12, 64)
@@ -35,7 +36,8 @@ class TestSincHamming:
 
 
 class TestBasics:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.nh = NoiseGenerator(shape=(2500 * 2048,),
                                  start_time=Time('2010-01-01'),
                                  sample_rate=1.*u.kHz, seed=12345,

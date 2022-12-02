@@ -28,6 +28,7 @@ needs_h5py = pytest.mark.skipif(not HAS_H5PY, reason='h5py not available.')
 
 
 class BasicSetup:
+    @classmethod
     def setup_class(cls):
         cls.info = {'sample_shape': (8, 2),
                     'samples_per_frame': 100,
@@ -118,7 +119,7 @@ class TestHDF5Basics(BasicSetup):
 
 
 class StreamSetup:
-    def setup(self):
+    def setup_method(self):
         self.fh = baseband.open(baseband.data.SAMPLE_VDIF)
         self.data = self.fh.read()
         self.fh.seek(0)
@@ -127,7 +128,7 @@ class StreamSetup:
         self.wrapped = SetAttribute(self.fh, frequency=frequency,
                                     sideband=sideband)
 
-    def teardown(self):
+    def teardown_method(self):
         self.wrapped.close()
         self.fh.close()
 

@@ -11,7 +11,8 @@ from baseband_tasks.functions import Square
 
 
 class NoiseStreamBase:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.seed = 1234567
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 1. * u.kHz

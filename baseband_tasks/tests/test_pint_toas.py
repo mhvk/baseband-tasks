@@ -28,8 +28,8 @@ test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 class TestPintUtils:
     """Test the utilities of PINT"""
-
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.start_time = Time('2018-05-06T23:00:00', format='isot',
                                scale='utc')
         self.times = self.start_time + np.arange(30) * 1.50 * u.min

@@ -11,7 +11,8 @@ from baseband_tasks.base import Task
 
 
 class StreamBase:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 1. * u.kHz
         self.shape = (1000, 4, 2)
@@ -242,8 +243,8 @@ class TestNoise:
 
     And that the noise generator looks like a streamreader.
     """
-
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.seed = 1234567
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 10. * u.kHz

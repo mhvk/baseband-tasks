@@ -108,7 +108,8 @@ class TestPhaseInit:
 
 
 class PhaseSetup:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.phase1 = Angle(np.array([1000., 1001., 999., 1005, 1006.]),
                             u.cycle)[:, np.newaxis]
         self.phase2 = Angle(2.**(-53) * np.array([1, -1., 1., -1.])

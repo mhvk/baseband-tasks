@@ -10,23 +10,23 @@ from ..base import SetAttribute
 
 
 class UseVDIFSample:
-    def setup(self):
+    def setup_method(self):
         self.fh = vdif.open(SAMPLE_VDIF)
 
-    def teardown(self):
+    def teardown_method(self):
         self.fh.close()
 
 
 class UseDADASample:
-    def setup(self):
+    def setup_method(self):
         self.fh = dada.open(SAMPLE_DADA)
 
-    def teardown(self):
+    def teardown_method(self):
         self.fh.close()
 
 
 class UseVDIFSampleWithAttrs:
-    def setup(self):
+    def setup_method(self):
         self._fh = vdif.open(SAMPLE_VDIF)
         self.fh = SetAttribute(
             self._fh,
@@ -34,6 +34,6 @@ class UseVDIFSampleWithAttrs:
             sideband=np.array(1),
             polarization=np.tile(['L', 'R'], 4))
 
-    def teardown(self):
+    def teardown_method(self):
         self.fh.close()
         self._fh.close()

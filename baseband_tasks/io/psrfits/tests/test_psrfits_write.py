@@ -13,7 +13,8 @@ test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
 class TestWriter:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.update_file = os.path.join(test_data, "write_update.fits")
         self.fold_data = os.path.join(test_data,
                                       "B1855+09.430.PUPPI.11y.x.sum.sm")

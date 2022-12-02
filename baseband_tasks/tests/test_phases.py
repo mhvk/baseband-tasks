@@ -16,23 +16,26 @@ test_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 
 class Base:
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.start_time = Time('2018-05-06T23:00:00', format='isot',
                                scale='utc')
         self.times = self.start_time + np.arange(30) * 1.50 * u.min
 
 
 class PolycoBase(Base):
-    def setup(self):
-        super().setup()
+    @classmethod
+    def setup_class(self):
+        super().setup_class()
         self.polyco_file = os.path.join(test_data, 'B1937_polyco.dat')
         self.polyco_pu = PolycoPhase(self.polyco_file)
         self.pu = self.polyco_pu
 
 
 class PintBase(Base):
-    def setup(self):
-        super().setup()
+    @classmethod
+    def setup_class(self):
+        super().setup_class()
         self.obs = 'ao'
         self.obs_freq = 1440.0
         self.par_file = os.path.join(test_data,
@@ -86,8 +89,9 @@ class TestPhaseComparison(PintBase, PolycoBase):
 
 @needs_pint
 class TestPintFrequencyBroadcasting(Base):
-    def setup(self):
-        super().setup()
+    @classmethod
+    def setup_class(self):
+        super().setup_class()
         self.obs = 'ao'
         self.obs_freq = 1440.0
         self.par_file = os.path.join(test_data,

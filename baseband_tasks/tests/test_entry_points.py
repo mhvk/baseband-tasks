@@ -14,8 +14,15 @@ from baseband_tasks import io, dispersion
 
 
 # needs_entrypoints is imported in io/hdf5/tests/test_hdf5.
+def _baseband_io_entry_points():
+    try:
+        return entry_points(group="baseband.io")
+    except TypeError:
+        return entry_points().get("baseband.io", [])
+
+
 needs_entrypoints = pytest.mark.xfail(
-    'hdf5' not in [ep.name for ep in entry_points().get('baseband.io', [])]
+    'hdf5' not in [ep.name for ep in _baseband_io_entry_points()]
     and os.path.exists(os.path.join(os.path.dirname(__file__),
                                     '..', '..', 'setup.cfg')),
     reason="Source checkout without entrypoints; needs 'egg_info'.")
@@ -26,7 +33,11 @@ pytestmark = needs_entrypoints
 def fake_module(group):
     name = group.split('.')[-1]
     module = types.ModuleType(name, doc=f"fake {group} module")
-    for entry in entry_points().get(group, []):
+    try:
+        group_entry_points = entry_points(group=group)
+    except TypeError:
+        group_entry_points = entry_points().get(group, [])
+    for entry in group_entry_points:
         # Only on python >= 3.9 do .module and .attr exist.
         ep_module, _, ep_attr = entry.value.partition(':')
         if ep_module.startswith('baseband_tasks'):

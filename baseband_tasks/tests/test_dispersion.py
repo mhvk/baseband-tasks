@@ -23,6 +23,7 @@ REFERENCE_FREQUENCIES = (
 
 
 class GiantPulseSetup:
+    @classmethod
     def setup_class(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 128. * u.kHz
@@ -230,7 +231,7 @@ class TestDispersionReal(TestDispersion, GiantPulseSetupReal):
 
 
 class TestDispersionRealDisjoint(TestDispersion):
-    def setup(self):
+    def setup_method(self):
         self.start_time = Time('2010-11-12T13:14:15')
         self.sample_rate = 128. * u.kHz
         self.shape = (164000, 2)

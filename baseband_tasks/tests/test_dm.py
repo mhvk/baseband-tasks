@@ -8,8 +8,8 @@ from baseband_tasks.dm import DispersionMeasure
 
 
 class TestDM:
-
-    def setup(self):
+    @classmethod
+    def setup_class(self):
         self.dm_val = 29.1168    # DM of B1957+20.
 
     def test_quantity(self):
