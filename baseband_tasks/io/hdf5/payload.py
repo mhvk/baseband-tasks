@@ -45,10 +45,11 @@ class HDF5Payload:
     """
 
     def __new__(cls, words, header=None, **kwargs):
-        if 'bps' in kwargs or hasattr(header, 'bps'):
-            cls = HDF5CodedPayload
-        else:
-            cls = HDF5RawPayload
+        if cls is HDF5Payload:
+            if 'bps' in kwargs or hasattr(header, 'bps'):
+                cls = HDF5CodedPayload
+            else:
+                cls = HDF5RawPayload
         return super().__new__(cls)
 
     @classmethod
