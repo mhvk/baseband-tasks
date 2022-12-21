@@ -1,6 +1,9 @@
 0.4 (unreleased)
 ================
 
+- The minimum versions required by baseband-tasks are now python 3.7,
+  baseband 4.1, and its minimum dependencies (astropy 4.0 and numpy 1.17).
+
 New Features
 ------------
 

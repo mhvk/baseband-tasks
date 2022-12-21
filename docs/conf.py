@@ -30,6 +30,8 @@ import sys
 import datetime
 from importlib import import_module
 
+import baseband_tasks
+
 try:
     from sphinx_astropy.conf.v1 import *  # noqa
 except ImportError:
@@ -62,7 +64,14 @@ exclude_patterns.append('_templates')
 # This is added to the end of RST files - a good place to put substitutions to
 # be used globally.
 rst_epilog += """
-"""
+.. _Python: https://www.python.org/
+.. _Astropy: https://www.astropy.org
+.. _NumPy: https://numpy.org
+.. _baseband: https://baseband.readthedocs.io/
+.. |minimum_python_version| replace:: {0.__minimum_python_version__}
+.. |minimum_astropy_version| replace:: {0.__minimum_astropy_version__}
+.. |minimum_baseband_version| replace:: {0.__minimum_baseband_version__}
+""".format(baseband_tasks)
 
 # -- Intersphinx linkage ------------------------------------------------------
 

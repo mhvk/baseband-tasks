@@ -5,10 +5,11 @@ Installation
 Requirements
 ============
 
-Baseband-tasks requires `Baseband
-<https://pypi.org/project/baseband/>`_, v3.0 or later, which in turn
-requires `Python <https://www.python.org/>`_, `Astropy`_, and `Numpy
-<http://www.numpy.org/>`_.
+Baseband-tasks requires:
+
+- Python_ |minimum_python_version| or later
+- Baseband_ |minimum_baseband_version| or later
+- Astropy_ |minimum_astropy_version| or later
 
 In addition, you may want to install:
 
