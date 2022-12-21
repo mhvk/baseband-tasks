@@ -65,7 +65,7 @@ class Integrate(BaseTaskBase):
         and if step is omitted, integration is over all samples.
     phase : callable
         Should return full pulse phase (i.e., including cycle count) for given
-        input times (passed in as '~astropy.time.Time').  The output should be
+        input times (passed in as `~astropy.time.Time`).  The output should be
         compatible with ``step``, i.e., generally an `~astropy.units.Quantity`
         with angular units.
     start : `~astropy.time.Time` or int, optional
@@ -314,7 +314,7 @@ class Fold(Integrate):
         Number of bins per pulse period.
     phase : callable
         Should return pulse phases (with or without cycle count) for given
-        input time(s), passed in as an '~astropy.time.Time' object.  The output
+        input time(s), passed in as an `~astropy.time.Time` object.  The output
         can be an `~astropy.units.Quantity` with angular units or a regular
         array of float (in which case units of cycles are assumed).
     step : int or `~astropy.units.Quantity`, optional
@@ -406,7 +406,7 @@ class PulseStack(BaseTaskBase):
         Number of bins per pulse period.
     phase : callable
         Should return pulse phases for given input time(s), passed in as an
-        '~astropy.time.Time' object.  The output should be an array of float,
+        `~astropy.time.Time` object.  The output should be an array of float,
         and has to include the cycle count.
     start : `~astropy.time.Time` or int, optional
         Time or offset at which to start the integration. If an offset or if
