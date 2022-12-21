@@ -7,12 +7,12 @@ import warnings
 import numpy as np
 from astropy import units as u
 from astropy.time import Time
-from astropy.utils import ShapedLikeNDArray
+from astropy.utils import ShapedLikeNDArray, deprecated
 
 from .base import BaseTaskBase
 
 
-__all__ = ['Integrate', 'Fold', 'Stack']
+__all__ = ['Integrate', 'Fold', 'PulseStack']
 
 
 class _FakeOutput(ShapedLikeNDArray):
@@ -65,7 +65,7 @@ class Integrate(BaseTaskBase):
         and if step is omitted, integration is over all samples.
     phase : callable
         Should return full pulse phase (i.e., including cycle count) for given
-        input times (passed in as '~astropy.time.Time').  The output should be
+        input times (passed in as `~astropy.time.Time`).  The output should be
         compatible with ``step``, i.e., generally an `~astropy.units.Quantity`
         with angular units.
     start : `~astropy.time.Time` or int, optional
@@ -314,7 +314,7 @@ class Fold(Integrate):
         Number of bins per pulse period.
     phase : callable
         Should return pulse phases (with or without cycle count) for given
-        input time(s), passed in as an '~astropy.time.Time' object.  The output
+        input time(s), passed in as an `~astropy.time.Time` object.  The output
         can be an `~astropy.units.Quantity` with angular units or a regular
         array of float (in which case units of cycles are assumed).
     step : int or `~astropy.units.Quantity`, optional
@@ -339,7 +339,7 @@ class Fold(Integrate):
 
     See Also
     --------
-    Stack : to integrate over pulse phase and create pulse stacks
+    PulseStack : to integrate over pulse phase and create pulse stacks
 
     Notes
     -----
@@ -395,7 +395,7 @@ class Fold(Integrate):
         np.add.at(self._frame['count'], (sample_index, phase_index), 1)
 
 
-class Stack(BaseTaskBase):
+class PulseStack(BaseTaskBase):
     """Create a stream of pulse profiles.
 
     Parameters
@@ -406,7 +406,7 @@ class Stack(BaseTaskBase):
         Number of bins per pulse period.
     phase : callable
         Should return pulse phases for given input time(s), passed in as an
-        '~astropy.time.Time' object.  The output should be an array of float,
+        `~astropy.time.Time` object.  The output should be an array of float,
         and has to include the cycle count.
     start : `~astropy.time.Time` or int, optional
         Time or offset at which to start the integration. If an offset or if
@@ -475,3 +475,8 @@ class Stack(BaseTaskBase):
 
     def _tell_time(self, offset):
         return self.ih._tell_time(offset * self.n_phase)
+
+
+@deprecated("0.4", alternative="integration.PulseStack")
+class Stack(PulseStack):
+    pass

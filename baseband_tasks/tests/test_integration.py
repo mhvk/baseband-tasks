@@ -9,7 +9,7 @@ from astropy.time import Time
 
 from baseband_tasks.base import Task
 from baseband_tasks.generators import EmptyStreamGenerator
-from baseband_tasks.integration import Integrate, Fold, Stack
+from baseband_tasks.integration import Integrate, Fold, PulseStack
 from baseband_tasks.functions import Square
 from baseband_tasks.phases import Phase
 
@@ -405,7 +405,7 @@ class TestFoldwithPhase(TestFold, UsePhaseClass):
 
 
 class TestIntegratePhase(FakePulsarBase):
-    # More detailed tests done in TestStack.
+    # More detailed tests done in TestPulseStack.
     @pytest.mark.parametrize('samples_per_frame', (1, 160))
     def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 5, 2).mean(1)
@@ -431,13 +431,13 @@ class TestIntegratePhasewithPhase(TestIntegratePhase, UsePhaseClass):
     pass
 
 
-class TestStack(FakePulsarBase):
+class TestPulseStack(FakePulsarBase):
     @pytest.mark.parametrize('samples_per_frame', (1, 16))
     def test_basics(self, samples_per_frame):
         ref_data = self.raw_data.reshape(-1, 25, 5, 2).mean(2)
 
-        fh = Stack(self.sh, 25, self.phase,
-                   samples_per_frame=samples_per_frame)
+        fh = PulseStack(self.sh, 25, self.phase,
+                        samples_per_frame=samples_per_frame)
         assert fh.start_time == self.sh.start_time
         assert fh.stop_time == self.sh.stop_time
         assert fh.sample_rate == 1. / u.cycle
@@ -457,8 +457,8 @@ class TestStack(FakePulsarBase):
     def test_sliced_input(self, samples_per_frame):
         ref_data = self.raw_data[-360:-110].reshape(-1, 25, 5, 2).mean(2)
 
-        fh = Stack(self.sh[-360:-10], 25, self.phase,
-                   samples_per_frame=samples_per_frame)
+        fh = PulseStack(self.sh[-360:-10], 25, self.phase,
+                        samples_per_frame=samples_per_frame)
         assert fh.shape == ref_data.shape
         data = fh.read()
         assert np.all(data == ref_data)
@@ -466,7 +466,7 @@ class TestStack(FakePulsarBase):
     def test_offset(self):
         ref_data = self.raw_data[124:-1].reshape(-1, 25, 5, 2).mean(2)
 
-        fh = Stack(self.sh, 25, self.phase, start=124)
+        fh = PulseStack(self.sh, 25, self.phase, start=124)
         assert abs(fh.start_time
                    - self.start_time - 124 / self.sample_rate) < 1. * u.ns
         assert abs(fh.stop_time
@@ -485,7 +485,7 @@ class TestStack(FakePulsarBase):
         slice(10, 100), slice(-10, None), slice(None, 10), slice(None),
         (slice(10, 100), 0)])
     def test_slice(self, item):
-        fh = Stack(self.sh, 25, self.phase, start=124)
+        fh = PulseStack(self.sh, 25, self.phase, start=124)
         sliced = fh[item]
         if not isinstance(item, tuple):
             item = (item,)
@@ -505,7 +505,7 @@ class TestStack(FakePulsarBase):
         assert_array_equal(data, ref_data)
 
     def test_integrate_stack(self):
-        fh = Stack(self.sh, 25, self.phase)
+        fh = PulseStack(self.sh, 25, self.phase)
         data = fh.read(3)
         ih = Integrate(fh, 3)
         data2 = ih.read(1)

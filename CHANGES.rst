@@ -10,6 +10,10 @@ New Features
 API Changes
 -----------
 
+- The ``integration.Stack`` class is deprecated, because of the name conflict with
+  ``combining.Stack``.  It has been renamed to ``integration.PulseStack``.  Only
+  the latter will be available under ``baseband.tasks``.
+
 Bug Fixes
 ---------
 
