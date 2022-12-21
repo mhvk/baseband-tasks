@@ -7,12 +7,12 @@ import warnings
 import numpy as np
 from astropy import units as u
 from astropy.time import Time
-from astropy.utils import ShapedLikeNDArray
+from astropy.utils import ShapedLikeNDArray, deprecated
 
 from .base import BaseTaskBase
 
 
-__all__ = ['Integrate', 'Fold', 'Stack']
+__all__ = ['Integrate', 'Fold', 'PulseStack']
 
 
 class _FakeOutput(ShapedLikeNDArray):
@@ -339,7 +339,7 @@ class Fold(Integrate):
 
     See Also
     --------
-    Stack : to integrate over pulse phase and create pulse stacks
+    PulseStack : to integrate over pulse phase and create pulse stacks
 
     Notes
     -----
@@ -395,7 +395,7 @@ class Fold(Integrate):
         np.add.at(self._frame['count'], (sample_index, phase_index), 1)
 
 
-class Stack(BaseTaskBase):
+class PulseStack(BaseTaskBase):
     """Create a stream of pulse profiles.
 
     Parameters
@@ -475,3 +475,8 @@ class Stack(BaseTaskBase):
 
     def _tell_time(self, offset):
         return self.ih._tell_time(offset * self.n_phase)
+
+
+@deprecated("0.4", alternative="integration.PulseStack")
+class Stack(PulseStack):
+    pass
