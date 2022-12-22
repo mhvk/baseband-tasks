@@ -10,7 +10,28 @@ from .fourier import fft_maker
 __all__ = ['ConvolveSamples', 'Convolve']
 
 
-class ConvolveSamples(PaddedTaskBase):
+class ConvolveBase(PaddedTaskBase):
+    """Base class for convolutions.
+
+    Parameters as for `~baseband_tasks.convolution.ConvolveSamples` and
+    `~baseband_tasks.convolution.Convolve` except allowing to pass through
+    arguments to `~baseband_tasks.base.PaddedTaskBase`.
+    """
+    def __init__(self, ih, response, *, offset=0, samples_per_frame=None,
+                 **kwargs):
+        if response.ndim == 1 and ih.ndim > 1:
+            response = response.reshape(response.shape[:1]
+                                        + (1,) * (ih.ndim - 1))
+        else:
+            check_broadcast_to(response, response.shape[:1] + ih.sample_shape)
+
+        pad = response.shape[0] - 1
+        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
+                         samples_per_frame=samples_per_frame, **kwargs)
+        self._response = response
+
+
+class ConvolveSamples(ConvolveBase):
     """Convolve a time stream with a response, in the time domain.
 
     Parameters
@@ -28,25 +49,16 @@ class ConvolveSamples(PaddedTaskBase):
         Number of convolved samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
         If not given, as produced by the larger of the input samples per frame
-        minus padding or the minimum power of 2 of input samples that yields at
-        least 75% efficiency.
+        or four times the padding (i.e., ensuring at least 75% efficiency).
 
     See Also
     --------
     Convolve : convolution in the Fourier domain (usually faster)
     """
-
     def __init__(self, ih, response, *, offset=0, samples_per_frame=None):
-        if response.ndim == 1 and ih.ndim > 1:
-            response = response.reshape(response.shape[:1]
-                                        + (1,) * (ih.ndim - 1))
-        else:
-            check_broadcast_to(response, response.shape[:1] + ih.sample_shape)
-
-        pad = response.shape[0] - 1
-        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
+        # Just get rid of **kwargs in ConvolveBase.
+        super().__init__(ih, response, offset=offset,
                          samples_per_frame=samples_per_frame)
-        self._response = response
 
     def task(self, data):
         result = np.empty((self.samples_per_frame,) + self.sample_shape,
@@ -60,7 +72,7 @@ class ConvolveSamples(PaddedTaskBase):
         return result
 
 
-class Convolve(ConvolveSamples):
+class Convolve(ConvolveBase):
     """Convolve a time stream with a response, in the Fourier domain.
 
     The convolution is done via multiplication in the Fourier domain, which
@@ -78,11 +90,10 @@ class Convolve(ConvolveSamples):
         of 0, a given sample has the same time as the convolution of the filter
         with all preceding samples.
     samples_per_frame : int, optional
-        Number of convolved samples which should be produced in one go.
-        The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the larger of the input samples per frame
-        minus padding or the minimum power of 2 of input samples that yields at
-        least 75% efficiency.
+        Number of output samples which should be produced in each frame.
+        The number of input samples will be larger by the padding.
+        If not given, the minimum length that gives at least 75% efficiency
+        and ensures efficient fast fourier transforms.
 
     See Also
     --------
@@ -91,10 +102,12 @@ class Convolve(ConvolveSamples):
     """
 
     def __init__(self, ih, response, *, offset=0, samples_per_frame=None):
+        FFT = fft_maker.get()
         super().__init__(ih, response=response, offset=offset,
-                         samples_per_frame=samples_per_frame)
+                         samples_per_frame=samples_per_frame,
+                         next_fast_len=FFT.next_fast_len)
         # Initialize FFTs for fine channelization and the inverse.
-        self._FFT = fft_maker.get()
+        self._FFT = FFT
         self._fft = self._FFT(shape=(self._ih_samples_per_frame,)
                               + self.ih.sample_shape, dtype=self.ih.dtype,
                               sample_rate=self.ih.sample_rate)
