@@ -29,8 +29,8 @@ class Disperse(PaddedTaskBase):
     samples_per_frame : int, optional
         Number of dispersed samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the minimum power of 2 of input
-        samples that yields at least 75% efficiency.
+        If not given, the minimum length that gives at least 75% efficiency
+        and ensures efficient fast fourier transforms.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih`` (channelized frequencies will
         be calculated).  Default: taken from ``ih`` (if available).
@@ -92,17 +92,19 @@ class Disperse(PaddedTaskBase):
             # Default case: passing on both sides; not useful to offset.
             sample_offset = 0
 
+        FFT = fft_maker.get()
         start_time = ih.start_time + sample_offset / ih.sample_rate
         super().__init__(ih, pad_start=pad_start, pad_end=pad_end,
                          samples_per_frame=samples_per_frame,
+                         next_fast_len=FFT.next_fast_len,
                          frequency=frequency, sideband=sideband,
                          start_time=start_time)
 
         # Initialize FFTs for fine channelization and the inverse.
         # TODO: remove duplication with Convolve.
-        self._fft = fft_maker(shape=(self._ih_samples_per_frame,)
-                              + self.ih.sample_shape, dtype=self.ih.dtype,
-                              sample_rate=self.ih.sample_rate)
+        self._fft = FFT(shape=(self._ih_samples_per_frame,)
+                        + self.ih.sample_shape, dtype=self.ih.dtype,
+                        sample_rate=self.ih.sample_rate)
         self._ifft = self._fft.inverse()
         self._dm = dm
         self.reference_frequency = reference_frequency
@@ -161,8 +163,8 @@ class Dedisperse(Disperse):
     samples_per_frame : int, optional
         Number of dedispersed samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the minimum power of 2 of input
-        samples that yields at least 75% efficiency.
+        If not given, the minimum length that gives at least 75% efficiency
+        and ensures efficient fast fourier transforms.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih`` (channelized frequencies will
         be calculated).  Default: taken from ``ih`` (if available).
@@ -207,8 +209,8 @@ class DisperseSamples(ShiftSamples):
     samples_per_frame : int, optional
         Number of dispersed samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the minimum power of 2 of input
-        samples that yields at least 75% efficiency.
+        If not given, the minimum length that gives at least 75% efficiency
+        and ensures efficient fast fourier transforms.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih``.
         Default: taken from ``ih`` (if available).
@@ -267,8 +269,8 @@ class DedisperseSamples(DisperseSamples):
     samples_per_frame : int, optional
         Number of dedispersed samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the minimum power of 2 of input
-        samples that yields at least 75% efficiency.
+        If not given, the minimum length that gives at least 75% efficiency
+        and ensures efficient fast fourier transforms.
     frequency : `~astropy.units.Quantity`, optional
         Frequencies for each channel in ``ih``.
         Default: taken from ``ih`` (if available).
