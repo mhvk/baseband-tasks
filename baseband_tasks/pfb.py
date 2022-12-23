@@ -216,6 +216,7 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
         self.dechannelized = Dechannelize(
             ih, n=n, samples_per_frame=None, frequency=frequency,
             sideband=sideband, dtype=dtype)
+        self._response = response
         self._FFT = self.dechannelized._FFT
         pad_minimum = (n_tap - 1) * n
         assert pad_minimum % 2 == 0
@@ -223,14 +224,21 @@ class InversePolyphaseFilterBank(PaddedTaskBase):
         pad_end = pad_end * n + pad_minimum // 2
         super().__init__(self.dechannelized,
                          pad_start=pad_start, pad_end=pad_end,
-                         samples_per_frame=samples_per_frame)
-        self._response = response
+                         samples_per_frame=samples_per_frame,
+                         next_fast_len=self.next_fast_len)
         self._reshape = ((self._ih_samples_per_frame // n, n)
                          + self.ih.sample_shape)
         self._ppf_fft = self._FFT(
             shape=self._reshape, dtype=self.dtype)
         self._ppf_ifft = self._ppf_fft.inverse()
         self._inv_sn2 = 1. / (sn * sn)
+
+    def next_fast_len(self, n):
+        """Ensure a fast length that is a multiple of response.shape[1]."""
+        nchan = self._response.shape[1]
+        n = self._FFT.next_fast_len(n)
+        res = n % nchan
+        return n - res + nchan if res else n
 
     @lazyproperty
     def _ft_inverse_response(self):
