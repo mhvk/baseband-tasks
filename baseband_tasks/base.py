@@ -722,15 +722,22 @@ class PaddedTaskBase(TaskBase):
     samples_per_frame : int, optional
         Number of output samples which should be produced in each frame.
         The number of input samples will be larger by the padding.
-        If not given, the minimum power of 2 needed to get at least 75%
-        efficiency.
+        If not given, the minimum length that gives at least 75% efficiency.
+    next_fast_len : callable, optional
+        Routine that helps ensure efficient calculation.  It should take
+        a possible input number of samples and return a number that is
+        larger or equal and allows for efficient calculation.  If larger,
+        ``samples_per_frame`` is adjusted accordingly.  Typically, tasks
+        pass in ``fft_maker.get().next_fast_len``.
+        Default: `None`, i.e., do not adjust the number of samples.
+
     **kwargs
         Possible further arguments; see `~baseband_tasks.base.BaseTaskBase`.
 
     """
 
     def __init__(self, ih, pad_start=0, pad_end=0, *,
-                 samples_per_frame=None, **kwargs):
+                 samples_per_frame=None, next_fast_len=None, **kwargs):
         self._pad_start = operator.index(pad_start)
         self._pad_end = operator.index(pad_end)
         if self._pad_start < 0 or self._pad_end < 0:
@@ -738,15 +745,15 @@ class PaddedTaskBase(TaskBase):
 
         pad = self._pad_start + self._pad_end
         if samples_per_frame is None:
-            # Calculate the number of samples that ensures >75% efficiency:
-            # use 4 times power of two just above pad.
-            ih_samples_per_frame = ih.samples_per_frame
-            if pad > 0:
-                ih_samples_per_frame = max(ih_samples_per_frame, 2 ** (
-                    int((np.ceil(np.log2(pad)))) + 2))
-            samples_per_frame = ih_samples_per_frame - pad
+            # Calculate the number of samples that ensures >75% efficiency.
+            ih_samples_per_frame = max(ih.samples_per_frame, pad * 4)
         else:
             ih_samples_per_frame = samples_per_frame + pad
+
+        if next_fast_len:
+            ih_samples_per_frame = next_fast_len(ih_samples_per_frame)
+
+        samples_per_frame = ih_samples_per_frame - pad
 
         if pad > samples_per_frame:
             warnings.warn("task will be inefficient; for {} samples "

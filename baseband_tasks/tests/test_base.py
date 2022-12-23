@@ -9,6 +9,7 @@ import pytest
 
 from baseband_tasks.base import (
     BaseTaskBase, SetAttribute, TaskBase, PaddedTaskBase, Task)
+from baseband_tasks.fourier import NumpyFFTMaker
 from .common import UseVDIFSample
 
 
@@ -517,6 +518,23 @@ class TestPaddedTaskBase(UseVDIFSample):
         assert np.all(data == expected)
         sh.close()
         assert sh.closed
+
+    @pytest.mark.parametrize(
+        'n, samples_per_frame, next_fast_len, ih_spf, spf',
+        [(3, None, None, 20000, 19998),
+         (3, None, True, 20000, 19998),
+         (3, 128, None, 130, 128),
+         (3, 128, True, 135, 133),
+         (5, 128, True, 135, 131),
+         ])
+    def test_next_fast_len(self, n, samples_per_frame, next_fast_len,
+                           ih_spf, spf):
+        if next_fast_len:
+            next_fast_len = NumpyFFTMaker.next_fast_len
+        sh = SquareHat(self.fh, n, samples_per_frame=samples_per_frame,
+                       next_fast_len=next_fast_len)
+        assert sh._ih_samples_per_frame == ih_spf
+        assert sh.samples_per_frame == spf
 
     def test_invalid(self):
         with pytest.raises(ValueError):

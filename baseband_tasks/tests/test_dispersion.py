@@ -62,10 +62,11 @@ class TestDispersion(GiantPulseSetup):
 
     @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
     def test_disperse_samples_per_frame(self, reference_frequency):
+        # Not obvious that this is a very useful test!
         disperse = Disperse(self.gp, self.dm,
                             reference_frequency=reference_frequency)
-        assert (disperse.samples_per_frame == 32768 - 6400
-                or disperse.samples_per_frame == 32768 - 6401)
+        assert (disperse.samples_per_frame == 19324
+                or disperse.samples_per_frame == 19200)
 
     @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
     def test_disperse_time_offset(self, reference_frequency):
@@ -100,20 +101,27 @@ class TestDispersion(GiantPulseSetup):
         assert np.all(p[9:11] > 0.047)
 
     @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
-    def test_disperse_roundtrip1(self, reference_frequency):
+    @pytest.mark.parametrize('samples_per_frame, atol', [
+        (None, 1e-2),
+        (50000, 1e-4),
+    ])
+    def test_disperse_roundtrip1(self, reference_frequency,
+                                 samples_per_frame, atol):
         self.gp.seek(self.start_time + 0.5 * u.s)
         self.gp.seek(-1024, 1)
         gp = self.gp.read(2048)
         # Set up dispersion as above, and check that one can invert
         disperse = Disperse(self.gp, self.dm,
-                            reference_frequency=reference_frequency)
+                            reference_frequency=reference_frequency,
+                            samples_per_frame=samples_per_frame)
         dedisperse = Dedisperse(disperse, self.dm,
-                                reference_frequency=reference_frequency)
+                                reference_frequency=reference_frequency,
+                                samples_per_frame=samples_per_frame)
         dedisperse.seek(self.start_time + self.gp_sample / self.sample_rate)
         dedisperse.seek(-1024, 1)
         gp_dd = dedisperse.read(2048)
         # Note: rounding errors mean this doesn't work perfectly.
-        assert np.all(np.abs(gp_dd - gp) < 1.e-4)
+        assert np.all(np.abs(gp_dd - gp) < atol)
 
     @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
     def test_disperse_roundtrip2(self, reference_frequency):
@@ -121,7 +129,8 @@ class TestDispersion(GiantPulseSetup):
         # the giant pulse should still be at the dispersed t_gp, i.e., there
         # should be a net time shift as well as a phase shift.
         disperse = Disperse(self.gp, self.dm,
-                            reference_frequency=reference_frequency)
+                            reference_frequency=reference_frequency,
+                            samples_per_frame=50000)
         time_delay = self.dm.time_delay(300. * u.MHz,
                                         disperse.reference_frequency)
         # The difference in phase delay between dispersion and dedispersion is:
@@ -141,7 +150,7 @@ class TestDispersion(GiantPulseSetup):
         t_gp = (self.start_time + self.gp_sample / self.sample_rate
                 + time_delay)
         # Dedisperse to mean frequency = 300 MHz, and read dedispersed pulse.
-        dedisperse = Dedisperse(disperse, self.dm)
+        dedisperse = Dedisperse(disperse, self.dm, samples_per_frame=50000)
         dedisperse.seek(t_gp)
         dedisperse.seek(-1024, 1)
         dd_gp = dedisperse.read(2048)
@@ -224,10 +233,11 @@ class TestDispersionReal(TestDispersion, GiantPulseSetupReal):
 
     @pytest.mark.parametrize('reference_frequency', REFERENCE_FREQUENCIES)
     def test_disperse_samples_per_frame(self, reference_frequency):
+        # Not obvious that this is a very useful test!
         disperse = Disperse(self.gp, self.dm,
                             reference_frequency=reference_frequency)
-        assert (disperse.samples_per_frame == 65536 - 12800
-                or disperse.samples_per_frame == 65536 - 12801)
+        assert (disperse.samples_per_frame == 38649
+                or disperse.samples_per_frame == 38400)
 
 
 class TestDispersionRealDisjoint(TestDispersion):

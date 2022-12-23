@@ -1,5 +1,6 @@
 # Licensed under the GPLv3 - see LICENSE
 """FFT maker and class using the `numpy.fft` routines."""
+import operator
 
 import numpy as np
 
@@ -94,3 +95,32 @@ class NumpyFFTMaker(FFTMakerBase):
             shape=shape, dtype=dtype, direction=direction,
             axis=axis, ortho=ortho, sample_rate=sample_rate,
             norm=('ortho' if ortho else None))
+
+    @staticmethod
+    def next_fast_len(n):
+        """Returns the smallest composite of 2, 3, 5, and 7 which is >= n.
+
+        Algorithm from numpy/fft/_pocketfft.c.
+        """
+        n = operator.index(n)
+
+        if n <= 7:
+            return n
+
+        bestfac = 2 * n
+        f2 = 1
+        while f2 < bestfac:
+            f23 = f2
+            f2 *= 2
+            while f23 < bestfac:
+                f235 = f23
+                f23 *= 3
+                while f235 < bestfac:
+                    f2357 = f235
+                    f235 *= 5
+                    while f2357 < bestfac:
+                        if f2357 >= n:
+                            bestfac = f2357
+                        else:
+                            f2357 *= 7
+        return bestfac

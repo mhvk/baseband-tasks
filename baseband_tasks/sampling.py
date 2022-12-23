@@ -398,8 +398,8 @@ class ShiftSamples(PaddedTaskBase):
     samples_per_frame : int
         Number of shifted samples which should be produced in one go.
         The number of input samples used will be larger to avoid wrapping.
-        If not given, as produced by the minimum power of 2 of input
-        samples that yields at least 75% efficiency.
+        If not given, the minimum length that gives at least 75% efficiency
+        and ensures efficient fast fourier transforms.
 
     See Also
     --------

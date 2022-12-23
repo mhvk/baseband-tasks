@@ -7,6 +7,10 @@
 New Features
 ------------
 
+- All tasks involving FFTs and padding now automatically ensure efficient
+  lengths of the transforms. [#249]
+
+
 API Changes
 -----------
 
