@@ -11,7 +11,3 @@ from ._astropy_init import *   # noqa
 __minimum_python_version__ = '3.7'
 __minimum_baseband_version__ = '4.1'
 __minimum_astropy_version__ = '4.0'
-
-if not _ASTROPY_SETUP_:   # noqa
-    # For egg_info test builds to pass, put package imports here.
-    pass
