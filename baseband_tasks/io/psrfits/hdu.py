@@ -549,9 +549,9 @@ class PSRSubintHDU(SubintHDU):
             self.primary_hdu.start_time = time
             dt = 0
         else:
-            dt = (time - self.primary_hdu.start_time).to(u.s).value
+            dt = (time - self.primary_hdu.start_time).to_value(u.s)
 
-        self.data['OFFS_SUB'][0] = dt + self.data['TSUBINT'] / 2
+        self.data['OFFS_SUB'][0] = dt + self.data['TSUBINT'].squeeze() / 2
 
     @property
     def samples_per_frame(self):
