@@ -383,6 +383,8 @@ class TestPhase(PhaseSetup):
         with pytest.raises(u.UnitsError):
             out *= 2 * u.m
         with pytest.raises(u.UnitsError):
+            out *= u.m
+        with pytest.raises(u.UnitsError):
             np.multiply(self.phase.cycle, 2 * u.m, out=out)
 
     def test_unitfull_multiplication(self):

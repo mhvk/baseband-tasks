@@ -554,6 +554,34 @@ class Phase(Angle):
         """
         return self._take_along_axis(self.argsort(axis), axis, keepdims=True)
 
+    # Avoid .value in Quantity multiplication/division by a unit.
+    def __mul__(self, other):
+        """Multiplication between `Quantity` objects and other objects."""
+        if (isinstance(other, (u.UnitBase, str))
+                and u.Unit(other) == u.dimensionless_unscaled):
+            return self.copy()
+
+        return super().__mul__(other)
+
+    def __imul__(self, other):
+        """In-place multiplication between `Quantity` objects and others."""
+        if isinstance(other, (u.UnitBase, str)):
+            if u.Unit(other) == u.dimensionless_unscaled:
+                return self
+            else:
+                # Turn into Quantity so we can give useful error message below.
+                other = 1 * other
+
+        return super().__imul__(other)
+
+    def __truediv__(self, other):
+        """Division between `Quantity` objects and other objects."""
+        if (isinstance(other, (u.UnitBase, str))
+                and u.Unit(other) == u.dimensionless_unscaled):
+            return self.copy()
+
+        return super().__truediv__(other)
+
     # Quantity lets ndarray.__eq__, __ne__ deal with structured arrays like us.
     # Override this so we can deal with it in __array_ufunc__.
     def __eq__(self, other):
@@ -740,7 +768,7 @@ class Phase(Angle):
                                               **kwargs)
             return phase_out.from_angles(result, out=phase_out)
 
-    def _new_view(self, obj=None, unit=None):
+    def _new_view(self, obj=None, unit=None, **kwargs):
         # If the unit is not right, we should ensure we change our two-float
         # dtype to a single float.
         if unit is not None and unit != self._unit:
@@ -749,7 +777,7 @@ class Phase(Angle):
             elif isinstance(obj, Phase):
                 obj = obj.cycle
 
-        return super()._new_view(obj, unit)
+        return super()._new_view(obj, unit, **kwargs)
 
     def astype(self, dtype, order='K', casting='unsafe', subok=True,
                copy=True):
