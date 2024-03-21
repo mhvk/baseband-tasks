@@ -225,6 +225,7 @@ class Integrate(BaseTaskBase):
                           'This should not happen!')
 
         shape = getattr(samples, 'shape', ())
+        raise ValueError
         return offsets.round().astype(int).reshape(shape)
 
     def _read_frame(self, frame_index):
