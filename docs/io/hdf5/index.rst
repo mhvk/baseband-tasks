@@ -10,7 +10,7 @@ steps of pipelines.  A writer can conveniently be used as the output
 argument for any reader, automatically writing in the relevant block size.
 For instance::
 
-.. doctest-requires:: h5py, pyyaml
+.. doctest-requires:: h5py
 
   >>> from baseband import data, vdif
   >>> from baseband_tasks.functions import Square
