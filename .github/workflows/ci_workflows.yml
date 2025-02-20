@@ -53,13 +53,13 @@ jobs:
           #   apt_packages: graphviz
 
           - name: Test oldest supported versions and coverage
-            python: "3.7"
-            toxenv: py37-test-oldestdeps-alldeps-cov
+            python: "3.10"
+            toxenv: py310-test-oldestdeps-alldeps-cov
             pip_packages: codecov
 
           - name: Developer version of baseband
-            python: "3.10"
-            toxenv: py310-test-basebanddev
+            python: "3.12"
+            toxenv: py312-test-basebanddev
 
     steps:
     - uses: actions/checkout@v2

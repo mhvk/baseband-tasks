@@ -2,8 +2,8 @@
 ================
 
 - Numpy >= 2.0 is now supported.
-- The minimum versions required by baseband-tasks are now python 3.7,
-  baseband 4.1, and its minimum dependencies (astropy 4.0 and numpy 1.17).
+- The minimum versions required by baseband-tasks are now python 3.10 and
+  baseband 4.2.
 - Remove support for the deprecated ``astropy`` test runner. This means it is
   no longer possible to test the installed baseband package with
   ``baseband_tasks.test()`` inside python; instead, one should use
