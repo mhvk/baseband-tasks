@@ -532,8 +532,11 @@ class Phase(Angle):
     def ptp(self, axis=None, out=None, keepdims=False):
         """Peak to peak (maximum - minimum) along a given axis.
 
-        This is similar to :meth:`~numpy.ndarray.ptp`, but adapted to ensure
+        This is similar to :func:`~numpy.ptp`, but adapted to ensure
         that the full precision is used.
+
+        .. note:: for numpy >= 2.0, ``np.ptp(phase)`` no longer defers
+                  to this method.
         """
         if out is not None:
             raise ValueError("An `out` argument is not yet supported.")
