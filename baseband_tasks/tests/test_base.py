@@ -467,7 +467,7 @@ class TestTasks(UseVDIFSample):
 
     def test_invalid(self):
         with pytest.raises(Exception):  # Cannot determine function/method.
-            Task(self.fh, np.add)
+            Task(self.fh, object())
 
         def trial(data, bla=1):
             return data

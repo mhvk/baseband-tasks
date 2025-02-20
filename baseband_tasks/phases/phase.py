@@ -7,6 +7,7 @@ from astropy import units as u
 from astropy.coordinates import Angle, Longitude
 from astropy.time.utils import day_frac
 
+from baseband_tasks.base import COPY_IF_NEEDED
 
 __all__ = ['Phase', 'FractionalPhase']
 
@@ -190,7 +191,7 @@ class Phase(Angle):
                 phase1 = phase1.view(cls)
             return phase1.copy() if copy else phase1
 
-        phase1 = Angle(phase1, cls._unit, copy=False)
+        phase1 = Angle(phase1, cls._unit, copy=COPY_IF_NEEDED)
 
         if phase2 is not None:
             if isinstance(phase2, Phase):
@@ -199,7 +200,7 @@ class Phase(Angle):
                     phase2 = phase2.view(cls)
                 return phase2
 
-            phase2 = Angle(phase2, cls._unit, copy=False)
+            phase2 = Angle(phase2, cls._unit, copy=COPY_IF_NEEDED)
 
         return cls.from_angles(phase1, phase2)
 
@@ -531,8 +532,11 @@ class Phase(Angle):
     def ptp(self, axis=None, out=None, keepdims=False):
         """Peak to peak (maximum - minimum) along a given axis.
 
-        This is similar to :meth:`~numpy.ndarray.ptp`, but adapted to ensure
+        This is similar to :func:`~numpy.ptp`, but adapted to ensure
         that the full precision is used.
+
+        .. note:: for numpy >= 2.0, ``np.ptp(phase)`` no longer defers
+                  to this method.
         """
         if out is not None:
             raise ValueError("An `out` argument is not yet supported.")
@@ -676,8 +680,7 @@ class Phase(Angle):
                or function is np.divide and i_self == 0)
               and basic_phase_out):
             try:
-                other = u.Quantity(inputs[1-i_self], u.dimensionless_unscaled,
-                                   copy=False).value
+                other = (inputs[1-i_self] << u.dimensionless_unscaled).value
                 if function is np.multiply:
                     return self.from_angles(self['int'], self['frac'],
                                             factor=other, out=phase_out)
@@ -732,8 +735,8 @@ class Phase(Angle):
         elif function in {np.absolute, np.fabs} and basic_phase_out:
             # Go via view to avoid having to deal with imaginary.
             v = self.view(np.ndarray)
-            return self.from_angles(u.Quantity(v['int'], u.cycle, copy=False),
-                                    u.Quantity(v['frac'], u.cycle, copy=False),
+            return self.from_angles(v['int'] << u.cycle,
+                                    v['frac'] << u.cycle,
                                     factor=np.sign(v['int'] + v['frac']),
                                     out=phase_out)
 

@@ -34,8 +34,6 @@ class PintToas:
         Flag to include the TT BIPM correction. Default is True.
     bipm_version : str, optional
         TT BIPM version. Default is 'BIPM2015'
-    include_gps : bool, optional
-        Flag to include the gps clock correction. Default is True.
     planets : bool, optional
         Flag to compute the planets' positions and velocities. Default is
         False.
@@ -54,15 +52,13 @@ class PintToas:
 
     def __init__(self, observatory, frequency, *,
                  ephemeris='jpl', include_bipm=True, bipm_version='BIPM2015',
-                 include_gps=True, planets=False, tdb_method="default",
-                 **kwargs):
+                 planets=False, tdb_method="default", **kwargs):
         self.observatory = observatory
         self.frequency = frequency
         self.control_params = {'ephem': ephemeris,
                                'bipm_version': bipm_version,
                                'include_bipm': include_bipm,
                                'bipm_version': bipm_version,
-                               'include_gps': include_gps,
                                'planets': planets,
                                'tdb_method': tdb_method}
         self.control_params.update(kwargs)

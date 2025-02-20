@@ -100,11 +100,6 @@ Then, inside the root directory, simply run
 
     pytest
 
-or, inside of Python::
-
-    import baseband_tasks
-    baseband_tasks.test()
-
 For further details, see the `Astropy Running Tests pages
 <https://astropy.readthedocs.io/en/latest/development/testguide.html#running-tests>`_.
 

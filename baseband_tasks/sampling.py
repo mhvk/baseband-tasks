@@ -6,7 +6,8 @@ from astropy import units as u
 from astropy.utils import lazyproperty
 from astropy.time import Time
 
-from baseband_tasks.base import TaskBase, check_broadcast_to, PaddedTaskBase
+from baseband_tasks.base import (TaskBase, check_broadcast_to, PaddedTaskBase,
+                                 COPY_IF_NEEDED)
 from baseband_tasks.convolution import Convolve
 
 __all__ = ['seek_float', 'ShiftAndResample', 'Resample', 'TimeDelay',
@@ -15,8 +16,8 @@ __all__ = ['seek_float', 'ShiftAndResample', 'Resample', 'TimeDelay',
 
 def to_sample(ih, offset):
     """The offset in units of samples."""
-    return u.Quantity(offset, copy=False).to_value(u.one, equivalencies=[
-        (u.one, u.Unit(1/ih.sample_rate))])
+    return u.Quantity(offset, copy=COPY_IF_NEEDED).to_value(
+        u.one, equivalencies=[(u.one, u.Unit(1/ih.sample_rate))])
 
 
 def seek_float(ih, offset, whence=0):
@@ -161,7 +162,7 @@ class ShiftAndResample(Convolve):
 
         # The remainder we actually need to shift.
         sample_shift = np.array(self._shift - d_time, ndmin=ih.ndim-1,
-                                copy=False, subok=True)
+                                copy=COPY_IF_NEEDED, subok=True)
         response = self._windowed_sinc(pad, sample_shift)
 
         if samples_per_frame is None:
@@ -410,7 +411,7 @@ class ShiftSamples(PaddedTaskBase):
         shift = self._shift = np.round(to_sample(ih, shift)).astype(int)
         check_broadcast_to(shift, ih.sample_shape)
         start_time = ih.start_time + shift.max() / ih.sample_rate
-        super().__init__(ih, pad_start=0, pad_end=shift.ptp(),
+        super().__init__(ih, pad_start=0, pad_end=np.ptp(shift),
                          samples_per_frame=samples_per_frame,
                          start_time=start_time)
         # Form the advanced index used to select the shifted samples.

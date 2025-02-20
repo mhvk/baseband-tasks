@@ -10,6 +10,7 @@ from astropy.io import fits
 from astropy.utils import lazyproperty
 import numpy as np
 import operator
+
 from .psrfits_htm_parser import HDU_TEMPLATES
 
 
@@ -148,7 +149,7 @@ class PSRFITSPrimaryHDU(HDUWrapper):
 
         freq = c_freq + (np.arange(1, n_chan + 1)
                          - ((n_chan + 1) // 2)) * chan_bw
-        return u.Quantity(freq, u.MHz, copy=False)
+        return freq << u.MHz
 
     @frequency.setter
     def frequency(self, freq):
@@ -159,7 +160,7 @@ class PSRFITSPrimaryHDU(HDUWrapper):
         # we assume the frequency resolution is the same across the band.
         freq_pad = np.insert(freq, 0, 2 * freq[0] - freq[1])
         c_chan = freq_pad[((n_chan + 1) // 2)]
-        bw = freq_pad.ptp()
+        bw = np.ptp(freq_pad)
         self.hdu.header['OBSNCHAN'] = n_chan
         self.hdu.header['OBSFREQ'] = c_chan
         self.hdu.header['OBSBW'] = bw
@@ -394,7 +395,7 @@ class SubintHDU(HDUWrapper):
     @property
     def frequency(self):
         if 'DAT_FREQ' in self.data.names:
-            freqs = u.Quantity(self.data['DAT_FREQ'][0], u.MHz, copy=False)
+            freqs = self.data['DAT_FREQ'][0] << u.MHz
         else:
             freqs = super().frequency
 
@@ -501,8 +502,7 @@ class PSRSubintHDU(SubintHDU):
 
         # Check frequency
         if 'DAT_FREQ' in self.data.names:
-            freqs = u.Quantity(self.data['DAT_FREQ'],
-                               u.MHz, copy=False)
+            freqs = self.data['DAT_FREQ'] << u.MHz
             assert np.array_equiv(freqs[0], freqs), \
                 "Frequencies are not all the same for different rows."
 
@@ -532,7 +532,7 @@ class PSRSubintHDU(SubintHDU):
         if "OFFS_SUB" in self.data.names:
             offset0 = (self.data['OFFS_SUB'][0]
                        - self.data['TSUBINT'][0] * self.samples_per_frame / 2)
-            start_time += u.Quantity(offset0, u.s, copy=False)
+            start_time += offset0 << u.s
 
         return start_time
 
@@ -562,7 +562,7 @@ class PSRSubintHDU(SubintHDU):
         # NOTE we are assuming TSUBINT is uniform; tested in verify,
         # but as individual numbers seem to vary, take the mean.
         # TODO: check whether there really isn't a better way!.
-        sample_time = u.Quantity(self.data['TSUBINT'], u.s).mean()
+        sample_time = (self.data['TSUBINT'] << u.s).mean()
         return 1.0 / sample_time
 
     @sample_rate.setter

@@ -159,4 +159,11 @@ class PyfftwFFTMaker(FFTMakerBase):
         self._repr_kwargs.update(self._fftw_kwargs)
         return super().__repr__()
 
-    next_fast_len = staticmethod(pyfftw.next_fast_len)
+    @staticmethod
+    def next_fast_len(n):
+        """Smallest composite of primes between 2 and 13 which is >= n.
+
+        Defers to `pyfftw.next_fast_len`.  The primes 11 and 13 can
+        occur at most once.
+        """
+        return pyfftw.next_fast_len(n)

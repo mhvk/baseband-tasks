@@ -1,6 +1,11 @@
 # Licensed under the GPLv3 - see LICENSE
 import numpy as np
 
+try:
+    from numpy._core import defchararray
+except ImportError:
+    from numpy.core import defchararray
+
 from .base import TaskBase, simplify_shape
 
 
@@ -43,7 +48,7 @@ class Square(TaskBase):
         if not hasattr(ih, 'polarization'):
             return None
 
-        return np.core.defchararray.add(ih.polarization, ih.polarization)
+        return defchararray.add(ih.polarization, ih.polarization)
 
     def _repr_item(self, key, default, value=None):
         if key == 'polarization':
@@ -115,8 +120,8 @@ class Power(TaskBase):
 
         # Given check_shape, ih.polarization is guaranteed to have 2 distinct
         # items, which are guaranteed to be along first axis.
-        return np.core.defchararray.add(ih.polarization[[0, 1, 0, 1]],
-                                        ih.polarization[[0, 1, 1, 0]])
+        return defchararray.add(ih.polarization[[0, 1, 0, 1]],
+                                ih.polarization[[0, 1, 1, 0]])
 
     def _repr_item(self, key, default, value=None):
         if (key == 'polarization' and hasattr(self.ih, 'polarization')

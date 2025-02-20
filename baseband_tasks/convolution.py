@@ -10,28 +10,17 @@ from .fourier import fft_maker
 __all__ = ['ConvolveSamples', 'Convolve']
 
 
-class ConvolveBase(PaddedTaskBase):
-    """Base class for convolutions.
+def adjust_response_dims(response, ih):
+    if response.ndim == 1 and ih.ndim > 1:
+        response = response.reshape(response.shape[:1]
+                                    + (1,) * (ih.ndim - 1))
+    else:
+        check_broadcast_to(response, response.shape[:1] + ih.sample_shape)
 
-    Parameters as for `~baseband_tasks.convolution.ConvolveSamples` and
-    `~baseband_tasks.convolution.Convolve` except allowing to pass through
-    arguments to `~baseband_tasks.base.PaddedTaskBase`.
-    """
-    def __init__(self, ih, response, *, offset=0, samples_per_frame=None,
-                 **kwargs):
-        if response.ndim == 1 and ih.ndim > 1:
-            response = response.reshape(response.shape[:1]
-                                        + (1,) * (ih.ndim - 1))
-        else:
-            check_broadcast_to(response, response.shape[:1] + ih.sample_shape)
-
-        pad = response.shape[0] - 1
-        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
-                         samples_per_frame=samples_per_frame, **kwargs)
-        self._response = response
+    return response
 
 
-class ConvolveSamples(ConvolveBase):
+class ConvolveSamples(PaddedTaskBase):
     """Convolve a time stream with a response, in the time domain.
 
     Parameters
@@ -56,8 +45,9 @@ class ConvolveSamples(ConvolveBase):
     Convolve : convolution in the Fourier domain (usually faster)
     """
     def __init__(self, ih, response, *, offset=0, samples_per_frame=None):
-        # Just get rid of **kwargs in ConvolveBase.
-        super().__init__(ih, response, offset=offset,
+        self._response = adjust_response_dims(response, ih)
+        pad = self._response.shape[0] - 1
+        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
                          samples_per_frame=samples_per_frame)
 
     def task(self, data):
@@ -72,7 +62,7 @@ class ConvolveSamples(ConvolveBase):
         return result
 
 
-class Convolve(ConvolveBase):
+class Convolve(PaddedTaskBase):
     """Convolve a time stream with a response, in the Fourier domain.
 
     The convolution is done via multiplication in the Fourier domain, which
@@ -102,8 +92,10 @@ class Convolve(ConvolveBase):
     """
 
     def __init__(self, ih, response, *, offset=0, samples_per_frame=None):
+        self._response = adjust_response_dims(response, ih)
+        pad = self._response.shape[0] - 1
         FFT = fft_maker.get()
-        super().__init__(ih, response=response, offset=offset,
+        super().__init__(ih, pad_start=pad-offset, pad_end=offset,
                          samples_per_frame=samples_per_frame,
                          next_fast_len=FFT.next_fast_len)
         # Initialize FFTs for fine channelization and the inverse.
