@@ -31,7 +31,12 @@ For instance::
   >>> h5r = hdf5.open('squared.hdf5', 'r')
   >>> recovered = h5r.read()
   >>> (squared == recovered).all()
-  True
+  np.True_
+
+.. testcleanup::
+
+  >>> import pathlib
+  >>> pathlib.Path.unlink('squared.hdf5')
 
 It is also possible to stored data encoding using the standard
 ``vdif`` schemes by passing in ``bps`` and ``complex_data``.

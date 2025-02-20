@@ -9,6 +9,10 @@ import numpy as np
 from astropy import units as u
 from astropy.utils.metadata import MetaData
 
+try:
+    from astropy.utils.compat import COPY_IF_NEEDED
+except ImportError:
+    COPY_IF_NEEDED = False  # older astropy requires numpy < 2 anyway.
 
 __all__ = ['Base', 'BaseTaskBase', 'TaskBase', 'PaddedTaskBase',
            'SetAttribute', 'Task']
@@ -467,11 +471,11 @@ class Base:
 
         return GetSlice(self, item)
 
-    def __array__(self, dtype=None):
+    def __array__(self, dtype=None, copy=COPY_IF_NEEDED):
         old_offset = self.tell()
         try:
             self.seek(0)
-            return np.array(self.read(), dtype=dtype, copy=False)
+            return np.array(self.read(), dtype=dtype, copy=copy)
         finally:
             self.seek(old_offset)
 
