@@ -110,6 +110,7 @@ filterwarnings = [
   # vvv general numpy warnings
   "ignore:numpy.ufunc size changed:RuntimeWarning",
   "ignore:numpy.ndarray size changed:RuntimeWarning",
+  "ignore:numpy.dtype size changed:RuntimeWarning",
 ]
 
 [tool.coverage.run]
