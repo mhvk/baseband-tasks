@@ -1,7 +1,148 @@
+[project]
+name = "baseband-tasks"
+description = "A package for radio baseband data reduction and analysis"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+requires-python = ">=3.10"
+license = { text = "GNU GPL v3+" }
+authors = [
+  { name = "Marten H. van Kerkwijk", email = "mhvk@astro.utoronto.ca"},
+  { name = "Chenchong Zhu" },
+]
+dynamic = ["version"]
+dependencies = [
+    "baseband",
+]
+
+[project.optional-dependencies]
+io = ["h5py"]
+all = [
+  "baseband_tasks[io]",
+  "pyfftw",
+  "pint-pulsar",
+]
+test = [
+  "pytest-astropy-header",
+  "pytest-doctestplus",
+]
+cov = [
+  "coverage",
+  "pytest-cov",
+]
+docs = [
+  "baseband_tasks[all]",
+  "sphinx-astropy",
+]
+
+[project.urls]
+repository = "https://github.com/mhvk/baseband-tasks"
+documentation = "https://baseband.readthedocs.io/projects/baseband-tasks"
+
+[project.entry-points."baseband.tasks"]
+base = "baseband_tasks.base"
+SetAttribute = "baseband_tasks.base:SetAttribute"
+Task = "baseband_tasks.base:Task"
+channelize = "baseband_tasks.channelize:__all__"
+combining = "baseband_tasks.combining:__all__"
+conversion = "baseband_tasks.conversion:__all__"
+convolution = "baseband_tasks.convolution:__all__"
+dispersion = "baseband_tasks.dispersion:__all__"
+functions = "baseband_tasks.functions:__all__"
+integration = "baseband_tasks.integration:__all__"
+pfb = "baseband_tasks.pfb:__all__"
+sampling = "baseband_tasks.sampling:__all__"
+shaping = "baseband_tasks.shaping:__all__"
+fourier = "baseband_tasks.fourier"
+dm = "baseband_tasks.dm"
+phases = "baseband_tasks.phases"
+generators = "baseband_tasks.generators"
+
+[project.entry-points."baseband.io"]
+hdf5 = "baseband_tasks.io.hdf5"
+
 [build-system]
-
-requires = ["setuptools",
-            "setuptools_scm",
-            "wheel"]
-
+requires = [
+  "setuptools",
+  "setuptools_scm>=8.0.0",
+]
 build-backend = 'setuptools.build_meta'
+
+[tool.setuptools]
+include-package-data = true
+license-files = ["LICENSE", "licenses/*.rst"]
+
+[tool.setuptools.packages.find]
+include = ["baseband_tasks*"]
+
+[tool.setuptools.package-data]
+"*" = ["data/*"]
+
+[tool.setuptools_scm]
+write_to = "baseband_tasks/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = [
+  "baseband_tasks",
+  "docs",
+]
+astropy_header = true
+astropy_header_packages = [
+  "baseband",
+  "astropy",
+  "numpy",
+  "pyfftw",
+  "pint",
+  "h5py",
+  "yaml",
+]
+doctest_plus = "enabled"
+doctest_subpackage_requires = [
+  "docs/io/hdf5/* = h5py;numpy>=2",
+]
+text_file_format = "rst"
+# Ignore import errors ensures we can run tests also without pyfftw present
+addopts = "--color=yes --doctest-rst --doctest-ignore-import-errors"
+filterwarnings = [
+  "error",
+  "ignore:::pytest_doctestplus",
+  # vvv warnings from PINT that we cannot help.
+  "ignore:::pint",
+  "ignore:elementwise == comparison failed and returning scalar instead:FutureWarning",
+  # vvv general numpy warnings
+  "ignore:numpy.ufunc size changed:RuntimeWarning",
+  "ignore:numpy.ndarray size changed:RuntimeWarning",
+]
+
+[tool.coverage.run]
+omit = [
+  "baseband_tasks/__init*",
+  "baseband_tasks/*setup_package*",
+  "baseband_tasks/tests/*",
+  "baseband_tasks/*/tests/*",
+  "baseband_tasks/_version*",
+  "*/baseband_tasks/__init*",
+  "*/baseband_tasks/*setup_package*",
+  "*/baseband_tasks/tests/*",
+  "*/baseband_tasks/*/tests/*",
+  "*/baseband_tasks/_version*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  # Have to re-enable the standard pragma
+  "pragma: no cover",
+  # Don't complain about packages we have installed
+  "except ImportError",
+  # Don't complain if tests don't hit assertions
+  "raise AssertionError",
+  "raise NotImplementedError",
+  # Don't complain about script hooks
+  "def main(.*):",
+  # Ignore branches that don't pertain to this version of Python
+  "pragma: py{ignore_python_version}",
+  # Don't complain about IPython completion helper
+  "def _ipython_key_completions_",
+  # typing.TYPE_CHECKING is False at runtime
+  "if TYPE_CHECKING:",
+  # Ignore typing overloads
+  "@overload",
+]
