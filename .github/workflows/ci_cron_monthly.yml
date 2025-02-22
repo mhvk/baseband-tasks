@@ -34,7 +34,7 @@ jobs:
     # we include them just in the monthly cron. These also serve as a test
     # of using system libraries and using pytest directly.
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: Python 3.12
     # Don't run on forks of the repository.
     if: (github.repository == 'mhvk/baseband-tasks' && (github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'Extra CI')))
@@ -77,7 +77,7 @@ jobs:
 
   test_with_apt:
     name: Test using apt
-    runs-on: ubuntu-latest  # once beyond 24.04 can remove no:doctest_plus below.
+    runs-on: ubuntu-24.04-arm  # once beyond 24.04 can remove no:doctest_plus below.
     if: (github.repository == 'mhvk/baseband-tasks' && (github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'Extra CI')))
     env:
       # 2025-02-21: pyfftw seems broken; maybe try again with more recent ubuntu.
