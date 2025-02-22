@@ -27,39 +27,53 @@
 
 import os
 import sys
-import datetime
+import tomllib
+import warnings
+from datetime import UTC, datetime
 from importlib import import_module
+from pathlib import Path
 
-import baseband_tasks
-
-try:
+with warnings.catch_warnings():
+    # Remove warning about matplotlib - we don't use it.
+    warnings.filterwarnings("ignore", "matplotlib")
     from sphinx_astropy.conf.v1 import *  # noqa
-except ImportError:
-    print('ERROR: the documentation requires the sphinx-astropy package to be installed')
-    sys.exit(1)
 
-# Get configuration information from setup.cfg
-from configparser import ConfigParser
-conf = ConfigParser()
 
-conf.read([os.path.join(os.path.dirname(__file__), '..', 'setup.cfg')])
-setup_cfg = dict(conf.items('metadata'))
+# -- Get user configuration from pyproject.toml -------------------------------
+with (Path(__file__).parents[1] / "pyproject.toml").open("rb") as f:
+    pyproject = tomllib.load(f)
 
 # -- General configuration ----------------------------------------------------
-
-# By default, highlight as Python 3.
-highlight_language = 'python3'
-
-# If your documentation needs a minimal Sphinx version, state it here.
-#needs_sphinx = '1.2'
-
-# To perform a Sphinx version check that needs to be more specific than
-# major.minor, call `check_sphinx_version("x.y.z")` here.
-# check_sphinx_version("1.2.1")
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns.append('_templates')
+
+# add any custom intersphinx mappings
+intersphinx_mapping |= {
+    'pyfftw': ('https://pyfftw.readthedocs.io/en/stable/', None),
+    'baseband': ('https://baseband.readthedocs.io/en/stable/', None),
+    'pint': ('https://nanograv-pint.readthedocs.io/en/stable/', None),
+}
+
+# -- Project information ------------------------------------------------------
+
+# This does not *have* to match the package name, but typically does
+project = pyproject["project"]["name"].replace("-", "_")
+author = " & ".join(auth["name"] for auth in pyproject["project"]["authors"])
+copyright = f"{datetime.now(tz=UTC).year}, {author}"
+
+# The version info for the project you're documenting, acts as replacement for
+# |version| and |release|, also used in various other places throughout the
+# built documents.
+
+import_module(project)
+package = sys.modules[project]
+
+# The short X.Y version.
+version = package.__version__.split('-', 1)[0]
+# The full version, including alpha/beta/rc tags.
+release = package.__version__
 
 # This is added to the end of RST files - a good place to put substitutions to
 # be used globally.
@@ -71,40 +85,10 @@ rst_epilog += """
 .. |minimum_python_version| replace:: {0.__minimum_python_version__}
 .. |minimum_astropy_version| replace:: {0.__minimum_astropy_version__}
 .. |minimum_baseband_version| replace:: {0.__minimum_baseband_version__}
-""".format(baseband_tasks)
-
-# -- Intersphinx linkage ------------------------------------------------------
-
-intersphinx_mapping.update(
-    {'pyfftw': ('https://pyfftw.readthedocs.io/en/stable/', None),
-     'baseband': ('https://baseband.readthedocs.io/en/stable/', None),
-     'pint': ('https://nanograv-pint.readthedocs.io/en/stable/', None)})
-
-# -- Project information ------------------------------------------------------
-
-# This does not *have* to match the package name, but typically does
-project = setup_cfg['name']
-author = setup_cfg['author']
-copyright = '{0}, {1}'.format(
-    datetime.datetime.now().year, setup_cfg['author'])
-provides = setup_cfg.get('provides', project)
-
-# The version info for the project you're documenting, acts as replacement for
-# |version| and |release|, also used in various other places throughout the
-# built documents.
-
-import_module(provides)
-package = sys.modules[provides]
-
-# The short X.Y version.
-version = package.__version__.split('-', 1)[0]
-# The full version, including alpha/beta/rc tags.
-release = package.__version__
-
+""".format(package)
 
 tasks = import_module('baseband.tasks')
 dir(tasks)  # update globals to include all entry points.
-
 
 # -- Options for HTML output --------------------------------------------------
 
@@ -116,13 +100,6 @@ dir(tasks)  # update globals to include all entry points.
 # global configuration are listed below, commented out.
 
 
-# Please update these texts to match the name of your package.
-html_theme_options = {
-    'logotext1': 'base',  # white,  semi-bold
-    'logotext2': 'band',  # orange, light
-    'logotext3': '-tasks'   # white,  light
-    }
-
 # Add any paths that contain custom themes here, relative to this directory.
 # To use a different custom theme, add the directory containing the theme.
 #html_theme_path = []
@@ -131,6 +108,14 @@ html_theme_options = {
 # a list of builtin themes. To override the custom theme, set this to the
 # name of a builtin theme or the name of a custom theme in html_theme_path.
 #html_theme = None
+
+
+html_theme_options = {
+    'logotext1': 'base',  # white,  semi-bold
+    'logotext2': 'band',  # orange, light
+    'logotext3': '-tasks'   # white,  light
+    }
+
 
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
@@ -174,15 +159,13 @@ man_pages = [('index', project.lower(), project + u' Documentation',
 
 # -- Options for the edit_on_github extension ---------------------------------
 
-if eval(setup_cfg.get('edit_on_github')):
-    extensions += ['sphinx_astropy.ext.edit_on_github']
-    edit_on_github_project = setup_cfg['github_project']
-    edit_on_github_branch = "master"
-    edit_on_github_source_root = ""
-    edit_on_github_doc_root = "docs"
+extensions += ['sphinx_astropy.ext.edit_on_github']
+edit_on_github_project = pyproject["project"]["urls"]["repository"].replace("https://github.com/", "")
+edit_on_github_source_root = ""
+edit_on_github_doc_root = "docs"
 
 # -- Resolving issue number to links in changelog -----------------------------
-github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_project'])
+github_issues_url = pyproject["project"]["urls"]["repository"] + "/issues/"
 
 # -- Turn on nitpicky mode for sphinx (to warn about references not found) ----
 #
