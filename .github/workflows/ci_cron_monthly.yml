@@ -68,7 +68,7 @@ jobs:
           install: |
             apt-get update -q -y
             apt-get install -q -y --no-install-recommends ${{ env.apt_packages }}
-            python3 -m pip install --user ${{ env.pip_packages }}
+            python3 -m pip install --user --break-system-packages ${{ env.pip_packages }}
           run: |
             uname -a
             echo "LONG_BIT="$(getconf LONG_BIT)
@@ -77,12 +77,12 @@ jobs:
 
   test_with_apt:
     name: Test using apt
-    runs-on: ubuntu-22.04  # 24.04 does not work (bad python for doctestplus)
+    runs-on: ubuntu-latest  # once beyond 24.04 can remove no:doctest_plus below.
     if: (github.repository == 'mhvk/baseband-tasks' && (github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'Extra CI')))
     env:
       # 2025-02-21: pyfftw seems broken; maybe try again with more recent ubuntu.
       apt_packages: python3-astropy python3-h5py python3-pip
-      pip_packages: baseband
+      pip_packages: baseband==4.1.*
 
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -98,7 +98,7 @@ jobs:
     - name: Run tests
       run: |
         python3 setup.py egg_info
-        python3 -m pytest
+        python3 -m pytest -p no:doctest_plus
 
   test_other_os:
     name: Test on ${{ matrix.os }}
