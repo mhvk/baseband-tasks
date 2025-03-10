@@ -1,4 +1,4 @@
-0.4 (unreleased)
+0.4 (2025-03-10)
 ================
 
 - Numpy >= 2.0 is now supported.
