@@ -1,3 +1,7 @@
+0.5 (unreleased)
+================
+
+
 0.4 (2025-03-10)
 ================
 
@@ -27,9 +31,6 @@ Bug Fixes
 ---------
 
 - Ensure subclasses of ``HDFPayload`` can be used directly with arbitrary headers. [#245]
-
-Other Changes and Additions
----------------------------
 
 
 0.3 (2021-12-12)
