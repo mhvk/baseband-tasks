@@ -1,6 +1,12 @@
 0.5 (unreleased)
 ================
 
+0.4.1 (unreleased)
+==================
+
+- Ensure that unknown attributes raise a standard ``AttributeError``
+  (rather than ``'super' object has no attribute '__getattr__'``). [#260]
+
 
 0.4 (2025-03-10)
 ================

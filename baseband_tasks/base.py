@@ -166,7 +166,8 @@ class Base:
             else:
                 return value
         else:
-            return super().__getattr__(attr)
+            # Ensure we return standard AttributeError.
+            return self.__getattribute__(attr)
 
     def __dir__(self):
         return sorted(META_ATTRIBUTES.union(super().__dir__()))
