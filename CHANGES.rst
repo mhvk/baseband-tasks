@@ -1,6 +1,11 @@
 0.5 (unreleased)
 ================
 
+- Custom fourier makers should now always inherit from ``FFTMakerBase`` for
+  automatic registration. The barely documented mode for using the
+  ``FFTMakerMeta`` metaclass has been removed; if absolutely necessary, one
+  can register a custom class directly. [#261]
+
 0.4.1 (unreleased)
 ==================
 
