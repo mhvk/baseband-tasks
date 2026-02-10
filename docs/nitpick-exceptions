@@ -7,3 +7,5 @@ py:class v, remove specified key and return the corresponding value.
 py:class an object providing a view on D's values
 py:class None.  Update D from dict/iterable E and F.
 py:class (k, v), remove and return some (key, value) pair as a
+# numpy inherited docstrings(?)
+py:class numpy._typing.ArrayLike
