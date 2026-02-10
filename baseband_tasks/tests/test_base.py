@@ -90,8 +90,11 @@ class TestSetAttribute(UseVDIFSample):
         data = sa.read()
         assert np.all(data == expected)
         # Check we didn't magically define polarization.
-        with pytest.raises(AttributeError):
+        with pytest.raises(AttributeError, match="polarization not set."):
             sa.polarization
+        # Might as well check for misspelled atttributes
+        with pytest.raises(AttributeError, match="no attribute 'freq'"):
+            sa.freq
         sa.close()
 
     def test_set_start_time(self):
